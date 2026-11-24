@@ -123,8 +123,8 @@ class GradeEffect extends Effect {
       }`, {
       uniforms: new Map([
         ['uExposure', new THREE.Uniform(opts.exposure ?? 1.15)],
-        ['uContrast', new THREE.Uniform(opts.contrast ?? 0.16)],
-        ['uSat', new THREE.Uniform(opts.sat ?? 1.12)],
+        ['uContrast', new THREE.Uniform(opts.contrast ?? 0.2)],
+        ['uSat', new THREE.Uniform(opts.sat ?? 1.18)],
         ['uVig', new THREE.Uniform(opts.vignette ?? 0.2)],
       ]),
     });

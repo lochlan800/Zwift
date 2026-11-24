@@ -204,9 +204,7 @@ const paintFore = (x, y) => (y > L_FORE - 0.08 ? K.glove : null);
 function buildRiderGeo() {
   // torso space: origin at hip, +y up the torso, +z forward
   const pelvis = ell([0, -0.03, 0], [0.128, 0.078, 0.13], 'bibs', paintPelvis);
-  const torso = revolve(0.55, (u) => 0.112 + 0.012 * Math.sin(u * Math.PI * 0.9), 18);
-  xf(torso, [0, 0, 0], IDQ, [1.2, 1, 0.92]);
-  finish(torso, 'jersey', paintTorso);
+  const torso = finish(xf(revolve(0.55, (u) => 0.112 + 0.012 * Math.sin(u * Math.PI * 0.9), 18), [0, 0, 0], IDQ, [1.2, 1, 0.92]), 'jersey', paintTorso);
   const shL = ell([-0.158, SHOULDER, 0], [0.05, 0.05, 0.05], 'jersey');
   const shR = ell([0.158, SHOULDER, 0], [0.05, 0.05, 0.05], 'jersey');
   const neck = finish(xf(revolve(0.22, () => 0.048, 12), [0, 0.48, 0]), 'skin');

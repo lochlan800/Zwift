@@ -102,38 +102,43 @@ void main() {
   // sun disc (HDR, drives bloom + light shafts) with a soft limb
   col += vec3(1.0, 0.93, 0.80) * 45.0 * smoothstep(0.99972, 0.99986, mu) * uSunDisc;
 
-  // ---- cumulus layer: noise on a plane, lit from the sun side, blue-grey bellies
+  // ---- cumulus layer: noise on a plane, lit from the sun side/top, blue-grey bellies, hard-ish bold edges
   if (d.y > 0.0) {
     float y = d.y;
     vec2 p = d.xz / (y * 0.9 + 0.24);
-    p = p * 0.62 + uWind * uTime;
-    // billow warp
-    p += 0.35 * vec2(vnoise(p * 1.6), vnoise(p * 1.6 + 7.3)) - 0.17;
+    p = p * 0.46 + uWind * uTime;
+    p += 0.45 * vec2(vnoise(p * 1.4), vnoise(p * 1.4 + 7.3)) - 0.22;   // billow warp
     float n = fbm(p);
     float th = 1.0 - uCover;
-    float dens = smoothstep(th, th + 0.15, n);
-    float fade = smoothstep(0.015, 0.20, y);        // dissolve into horizon haze
+    float dens = smoothstep(th, th + 0.07, n);
+    float fade = smoothstep(0.008, 0.10, y);
     float a = dens * fade;
     if (a > 0.003) {
-      // light: compare density a step toward the sun with density here -> shadowed bellies
-      vec2 sdir = normalize(uSun.xz + 1e-4) ;
+      vec2 sdir = normalize(uSun.xz + 1e-4);
+      vec2 up = -normalize(d.xz + 1e-4);                 // toward zenith in plane space
       float lit;
 #ifdef CLOUD_LIT
-      float n2 = fbm(p + sdir * 0.07);
-      lit = clamp(0.62 + (n - n2) * 5.5, 0.0, 1.0);
+      float n2 = fbm(p + normalize(sdir + up * 0.9) * 0.10);
+      lit = clamp(0.50 + (n - n2) * 9.0, 0.0, 1.0);
 #else
-      lit = clamp(0.35 + 0.65 * smoothstep(th, th + 0.5, n), 0.0, 1.0);
+      lit = clamp(0.30 + 0.70 * smoothstep(th, th + 0.30, n), 0.0, 1.0);
 #endif
-      float core = smoothstep(th + 0.05, th + 0.35, n);
-      vec3 shade = vec3(0.60, 0.70, 0.90);
-      vec3 sunl = vec3(1.28, 1.20, 1.08);
-      vec3 cc = mix(shade, sunl, lit * (0.55 + 0.45 * (1.0 - core * 0.5)));
-      // silver rim toward the sun
-      float rim = pow(max(mu, 0.0), 6.0) * (1.0 - core) * 0.9;
-      cc += vec3(1.0, 0.9, 0.7) * rim;
-      cc = mix(cc, mix(uHorizon, cc, 0.35), (1.0 - smoothstep(0.0, 0.35, y)) * 0.6); // aerial haze on distant clouds
-      col = mix(col, cc * uScale, clamp(a * 1.15, 0.0, 1.0));
+      float core = smoothstep(th + 0.03, th + 0.30, n);
+      vec3 shade = vec3(0.46, 0.58, 0.82);
+      vec3 sunl = vec3(1.55, 1.46, 1.30);
+      vec3 cc = mix(shade, sunl, lit);
+      cc = mix(cc, shade * 0.9 + 0.1, core * 0.25 * (1.0 - lit));       // thick interiors a touch darker
+      cc += vec3(1.0, 0.85, 0.6) * pow(max(mu, 0.0), 8.0) * (1.0 - core) * 0.8; // silver rim toward sun
+      cc = mix(cc, uHorizon * 1.15, (1.0 - smoothstep(0.0, 0.22, y)) * 0.45);   // distant clouds fade to haze
+      col = mix(col, cc * uScale, clamp(a, 0.0, 1.0));
     }
+#ifdef CLOUD_LIT
+    // high streaky cirrus: stretched along the wind, thin, only in the upper sky
+    vec2 q = d.xz / (y + 0.35);
+    q = vec2(q.x * 0.55 + q.y * 0.20, q.y * 2.6 - q.x * 0.25) + uWind * uTime * 1.6;
+    float ci = smoothstep(0.52, 0.85, vnoise(q * 1.1 + 3.0) * 0.6 + vnoise(q * 3.1) * 0.4);
+    col = mix(col, vec3(1.35, 1.35, 1.40) * uScale, ci * 0.42 * smoothstep(0.14, 0.45, y) * (1.0 - dens * fade));
+#endif
   }
 #endif
   gl_FragColor = vec4(min(col, vec3(60.0)), 1.0);
@@ -150,10 +155,10 @@ function skyMaterial({ lut, cloudOct, cloudLit }) {
       uSunDisc: { value: 1 },
       uGround: { value: new THREE.Color(0.06, 0.07, 0.045) },
       uDesat: { value: 0 },
-      uZenith: { value: new THREE.Color(0.08, 0.25, 0.76) },
-      uHorizon: { value: new THREE.Color(0.42, 0.66, 1.0) },
+      uZenith: { value: new THREE.Color(0.03, 0.17, 0.66) },
+      uHorizon: { value: new THREE.Color(0.36, 0.62, 0.96) },
       uWind: { value: new THREE.Vector2(0.004, 0.0012) },
-      uCover: { value: 0.55 },
+      uCover: { value: 0.50 },
     },
     vertexShader: SKY_VS, fragmentShader: SKY_FS,
     side: lut ? THREE.FrontSide : THREE.BackSide,
@@ -219,7 +224,7 @@ export function createSky(renderer) {
     }
     const a = new THREE.Color(r / w, g / w, b / w);
     const l = a.r * 0.2126 + a.g * 0.7152 + a.b * 0.0722;
-    a.lerp(new THREE.Color(l, l, l), 0.25).lerp(new THREE.Color(0.30, 0.40, 0.22), 0.12).multiplyScalar(1.5);
+    a.lerp(new THREE.Color(l, l, l), 0.25).lerp(new THREE.Color(0.30, 0.40, 0.22), 0.12).multiplyScalar(1.9);
     U.uSkyAmb.value.copy(a);
   } catch (e) { /* not fatal */ }
 
@@ -227,7 +232,7 @@ export function createSky(renderer) {
   // faces pick up blue from above and warm green from below
   const pmrem = new THREE.PMREMGenerator(renderer);
   const envLut = lutRT.clone();
-  lu.uDesat.value = 0.30; lu.uGround.value.setRGB(0.24, 0.27, 0.15); lu.uScale.value = 2.3;
+  lu.uDesat.value = 0.30; lu.uGround.value.setRGB(0.24, 0.27, 0.15); lu.uScale.value = 2.8;
   renderer.setRenderTarget(envLut); renderer.render(sc, cam); renderer.setRenderTarget(null);
   const envRT = pmrem.fromEquirectangular(envLut.texture);
   pmrem.dispose();

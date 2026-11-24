@@ -22,12 +22,12 @@ const BAKE_ELEV = 12 * Math.PI / 180;
 // ------------------------------------------------------------------ species table
 // colours are linear multipliers (vertex colours)
 const SPECIES = [
-  /* 0 oak      */ { cell: 0, leaf: [1.00, 1.00, 0.84], bark: [0.30, 0.23, 0.17], birch: 0, cy: 0.60, ry: 0.36, trunkTop: 0.42, trunkR: 0.050, limbs: 5, spread: 0.72, s0: 0.26, s1: 0.40 },
-  /* 1 sycamore */ { cell: 1, leaf: [0.86, 1.02, 0.86], bark: [0.34, 0.30, 0.26], birch: 0, cy: 0.62, ry: 0.35, trunkTop: 0.44, trunkR: 0.042, limbs: 4, spread: 0.66, s0: 0.25, s1: 0.38 },
-  /* 2 ash      */ { cell: 2, leaf: [1.08, 1.12, 0.80], bark: [0.34, 0.31, 0.27], birch: 0, cy: 0.64, ry: 0.38, trunkTop: 0.44, trunkR: 0.040, limbs: 5, spread: 0.62, s0: 0.24, s1: 0.37 },
-  /* 3 birch    */ { cell: 2, leaf: [1.18, 1.18, 0.78], bark: [1.00, 1.00, 0.96], birch: 1, cy: 0.64, ry: 0.36, trunkTop: 0.50, trunkR: 0.030, limbs: 4, spread: 0.52, s0: 0.22, s1: 0.34 },
-  /* 4 beech    */ { cell: 1, leaf: [0.94, 0.98, 0.78], bark: [0.52, 0.50, 0.47], birch: 0, cy: 0.58, ry: 0.38, trunkTop: 0.36, trunkR: 0.052, limbs: 5, spread: 0.74, s0: 0.27, s1: 0.42 },
-  /* 5 conifer  */ { cell: 3, leaf: [0.66, 0.86, 0.74], bark: [0.30, 0.20, 0.14], birch: 0, cy: 0.5, ry: 0.5, trunkTop: 0.95, trunkR: 0.036, limbs: 0, spread: 0, s0: 0.3, s1: 0.4 },
+  /* 0 oak      */ { cell: 0, leaf: [1.00, 1.00, 0.84], bark: [0.30, 0.23, 0.17], birch: 0, cy: 0.60, ry: 0.36, trunkTop: 0.42, trunkR: 0.050, lobes: 6, s0: 0.20, s1: 0.34 },
+  /* 1 sycamore */ { cell: 1, leaf: [0.86, 1.02, 0.86], bark: [0.34, 0.30, 0.26], birch: 0, cy: 0.62, ry: 0.35, trunkTop: 0.44, trunkR: 0.042, lobes: 5, s0: 0.19, s1: 0.33 },
+  /* 2 ash      */ { cell: 2, leaf: [1.08, 1.12, 0.80], bark: [0.34, 0.31, 0.27], birch: 0, cy: 0.64, ry: 0.38, trunkTop: 0.44, trunkR: 0.040, lobes: 5, s0: 0.18, s1: 0.32 },
+  /* 3 birch    */ { cell: 2, leaf: [1.18, 1.18, 0.78], bark: [1.00, 1.00, 0.96], birch: 1, cy: 0.64, ry: 0.36, trunkTop: 0.50, trunkR: 0.030, lobes: 4, s0: 0.17, s1: 0.30 },
+  /* 4 beech    */ { cell: 1, leaf: [0.94, 0.98, 0.78], bark: [0.52, 0.50, 0.47], birch: 0, cy: 0.58, ry: 0.38, trunkTop: 0.36, trunkR: 0.052, lobes: 6, s0: 0.20, s1: 0.35 },
+  /* 5 conifer  */ { cell: 3, leaf: [0.66, 0.86, 0.74], bark: [0.30, 0.20, 0.14], birch: 0, cy: 0.5, ry: 0.5, trunkTop: 0.95, trunkR: 0.036, lobes: 0, s0: 0.3, s1: 0.4 },
 ];
 
 // ------------------------------------------------------------------ atlas painter
@@ -69,12 +69,13 @@ function leafCell(g, ox, oy, rnd, o) {
   // underlayer
   for (let i = 0; i < leaves.length; i += 2) {
     const L = leaves[i];
-    drawLeaf({ ...L, sz: L.sz * 1.1, x: L.x * 0.9, y: L.y * 0.9 }, [o.hue[0] + 4, o.sat - 6, o.light - 14], 0);
+    drawLeaf({ ...L, sz: L.sz * 1.1, x: L.x * 0.9, y: L.y * 0.9 }, [o.hue[1] + 2, o.sat - 4, o.light[0] - 6], 0);
   }
   for (const L of leaves) {
-    const hue = o.hue[0] + (o.hue[1] - o.hue[0]) * L.r;
-    const l = o.light + (L.k - 0.5) * 17 + (L.r - 0.5) * 6;
-    drawLeaf(L, [hue, o.sat + (L.k - 0.4) * 10, l], L.k);
+    const k = Math.max(0, Math.min(1, L.k));
+    const hue = o.hue[1] - (o.hue[1] - o.hue[0]) * k + (L.r - 0.5) * 6;
+    const l = o.light[0] + (o.light[1] - o.light[0]) * k + (L.r - 0.5) * 5;
+    drawLeaf(L, [hue, o.sat + (k - 0.4) * 10, l], k);
   }
 }
 
@@ -109,9 +110,9 @@ function makeAtlas() {
   const g = cv.getContext('2d');
   const rnd = mulberry32(4242);
   // 0 oak (lobed), 1 broad (sycamore/beech), 2 small leaflets (ash/birch), 3 conifer sprays
-  leafCell(g, 0, 0, rnd, { n: 260, size: 27, aspect: 0.7, hue: [92, 114], sat: 50, light: 31, shape: 'oak', phase: 0.3, stroke: true, vein: false });
-  leafCell(g, CELL, 0, rnd, { n: 230, size: 34, aspect: 0.6, hue: [96, 118], sat: 48, light: 30, shape: 'ovate', phase: 1.1, stroke: true, vein: true });
-  leafCell(g, 0, CELL, rnd, { n: 520, size: 21, aspect: 0.55, hue: [88, 108], sat: 52, light: 33, shape: 'small', phase: 2.2, stroke: false, vein: false });
+  leafCell(g, 0, 0, rnd, { n: 260, size: 27, aspect: 0.7, hue: [84, 112], sat: 52, light: [21, 40], shape: 'oak', phase: 0.3, stroke: true, vein: false });
+  leafCell(g, CELL, 0, rnd, { n: 230, size: 34, aspect: 0.6, hue: [86, 114], sat: 50, light: [20, 38], shape: 'ovate', phase: 1.1, stroke: true, vein: true });
+  leafCell(g, 0, CELL, rnd, { n: 520, size: 21, aspect: 0.55, hue: [82, 110], sat: 54, light: [22, 41], shape: 'small', phase: 2.2, stroke: false, vein: false });
   needleCell(g, CELL, CELL, rnd);
   // bark strip
   g.fillStyle = '#cfcac2'; g.fillRect(0, BARK_Y, 512, BARK_H);
@@ -154,113 +155,109 @@ function cardAxes(nc, rnd) {
 function buildDeciduous(sp, lod, tier) {
   const S = SPECIES[sp];
   const rnd = mulberry32(1000 + sp * 77 + lod * 13);
-  const segs = [], cards = [];
+  const segs = [], cards = [], blobs = [], skirts = [];
   const hi = lod === 0;
   const sides = hi ? 7 : 5;
   const { cy, ry, trunkTop: tT, trunkR: tr } = S;
-  const lean = (rnd() - 0.5) * 0.06, lean2 = (rnd() - 0.5) * 0.06;
-  // flared base + trunk
-  segs.push([0, -0.05, 0, 0, 0.06, 0, tr * 1.55, tr * 1.1, sides, 0]);
+  const lean = (rnd() - 0.5) * 0.05, lean2 = (rnd() - 0.5) * 0.05;
+  segs.push([0, -0.05, 0, 0, 0.06, 0, tr * 1.6, tr * 1.1, sides, 0]);
   segs.push([0, 0.06, 0, lean, tT * 0.5, lean2, tr * 1.1, tr * 0.85, sides, 0]);
   segs.push([lean, tT * 0.5, lean2, lean * 1.4, tT, lean2 * 1.4, tr * 0.85, tr * 0.6, sides, 0]);
   const top = V(lean * 1.4, tT, lean2 * 1.4);
-  const tips = [];
-  const nl = hi ? S.limbs : Math.max(3, S.limbs - 1);
+  // crown = several big overlapping lobes (ellipsoids) -> bumpy, clumpy, painterly silhouette
+  const nLobe = S.lobes;
+  const lobes = [];
+  lobes.push({ x: 0, y: cy + ry * 0.18, z: 0, rx: 0.62, ry: ry * 0.78, rz: 0.62 });
   const a0 = rnd() * 6.28;
-  for (let i = 0; i < nl; i++) {
-    const a = a0 + (i / nl) * Math.PI * 2 + (rnd() - 0.5) * 0.6;
-    const d = S.spread * (0.75 + rnd() * 0.35);
-    const sy = tT * (0.62 + rnd() * 0.36);
+  for (let i = 0; i < nLobe - 1; i++) {
+    const a = a0 + (i / (nLobe - 1)) * Math.PI * 2 + (rnd() - 0.5) * 0.5;
+    const d = 0.50 + rnd() * 0.12;
+    const lr = 0.50 + rnd() * 0.08;
+    const high = (i % 2 === 0) ? 0.1 : -0.18;
+    lobes.push({ x: Math.cos(a) * d, y: cy + ry * (high + (rnd() - 0.5) * 0.25), z: Math.sin(a) * d, rx: lr, ry: ry * (0.66 + rnd() * 0.12), rz: lr });
+  }
+  // main limbs run from the trunk top into each outer lobe
+  for (let i = 1; i < lobes.length; i++) {
+    const L = lobes[i];
+    const sy = tT * (0.7 + rnd() * 0.28);
     const st = V(top.x * (sy / tT), sy, top.z * (sy / tT));
-    const mid = V(Math.cos(a) * d * 0.45, sy + (cy - sy) * 0.45 + 0.02, Math.sin(a) * d * 0.45);
-    const tip = V(Math.cos(a) * d, cy + (rnd() - 0.15) * ry * 0.7, Math.sin(a) * d);
+    const mid = V(L.x * 0.5, sy + (L.y - sy) * 0.4, L.z * 0.5);
     const lr = tr * 0.5;
-    segs.push([st.x, st.y, st.z, mid.x, mid.y, mid.z, lr, lr * 0.72, hi ? 5 : 4, 0]);
-    segs.push([mid.x, mid.y, mid.z, tip.x, tip.y, tip.z, lr * 0.72, lr * 0.4, hi ? 5 : 4, 0]);
-    tips.push(tip);
-    if (hi) {
-      const nt = 2 + (rnd() < 0.5 ? 1 : 0);
-      for (let k = 0; k < nt; k++) {
-        const b = a + (k - (nt - 1) / 2) * 0.9 + (rnd() - 0.5) * 0.4;
-        const t2 = V(tip.x + Math.cos(b) * 0.2, tip.y + 0.04 + rnd() * ry * 0.45, tip.z + Math.sin(b) * 0.2);
-        segs.push([tip.x, tip.y, tip.z, t2.x, t2.y, t2.z, lr * 0.4, lr * 0.2, 4, 0]);
-        tips.push(t2);
-      }
-    }
+    segs.push([st.x, st.y, st.z, mid.x, mid.y, mid.z, lr, lr * 0.7, hi ? 5 : 4, 0]);
+    segs.push([mid.x, mid.y, mid.z, L.x * 0.9, L.y - L.ry * 0.25, L.z * 0.9, lr * 0.7, lr * 0.35, hi ? 5 : 4, 0]);
   }
-  // central leader tip
-  tips.push(V(top.x, cy + ry * 0.5, top.z));
-  segs.push([top.x, top.y, top.z, top.x, cy + ry * 0.5, top.z, tr * 0.5, tr * 0.2, 4, 0]);
-
-  const nCards = tier.cards;
+  segs.push([top.x, top.y, top.z, 0, cy + ry * 0.2, 0, tr * 0.55, tr * 0.2, 4, 0]);
+  // opaque dark cores so the crown never shows sky through it
+  for (const L of lobes) blobs.push({ c: V(L.x, L.y, L.z), rx: L.rx * 0.84, ry: L.ry * 0.84, rz: L.rz * 0.84, detail: hi ? 1 : 0 });
+  const inside = (p, k, skip) => { let n = 0; for (let i = 0; i < lobes.length; i++) { if (i === skip) continue; const L = lobes[i]; const q = ((p.x - L.x) / L.rx) ** 2 + ((p.y - L.y) / L.ry) ** 2 + ((p.z - L.z) / L.rz) ** 2; if (q < k * k) n++; } return n; };
   const size = hi ? S.s0 : S.s1;
-  const inCrown = (p) => { const q = ((p.x) / 1.0) ** 2 + ((p.y - cy) / ry) ** 2 + (p.z / 1.0) ** 2; return q; };
-  const addCard = (p, outward, jit) => {
-    // clamp inside crown ellipsoid (slightly generous)
-    const q = inCrown(p);
-    if (q > 1.08) { const k = 1.04 / Math.sqrt(q); p = V(p.x * k, cy + (p.y - cy) * k, p.z * k); }
-    const sph = norm3(V(p.x, (p.y - cy) / ry * 0.8, p.z));
-    const nc = norm3(V(sph.x + (rnd() - 0.5) * jit, sph.y + (rnd() - 0.5) * jit + 0.1, sph.z + (rnd() - 0.5) * jit));
-    const [ax, ay] = cardAxes(rnd() < outward ? nc : norm3(V(rnd() - 0.5, rnd() - 0.5, rnd() - 0.5)), rnd);
-    const depth = Math.min(1, Math.sqrt(Math.min(1.2, inCrown(p))));
-    const yn = (p.y - cy) / ry;
-    let ao = 0.30 + 0.72 * Math.pow(depth, 0.9);
-    ao *= 0.78 + 0.22 * Math.min(1, Math.max(0, (yn + 1) / 1.6));
-    cards.push({ c: p, ax, ay, s: size * (0.85 + rnd() * 0.3), ao: Math.min(1, ao), n: sph, hue: [0.92 + rnd() * 0.16, 0.94 + rnd() * 0.1, 0.9 + rnd() * 0.16] });
-  };
-  // clusters around branch tips (reads as branching), rest fills the outer shell
-  const perTip = hi ? 5 : 3;
-  let used = 0;
-  for (const t of tips) {
-    for (let k = 0; k < perTip && used < nCards * 0.55; k++, used++) {
-      const o = V((rnd() - 0.5) * 0.5, (rnd() - 0.4) * ry * 0.7, (rnd() - 0.5) * 0.5);
-      addCard(V(t.x + o.x, t.y + o.y, t.z + o.z), 0.8, 0.5);
+  const per = Math.round(tier.cards / nLobe);
+  for (let li = 0; li < lobes.length; li++) {
+    const L = lobes[li];
+    const nc = li === 0 ? Math.round(per * 0.7) : per;
+    for (let k = 0; k < nc; k++) {
+      let p = null, nrm = null;
+      for (let tries = 0; tries < 8; tries++) {
+        let d;
+        do { d = V(rnd() * 2 - 1, rnd() * 2 - 1, rnd() * 2 - 1); } while (d.x * d.x + d.y * d.y + d.z * d.z > 1 || d.x * d.x + d.y * d.y + d.z * d.z < 0.05);
+        d = norm3(d);
+        const f = 0.86 + rnd() * 0.22;
+        const q = V(L.x + d.x * L.rx * f, L.y + (d.y < 0 ? d.y * 0.75 : d.y) * L.ry * f, L.z + d.z * L.rz * f);
+        if (inside(q, 0.9, li) === 0 || tries === 7) { p = q; nrm = d; break; }
+      }
+      const cn = norm3(V(p.x, (p.y - cy) / ry * 0.8, p.z));
+      const sph = norm3(V(nrm.x * 0.55 + cn.x * 0.45, nrm.y * 0.55 + cn.y * 0.45 + 0.08, nrm.z * 0.55 + cn.z * 0.45));
+      const oc = rnd() < 0.8 ? sph : norm3(V(rnd() - 0.5, rnd() - 0.5, rnd() - 0.5));
+      const [ax, ay] = cardAxes(oc, rnd);
+      const depth = Math.min(1, Math.sqrt(p.x * p.x + ((p.y - cy) / ry) ** 2 * 0.7 + p.z * p.z));
+      const yn = (p.y - cy) / ry;
+      let ao = 0.18 + 0.82 * Math.pow(depth, 1.3);
+      ao *= 0.5 + 0.5 * Math.min(1, Math.max(0, (yn + 0.9) / 1.7));      // dark underside
+      ao *= Math.pow(0.7, inside(p, 1.0, li));                             // dark creases between lobes
+      ao *= 0.85 + 0.3 * Math.max(0, nrm.y);                               // sunlit lobe tops
+      cards.push({ c: p, ax, ay, s: size * (0.85 + rnd() * 0.3), ao: Math.min(1, ao), n: sph, hue: [0.94 + rnd() * 0.12, 0.95 + rnd() * 0.08, 0.92 + rnd() * 0.12] });
     }
   }
-  while (cards.length < nCards) {
-    let p;
-    do { p = V(rnd() * 2 - 1, rnd() * 2 - 1, rnd() * 2 - 1); } while (p.x * p.x + p.y * p.y + p.z * p.z > 1);
-    const l = Math.hypot(p.x, p.y, p.z) || 1;
-    const rr = 0.55 + 0.45 * Math.pow(rnd(), 0.45);
-    // flatter underside: lift points below the crown centre
-    const py = p.y / l * rr;
-    addCard(V(p.x / l * rr, cy + (py < 0 ? py * 0.8 : py) * ry, p.z / l * rr), 0.85, 0.45);
-  }
-  return { segs, cards, sp };
+  return { segs, cards, blobs, skirts, sp };
 }
 
 function buildConifer(sp, lod, tier) {
   const S = SPECIES[sp];
   const rnd = mulberry32(555 + lod * 31);
-  const segs = [], cards = [];
+  const segs = [], cards = [], blobs = [], skirts = [];
   const hi = lod === 0;
-  segs.push([0, -0.05, 0, 0, 0.1, 0, S.trunkR * 1.5, S.trunkR * 1.1, hi ? 7 : 5, 0]);
-  segs.push([0, 0.1, 0, 0.005, 0.97, 0, S.trunkR * 1.1, S.trunkR * 0.2, hi ? 7 : 5, 0]);
+  segs.push([0, -0.05, 0, 0, 0.12, 0, S.trunkR * 1.6, S.trunkR * 1.1, hi ? 7 : 5, 0]);
+  segs.push([0, 0.12, 0, 0.005, 0.97, 0, S.trunkR * 1.1, S.trunkR * 0.2, hi ? 7 : 5, 0]);
   const tiers = tier.tiers;
+  const y0 = 0.17;
   for (let t = 0; t < tiers; t++) {
     const f = t / (tiers - 1);
-    const y = 0.09 + f * 0.84;
-    const rad = Math.pow(1 - f, 0.85) * 0.92 + 0.07;
-    const n = Math.max(3, Math.round(tier.ring * (1 - f))) + 2;
+    const y = y0 + f * (0.93 - y0);
+    const rad = Math.pow(1 - f, 0.9) * 0.95 + 0.05;
+    const dy = 0.075 + 0.02 * (1 - f);
+    // opaque drooping skirt (dark core of the tier)
+    skirts.push({ y: y + dy * 0.5, h: dy * 1.5, rad: rad * 0.82, sides: hi ? 10 : 8 });
+    // drooping sprays hanging off the rim
+    const n = Math.max(4, Math.round(tier.ring * (1 - f))) + 3;
     for (let k = 0; k < n; k++) {
-      const a = (k / n) * Math.PI * 2 + rnd() * 0.8 + t * 0.6;
-      const rr = rad * (0.45 + rnd() * 0.15);
-      const p = V(Math.cos(a) * rr, y + (rnd() - 0.5) * 0.02, Math.sin(a) * rr);
-      const ax = norm3(V(Math.cos(a), -0.45, Math.sin(a)));
+      const a = (k / n) * Math.PI * 2 + rnd() * 0.7 + t * 0.9;
+      const rr = rad * (0.62 + rnd() * 0.14);
+      const p = V(Math.cos(a) * rr, y + (rnd() - 0.5) * 0.015, Math.sin(a) * rr);
+      const ax = norm3(V(Math.cos(a) * 0.9, -0.75, Math.sin(a) * 0.9));
       const ay = V(-Math.sin(a), 0, Math.cos(a));
-      const nn = norm3(V(p.x, 0.5 * (0.2 + rad), p.z));
-      const ao = 0.34 + 0.66 * Math.min(1, Math.pow(rr / (rad * 0.62 + 1e-3), 1.2)) * (0.8 + 0.2 * f);
-      cards.push({ c: p, ax, ay, s: (rad * 0.5 + 0.1) * (hi ? 1 : 1.2), ao: Math.min(1, ao), n: nn, hue: [0.9 + rnd() * 0.2, 0.95 + rnd() * 0.1, 0.9 + rnd() * 0.15], tipUp: true });
+      const nn = norm3(V(p.x, 0.45 * (0.25 + rad), p.z));
+      const ao = 0.28 + 0.72 * Math.min(1, Math.pow(rr / (rad * 0.72 + 1e-3), 1.4)) * (0.78 + 0.22 * f);
+      cards.push({ c: p, ax, ay, s: (rad * 0.42 + 0.09) * (hi ? 1 : 1.25), ao: Math.min(1, ao), n: nn, hue: [0.9 + rnd() * 0.2, 0.95 + rnd() * 0.1, 0.9 + rnd() * 0.15], tipUp: true });
     }
   }
-  return { segs, cards, sp };
+  return { segs, cards, blobs, skirts, sp };
 }
 
 function buildModel(sp, lod, tierName) {
   const hiDetail = tierName !== 'low';
   const t = sp === 5
-    ? (lod === 0 ? { tiers: hiDetail ? 11 : 8, ring: 9 } : { tiers: 7, ring: 6 })
-    : (lod === 0 ? { cards: hiDetail ? 150 : 100 } : { cards: hiDetail ? 62 : 44 });
+    ? (lod === 0 ? { tiers: hiDetail ? 11 : 8, ring: 10 } : { tiers: 8, ring: 6 })
+    : (lod === 0 ? { cards: hiDetail ? 300 : 190 } : { cards: hiDetail ? 100 : 64 });
   return sp === 5 ? buildConifer(sp, lod, t) : buildDeciduous(sp, lod, t);
 }
 
@@ -291,6 +288,34 @@ function modelGeometry(model) {
       }
     }
     for (let k = 0; k < seg; k++) { const i = base + k * 2; idx.push(i, i + 2, i + 1, i + 1, i + 2, i + 3); }
+  }
+  // opaque dark cores (ellipsoid lobes / drooping tier skirts): fill the crown so it reads as a solid mass
+  const coreU = 0.25, coreV = bv0;
+  const pushV = (x, y, z, nx, ny, nz, ao, k) => {
+    pos.push(x, y, z); nor.push(nx, ny, nz); uv.push(coreU, coreV);
+    col.push(S.leaf[0] * k, S.leaf[1] * k, S.leaf[2] * k); aT.push(0.4, ao); aC.push(x, y, z);
+  };
+  for (const b of model.blobs || []) {
+    const ico = new THREE.IcosahedronGeometry(1, b.detail);
+    const ip = ico.attributes.position;
+    const base0 = pos.length / 3;
+    for (let i = 0; i < ip.count; i++) {
+      const dx = ip.getX(i), dy = ip.getY(i), dz = ip.getZ(i);
+      const x = b.c.x + dx * b.rx, y = b.c.y + dy * b.ry, z = b.c.z + dz * b.rz;
+      const sph = norm3(V(x, (y - S.cy) / (S.ry || 0.4) * 0.8, z));
+      pushV(x, y, z, sph.x, sph.y + 0.1, sph.z, 0.30 + 0.25 * Math.max(0, dy), 0.55);
+      idx.push(base0 + i);
+    }
+    ico.dispose();
+  }
+  for (const k of model.skirts || []) {
+    const sd = k.sides, base0 = pos.length / 3;
+    pushV(0, k.y + k.h, 0, 0, 1, 0, 0.5, 0.5);
+    for (let i = 0; i <= sd; i++) {
+      const a = i / sd * Math.PI * 2, cs = Math.cos(a), sn = Math.sin(a);
+      pushV(cs * k.rad, k.y - k.h * 0.35, sn * k.rad, cs * 0.8, 0.6, sn * 0.8, 0.3, 0.5);
+    }
+    for (let i = 0; i < sd; i++) idx.push(base0, base0 + 1 + i, base0 + 2 + i);
   }
   // leaf cards
   const cell = S.cell, cx0 = (cell % 2) * CELL, cy0 = Math.floor(cell / 2) * CELL;
@@ -349,6 +374,7 @@ function bakeImpostors(model, atlasCv, tierName) {
     variants.push(arr);
   }
   const sx = TILE / (2.3 * BAKE_R0);
+  const coreCol = SPECIES.map((S) => { const c = (v) => Math.round(Math.pow(Math.min(1, v * 0.07), 1 / 2.2) * 255); return `rgb(${c(S.leaf[0] * 0.55 * 2.2)},${c(S.leaf[1] * 0.55 * 3.4)},${c(S.leaf[2] * 0.55 * 1.5)})`; });
   const items = [];
   for (let sp = 0; sp < SP_COUNT; sp++) {
     const m = model[sp];
@@ -380,9 +406,22 @@ function bakeImpostors(model, atlasCv, tierName) {
         const p = proj(c.c.x, c.c.y, c.c.z);
         items.push({ d: p[2], card: c, p });
       }
+      for (const b of m.blobs) { const p = proj(b.c.x, b.c.y, b.c.z); items.push({ d: p[2] - 0.02, blob: b, p }); }
+      for (const k of m.skirts) { const p = proj(0, k.y, 0); items.push({ d: p[2] - 0.02, skirt: k, p }); }
       items.sort((p, q) => p.d - q.d);
       for (const it of items) {
-        if (it.seg) {
+        if (it.blob) {
+          const b = it.blob, p = it.p;
+          const rxp = b.rx * BAKE_R0 * sx, ryp = b.ry * (top ? BAKE_R0 * sx : TILE / 1.05);
+          g.fillStyle = coreCol[sp]; g.beginPath(); g.ellipse(p[0], p[1], rxp, top ? b.rz * BAKE_R0 * sx : ryp, 0, 0, 6.3); g.fill();
+        } else if (it.skirt) {
+          const k = it.skirt;
+          g.fillStyle = coreCol[sp]; g.beginPath();
+          const ap = proj(0, k.y + k.h, 0);
+          g.moveTo(ap[0], ap[1]);
+          for (let i = 0; i <= 10; i++) { const a = i / 10 * Math.PI * 2; const q = proj(Math.cos(a) * k.rad, k.y - k.h * 0.35, Math.sin(a) * k.rad); g.lineTo(q[0], q[1]); }
+          g.closePath(); g.fill();
+        } else if (it.seg) {
           const [a, b, s] = [it.a, it.b, it.seg];
           const wl = [s[6] * BAKE_R0 * sx * 2, s[7] * BAKE_R0 * sx * 2];
           const dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy);
@@ -543,7 +582,9 @@ export function createTrees(features, hf, opts) {
               if (dn > min(nf, occFade(vAerialWorld))) discard;
             }
           }
-          diffuseColor.rgb *= mix(vec3(1.0), vTint, vT.x);`,
+          diffuseColor.rgb *= mix(vec3(1.0), vTint, vT.x);
+          // painterly value structure: deep blue-green interior, rich mid greens outside
+          diffuseColor.rgb *= mix(vec3(0.34, 0.58, 0.52), vec3(1.0), smoothstep(0.12, 0.85, vT.y));`,
         lights_fragment_begin: THREE.ShaderChunk.lights_fragment_begin.replace('getSunLightInfo( sunLight, directLight );', 'getSunLightInfo( sunLight, directLight ); directLight.color *= hbSun;'),
         // double-sided leaf cards keep their (spherical) normal on both faces for soft crown shading
         normal_fragment_begin: `
@@ -552,7 +593,7 @@ export function createTrees(features, hf, opts) {
           vec3 nonPerturbedNormal = normal;
           hbSun = texture2D(uShadowBake, gridUV(vAerialWorld.xz)).r;`,
         aomap_fragment: `float tao = mix(1.0, vT.y, 0.8);
-          reflectedLight.indirectDiffuse *= tao; reflectedLight.directDiffuse *= mix(1.0, vT.y, 0.55); reflectedLight.indirectSpecular *= tao;
+          reflectedLight.indirectDiffuse *= tao; reflectedLight.directDiffuse *= mix(vec3(1.0), vec3(1.16, 1.08, 0.72), smoothstep(0.55, 1.0, vT.y)) * mix(1.0, vT.y, 0.7); reflectedLight.indirectSpecular *= tao;
           {
             vec3 vd = normalize(vAerialWorld - cameraPosition);
             float back = pow(max(dot(vd, uSunDir), 0.0), 4.0) * vT.x * hbSun;
