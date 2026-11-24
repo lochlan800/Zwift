@@ -97,12 +97,13 @@ async function build() {
   const sky = createSky(renderer);
   scene.add(sky.dome);
   scene.environment = sky.envMap;
-  scene.environmentIntensity = 0.6;
+  scene.environmentIntensity = 0.5;
   U.uNoise.value = makeNoiseTexture(256);
   world.sky = sky;
 
-  const sun = new SunLight(0xffffff, 7.5);
+  const sun = new SunLight(0xffffff, 8.5);
   sun.color.copy(sky.sunColor);
+  U.uSunI.value = sun.intensity;
   sun.position.copy(sky.sunDir);
   sun.castShadow = true;
   sun.shadow.mapSize.set(cfg.shadowMap, cfg.shadowMap);
@@ -197,7 +198,8 @@ function placeRider(dt, speed) {
   const lx = dz / l, lz = -dx / l;
   const rq = roadIdx.query(P.x, P.z, 1.0, null, tmpQ);
   const roadW = rq ? rq.seg.ref._w : 6;
-  const wantOff = roadW >= 4.5 ? Math.min(1.4, roadW * 0.5 - 1.0) : Math.max(0, roadW * 0.5 - 0.9);
+  // route.pts is already the left-of-centre riding line when route.side is given
+  const wantOff = world.features.route.side ? 0 : roadW >= 4.5 ? Math.min(1.4, roadW * 0.5 - 1.0) : Math.max(0, roadW * 0.5 - 0.9);
   state.off = dt > 0 ? state.off + (wantOff - state.off) * Math.min(1, dt * 1.5) : wantOff;
   const off = state.off;
   P.x += lx * off; P.z += lz * off;
@@ -315,7 +317,7 @@ canvas.addEventListener('webglcontextrestored', () => {
 }, false);
 
 // testing hooks
-window.__hb = { state, world, camera, renderer, setCamMode, setS(s) { state.s = s; placeRider(0, 0); world.chase.initialized = false; }, cfg };
+window.__hb = { state, world, camera, renderer, getPost: () => post, setCamMode(m) { setCamMode(m); world.chase.initialized = false; }, setS(s) { state.s = s; placeRider(0, 0); world.chase.initialized = false; }, cfg };
 
 requestAnimationFrame(frame);
 build().catch((e) => { console.error(e); fatal('Could not build the world', String(e && e.message || e)); });

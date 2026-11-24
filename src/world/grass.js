@@ -4,7 +4,7 @@ import { hash2 } from './heightfield.js';
 
 // Instanced grass clumps in a toroidal ring of cells around the camera.
 const CELL = 6;
-const GRASSY = { 0: 1, 6: 1, 9: 1, 7: 0.8, 3: 0.35, 8: 0.5, 1: 0.12, 2: 0.25 };
+const GRASSY = { 0: 1, 6: 0.9, 9: 0.9, 7: 1, 3: 0.3, 8: 0.5, 1: 0.0, 2: 0.3 };
 
 function clumpGeometry(blades) {
   const pos = [], uv = [], idx = [];
@@ -86,15 +86,15 @@ export function createGrass(hf, lc, roadIdx, bIdx, cfg) {
       }`,
     fragmentShader: /* glsl */`
       #include <common>
-      uniform vec3 uSkyAmb;
+      uniform vec3 uSkyAmb; uniform float uSunI;
       ${AERIAL_GLSL}
       varying vec3 vWorld; varying vec3 vCol; varying float vT; varying float vSun; varying vec3 vN;
       void main() {
-        vec3 alb = vCol * mix(0.8, 1.2, vT);
+        vec3 alb = vCol * mix(0.85, 1.35, vT) * vec3(1.05, 1.0, 0.9);
         vec3 vd = normalize(vWorld - cameraPosition);
         float ndl = max(dot(vN, uSunDir), 0.0) * 0.7 + 0.3;
         float tr = pow(max(dot(vd, uSunDir), 0.0), 4.0) * vT * 1.2;
-        vec3 col = alb * (uSunColor * 3.2 * (ndl + tr) * vSun * 0.3183 + uSkyAmb * 0.9 * mix(0.5, 1.0, vT));
+        vec3 col = alb * (uSunColor * uSunI * (ndl + tr) * vSun * 0.3183 + uSkyAmb * 0.55 * mix(0.5, 1.0, vT));
         col = applyAerial(col, vWorld);
         gl_FragColor = vec4(col, 1.0);
       }`,

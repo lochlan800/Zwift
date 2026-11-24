@@ -8,14 +8,20 @@ function leafAtlas() {
   const cv = document.createElement('canvas'); cv.width = W; cv.height = Hh;
   const g = cv.getContext('2d');
   const rnd = mulberry32(77);
-  // left: leaf cluster with alpha
-  for (let i = 0; i < 520; i++) {
-    const a = rnd() * Math.PI * 2, rr = Math.pow(rnd(), 0.6) * 112;
-    const x = 128 + Math.cos(a) * rr, y = 128 + Math.sin(a) * rr;
-    const s = 7 + rnd() * 9, rot = rnd() * Math.PI;
-    const l = 30 + rnd() * 40 - rr * 0.12;
-    g.fillStyle = `hsl(${88 + rnd() * 30}, ${38 + rnd() * 20}%, ${l}%)`;
-    g.beginPath(); g.ellipse(x, y, s, s * 0.5, rot, 0, Math.PI * 2); g.fill();
+  // left: leaf clusters with alpha (many small leaves grouped in sprigs)
+  for (let c = 0; c < 70; c++) {
+    const a0 = rnd() * Math.PI * 2, r0 = Math.sqrt(rnd()) * 96;
+    const cx = 128 + Math.cos(a0) * r0, cy = 128 + Math.sin(a0) * r0;
+    const shade = rnd();
+    for (let i = 0; i < 34; i++) {
+      const a = rnd() * Math.PI * 2, rr = Math.pow(rnd(), 0.7) * 24;
+      const x = cx + Math.cos(a) * rr, y = cy + Math.sin(a) * rr;
+      if (Math.hypot(x - 128, y - 128) > 124) continue;
+      const s = 3 + rnd() * 3.5, rot = a + (rnd() - 0.5);
+      const l = 20 + shade * 16 + rnd() * 16 - (r0 < 40 ? 6 : 0);
+      g.fillStyle = `hsl(${84 + rnd() * 28}, ${30 + rnd() * 18}%, ${l}%)`;
+      g.beginPath(); g.ellipse(x, y, s, s * 0.55, rot, 0, Math.PI * 2); g.fill();
+    }
   }
   // right: bark (opaque)
   g.fillStyle = '#4a3d31'; g.fillRect(256, 0, 256, 256);
@@ -124,7 +130,7 @@ function deciduousGeo(seed, cards) {
     const c = new THREE.Vector3(p.x * 0.8, cy + p.y * ry * 0.85, p.z * 0.8);
     const ax = new THREE.Vector3(rnd() * 2 - 1, (rnd() * 2 - 1) * 0.4, rnd() * 2 - 1).normalize();
     const ay = new THREE.Vector3().crossVectors(ax, new THREE.Vector3(rnd() - 0.5, 1, rnd() - 0.5)).normalize();
-    const s = 0.3 + rnd() * 0.12;
+    const s = 0.24 + rnd() * 0.1;
     const ao = Math.min(1, 0.35 + 0.75 * c.clone().sub(ctr).multiply(new THREE.Vector3(1, 1 / ry, 1)).length());
     pushQuad(arr, c, ax, new THREE.Vector3().crossVectors(ay, ax).normalize(), s, nrm, [0, 0], [0.5, 1], 1, ao);
   }
@@ -224,7 +230,7 @@ export function createTrees(features, hf, opts) {
   mat.vertexColors = false;
   const depthMat = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: leafTex, alphaTest: 0.45, side: THREE.DoubleSide });
 
-  const cards = opts.tier === 'low' ? 18 : 30;
+  const cards = opts.tier === 'low' ? 24 : 42;
   const variants = [deciduousGeo(11, cards), deciduousGeo(23, cards), coniferGeo(5, opts.tier === 'low' ? 6 : 9)];
   const MAXN = opts.maxNear;
   const nearMeshes = variants.map((geo) => {
@@ -289,7 +295,7 @@ export function createTrees(features, hf, opts) {
       }`,
     fragmentShader: /* glsl */`
       #include <common>
-      uniform sampler2D uImp; uniform vec3 uEnvAmb;
+      uniform sampler2D uImp; uniform vec3 uEnvAmb; uniform float uSunI; uniform vec3 uSkyAmb;
       ${AERIAL_GLSL}
       ${DITHER}
       varying vec2 vUv; varying vec3 vWorld; varying vec3 vTint; varying float vFade; varying vec3 vRight; varying vec3 vToCam; varying float vSun; varying float vSp;
@@ -306,7 +312,7 @@ export function createTrees(features, hf, opts) {
         float ndl = max(dot(n, uSunDir), 0.0) * 0.85 + 0.15;
         vec3 vd = normalize(vWorld - cameraPosition);
         float tr = pow(max(dot(vd, uSunDir), 0.0), 5.0) * 0.6;
-        vec3 col = alb * (uSunColor * 3.2 * (ndl + tr) * vSun * 0.3183 + uEnvAmb * (0.55 + 0.45 * vUv.y));
+        vec3 col = alb * (uSunColor * uSunI * (ndl * 0.8 + tr) * vSun * 0.3183 + uSkyAmb * 0.55 * (0.55 + 0.45 * vUv.y));
         col = applyAerial(col, vWorld);
         gl_FragColor = vec4(col, 1.0);
       }`,

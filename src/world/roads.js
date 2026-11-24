@@ -96,6 +96,25 @@ export function conformTerrain(hf, features) {
   }
   const h = hf.h;
   for (let k = 0; k < n; k++) if (weight[k] > 0) h[k] = h[k] + (target[k] - h[k]) * weight[k];
+  // bridges: never let the banks/DTM poke through the deck (lower only)
+  for (const r of features.roads) {
+    if (!r.br || r.tu || !KIND[r.k]) continue;
+    const R = r._w / 2 + (r._pave || 0.3) + 1.5;
+    for (let i = 0; i + 1 < r.p.length; i++) {
+      const a = r.p[i], b = r.p[i + 1];
+      const i0 = Math.max(0, Math.floor((Math.min(a[0], b[0]) - R - hf.x0) / res)), i1 = Math.min(cols - 1, Math.ceil((Math.max(a[0], b[0]) + R - hf.x0) / res));
+      const j0 = Math.max(0, Math.floor((Math.min(a[2], b[2]) - R - hf.z0) / res)), j1 = Math.min(rows - 1, Math.ceil((Math.max(a[2], b[2]) + R - hf.z0) / res));
+      const dx = b[0] - a[0], dz = b[2] - a[2], L2 = dx * dx + dz * dz || 1;
+      for (let j = j0; j <= j1; j++) for (let ii = i0; ii <= i1; ii++) {
+        const x = hf.x0 + ii * res, z = hf.z0 + j * res;
+        let t = ((x - a[0]) * dx + (z - a[2]) * dz) / L2; t = Math.max(0, Math.min(1, t));
+        if (Math.hypot(a[0] + dx * t - x, a[2] + dz * t - z) > R) continue;
+        const y = a[1] + (b[1] - a[1]) * t - 1.2;
+        const k = j * cols + ii;
+        if (h[k] > y) h[k] = y;
+      }
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -178,11 +197,12 @@ void roadSurface(vec3 w) {
   vec4 n3 = texture2D(uNoise, w.xz / 3.1);
   vec4 n4 = texture2D(uNoise, w.xz / 1.9);
   float dist = distance(w, cameraPosition);
-  vec3 asph = lin3(vec3(0.30, 0.30, 0.31)) * (0.78 + 0.34 * n4.a) * (0.85 + 0.25 * n3.g);
+  vec3 asph = lin3(vec3(0.27, 0.265, 0.26)) * (0.78 + 0.34 * n4.a) * (0.85 + 0.25 * n3.g);
   asph = mix(asph, lin3(vec3(0.22, 0.22, 0.23)), smoothstep(0.62, 0.7, n2.b) * 0.8); // repair patches
   float tq = (abs(v) - hw * 0.5) / (hw * 0.18); float track = exp(-tq * tq);
+  track *= vMark;
   asph *= 1.0 - 0.10 * track;
-  asph *= mix(1.0, 0.82 + 0.25 * n3.b, smoothstep(hw - 0.6, hw, abs(v))); // edge grime
+  asph *= mix(1.0, 0.82 + 0.25 * n3.b, smoothstep(hw - 0.6, hw, abs(v)) * vMark); // edge grime
   rAlb = asph; rRough = 0.82 - 0.1 * track; rBump = n4.a * 0.6 + n3.b * 0.4;
   if (t <= 3) {
     float paint = 0.0;
@@ -245,7 +265,7 @@ export async function createRoads(features, hf, lc, roadIdx, slicer, bIdx = null
       const q = roadIdx.query(p[i][0], p[i][2], extra, (s) => s.ref !== r && s.ref._w >= 2.5, tmp);
       return q !== null;
     };
-    const markFn = K.t <= 1 ? (i) => (other(i, 0.5) ? 0 : 1) : null;
+    const markFn = (i) => (other(i, 1.0) ? 0 : 1); // plain asphalt near junctions -> overlapping ribbons look identical
     strip(B, p, F, -hw, hw, lift, K.t, hw, markFn, null);
     // round caps at both ends: fill junction corners / dead ends seamlessly
     for (const e of [0, p.length - 1]) {

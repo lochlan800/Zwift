@@ -180,7 +180,7 @@ void terrainSurface(vec3 w) {
     float rb = 0.0;
     if (h < 0.32) { c = mix(lin(0.66, 0.55, 0.30), lin(0.56, 0.45, 0.24), n2.b); c *= 0.82 + 0.3 * r; rb = r * 0.6; }
     else if (h < 0.58) { c = mix(lin(0.33, 0.42, 0.13), lin(0.43, 0.50, 0.17), n2.b); c *= 0.75 + 0.4 * r; rb = r * 0.5; }
-    else if (h < 0.80) { c = mix(lin(0.36, 0.27, 0.18), lin(0.30, 0.22, 0.15), n3.g); c *= 0.7 + 0.5 * r; rb = r * 1.2; }
+    else if (h < 0.80) { c = mix(lin(0.36, 0.27, 0.18), lin(0.30, 0.22, 0.15), n3.g); c *= 0.84 + 0.28 * r; rb = r * 0.8; }
     else { c = mix(grass, lin(0.42, 0.48, 0.20), 0.4); rb = grassB; }
     c *= 0.9 + 0.2 * n3.r;
     float margin = smoothstep(0.012, 0.035, v.z);
@@ -188,7 +188,7 @@ void terrainSurface(vec3 w) {
     farmB = mix(grassB, rb + n4.b * 0.2, margin);
   }
   vec3 wood = mix(lin(0.17, 0.18, 0.08), lin(0.25, 0.18, 0.10), n3.g) * (0.8 + 0.4 * n4.b);
-  float gardenM = smoothstep(0.42, 0.52, n2.b + n3.r * 0.2);
+  float gardenM = smoothstep(0.25, 0.35, n2.b + n3.r * 0.2);
   vec3 resid = mix(lin(0.44, 0.42, 0.39) * (0.85 + 0.3 * n4.b), mix(grass, lin(0.24, 0.34, 0.12), 0.5), gardenM);
   vec3 hard = mix(lin(0.40, 0.39, 0.37), lin(0.30, 0.30, 0.29), n3.g) * (0.85 + 0.25 * n4.a);
   hard = mix(hard, lin(0.22, 0.21, 0.19), smoothstep(0.65, 0.85, n2.r) * 0.5);

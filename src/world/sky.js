@@ -4,8 +4,8 @@ import { U } from './shared.js';
 
 // Late-afternoon UK light: sun low in the WSW.
 export const SUN_AZIMUTH_DEG = 244; // clockwise from north
-export const SUN_ELEVATION_DEG = 15;
-const SKY_SCALE = 4.0; // brings Preetham output into our lighting units
+export const SUN_ELEVATION_DEG = 21;
+const SKY_SCALE = 3.2; // brings Preetham output into our lighting units
 
 const PARAMS = { turbidity: 2.4, rayleigh: 1.2, mieCoefficient: 0.0028, mieDirectionalG: 0.82 };
 
@@ -21,17 +21,18 @@ function skyMaterial(lut) {
         `float lphi = (vLutUv.x - 0.5) * 6.2831853; float lth = (vLutUv.y - 0.5) * 3.14159265;
          vec3 direction = vec3(cos(lth) * cos(lphi), sin(lth), cos(lth) * sin(lphi));`);
   }
-  fs = fs.replace('uniform float time;', 'uniform float time;\nuniform float skyScale;\nuniform vec3 groundColor;')
+  fs = fs.replace('uniform float time;', 'uniform float time;\nuniform float skyScale;\nuniform vec3 groundColor;\nuniform float desat;')
     .replace('gl_FragColor = vec4( texColor, 1.0 );',
       `texColor *= skyScale;
        if (any(isnan(texColor)) || any(isinf(texColor))) texColor = vec3(0.4, 0.5, 0.7);
-       texColor = clamp(texColor, 0.0, 60.0);
-       ${lut ? 'texColor = mix(texColor, groundColor, smoothstep(0.0, -0.25, direction.y));' : ''}
+       texColor = clamp(texColor, 0.0, 30.0);
+       ${lut ? 'texColor = mix(texColor, vec3(dot(texColor, vec3(0.3, 0.5, 0.2))), desat); texColor = mix(texColor, groundColor, smoothstep(0.0, -0.25, direction.y));' : ''}
        gl_FragColor = vec4( texColor, 1.0 );`);
   if (vs === S.vertexShader && lut) console.warn('sky LUT patch failed');
   const uniforms = THREE.UniformsUtils.clone(S.uniforms);
   uniforms.skyScale = { value: SKY_SCALE };
   uniforms.groundColor = { value: new THREE.Color(0.06, 0.07, 0.045) };
+  uniforms.desat = { value: 0 };
   return new THREE.ShaderMaterial({
     name: lut ? 'SkyLUT' : 'SkyDome', uniforms, vertexShader: vs, fragmentShader: fs,
     side: lut ? THREE.FrontSide : THREE.BackSide, depthWrite: false, depthTest: false, toneMapped: false,
@@ -99,7 +100,12 @@ export function createSky(renderer) {
 
   // environment for PBR IBL (sky above, dark ground below)
   const pmrem = new THREE.PMREMGenerator(renderer);
-  const envRT = pmrem.fromEquirectangular(lutRT.texture);
+  // environment: same sky, partly desaturated (real skylight is mixed with grey cloud and
+  // green ground bounce) and a brighter ground hemisphere
+  const envLut = lutRT.clone();
+  lu.desat.value = 0.4; lu.groundColor.value.setRGB(0.16, 0.17, 0.11);
+  renderer.setRenderTarget(envLut); renderer.render(sc, cam); renderer.setRenderTarget(null);
+  const envRT = pmrem.fromEquirectangular(envLut.texture);
   pmrem.dispose();
 
   // Sun colour: warm late-afternoon (transmittance through ~4 air masses)

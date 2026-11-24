@@ -242,8 +242,8 @@ vec3 brickCol(int c) {
   if (c == 3) return lin3(vec3(0.62, 0.40, 0.27));
   if (c == 4) return lin3(vec3(0.56, 0.49, 0.37));
   if (c == 5) return lin3(vec3(0.40, 0.35, 0.28));
-  if (c == 6) return lin3(vec3(0.82, 0.78, 0.68));
-  return lin3(vec3(0.76, 0.76, 0.73));
+  if (c == 6) return lin3(vec3(0.74, 0.70, 0.60));
+  return lin3(vec3(0.66, 0.66, 0.63));
 }
 void buildingSurface(vec3 w, vec3 Nw) {
   int c = int(vB.x + 0.5), kind = int(vB.y + 0.5), surf = int(vB.z + 0.5);
@@ -278,7 +278,7 @@ void buildingSurface(vec3 w, vec3 Nw) {
       vec2 f = fract(bp); vec2 fw = fwidth(bp);
       float mortar = (1.0 - smoothstep(0.0, 0.06 + fw.x, min(f.x, 1.0 - f.x) * 1.0)) ;
       mortar = max(mortar, 1.0 - smoothstep(0.0, 0.14 + fw.y, min(f.y, 1.0 - f.y)));
-      float aa = clamp(max(fw.x, fw.y) * 1.2 - 0.2, 0.0, 1.0);
+      float aa = smoothstep(0.12, 0.45, max(fw.x, fw.y));
       float bh = hb(floor(bp.x) + row * 31.7 + seed);
       vec3 bc = base * (0.82 + 0.3 * bh) * (0.9 + 0.2 * n4.r);
       vec3 mc = lin3(vec3(0.62, 0.58, 0.52));
@@ -291,7 +291,7 @@ void buildingSurface(vec3 w, vec3 Nw) {
       vec2 f = fract(sp); vec2 fw = fwidth(sp);
       float j = 1.0 - smoothstep(0.0, 0.05 + fw.x, min(f.x, 1.0 - f.x)) * 1.0;
       j = max(j, 1.0 - smoothstep(0.0, 0.08 + fw.y, min(f.y, 1.0 - f.y)));
-      float aa = clamp(max(fw.x, fw.y) * 1.5 - 0.2, 0.0, 1.0);
+      float aa = smoothstep(0.1, 0.4, max(fw.x, fw.y));
       float sh = hb(floor(sp.x) + row * 17.3 + seed);
       vec3 sc = base * (0.8 + 0.35 * sh) * (0.85 + 0.25 * n3.g);
       col = mix(mix(sc, base * 0.7, j * 0.7), base * 0.92, aa);
@@ -342,7 +342,7 @@ void buildingSurface(vec3 w, vec3 Nw) {
           bRough = mix(bRough, 0.08, glass * fade * (1.0 - mull));
           bMetal = mix(bMetal, 0.0, glass * fade);
         }
-        bBump = mix(bBump, -0.5, frame * fade);
+        bBump = mix(bBump, 0.0, frame);
         // far: simple darker band suggestion
         float far = smoothstep(250.0, 700.0, dist);
         col = mix(col, col * 0.9, far * 0.3);
@@ -362,7 +362,7 @@ void buildingSurface(vec3 w, vec3 Nw) {
     float row = floor(tp.y);
     tp.x += mod(row, 2.0) * 0.5;
     vec2 f = fract(tp); vec2 fw = fwidth(tp);
-    float aa = clamp(max(fw.x, fw.y) - 0.3, 0.0, 1.0);
+    float aa = smoothstep(0.15, 0.5, max(fw.x, fw.y));
     float shadow = mix(smoothstep(0.0, 0.35, f.y) * 0.4 + 0.6, 0.8, aa);
     float gap = mix(smoothstep(0.0, 0.06 + fw.x, min(f.x, 1.0 - f.x)), 1.0, aa);
     float th = hb(floor(tp.x) + row * 13.1 + seed);

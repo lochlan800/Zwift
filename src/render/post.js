@@ -6,7 +6,7 @@ import {
 export function createPost(renderer, scene, camera, cfg) {
   const composer = new EffectComposer(renderer, { frameBufferType: THREE.HalfFloatType, multisampling: cfg.msaa || 0 });
   composer.addPass(new RenderPass(scene, camera));
-  const bloom = new BloomEffect({ intensity: 0.35, luminanceThreshold: 5.0, luminanceSmoothing: 0.6, mipmapBlur: true, radius: 0.7, levels: cfg.mobile ? 5 : 7 });
+  const bloom = new BloomEffect({ intensity: 0.18, luminanceThreshold: 14.0, luminanceSmoothing: 0.5, mipmapBlur: true, radius: 0.45, levels: cfg.mobile ? 5 : 7 });
   const tone = new ToneMappingEffect({ mode: ToneMappingMode.ACES_FILMIC });
   const grade = new HueSaturationEffect({ saturation: 0.06 });
   const contrast = new BrightnessContrastEffect({ contrast: 0.07 });

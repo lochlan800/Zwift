@@ -94,9 +94,9 @@ export class ChaseCamera {
   }
   // title-screen orbit around a point
   orbitUpdate(dt, center, t) {
-    const r = 70, a = t * 0.05;
+    const r = 120, a = 2.2 + t * 0.035;
     this.tmp.set(center.x + Math.cos(a) * r, 0, center.z + Math.sin(a) * r);
-    this.tmp.y = Math.max(this.hf.sample(this.tmp.x, this.tmp.z), center.y) + 32;
+    this.tmp.y = Math.max(this.hf.sample(this.tmp.x, this.tmp.z), center.y) + 48;
     this.cam.position.copy(this.tmp);
     this.cam.lookAt(center.x, center.y + 4, center.z);
     this.initialized = false;

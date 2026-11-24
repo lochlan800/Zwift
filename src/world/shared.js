@@ -17,6 +17,7 @@ export const U = {
   uGridRes: { value: 4 },
   uBakeFade: { value: new THREE.Vector2(180, 260) },
   uSkyAmb: { value: new THREE.Color(0.5, 0.6, 0.8) },
+  uSunI: { value: 8.5 },
 };
 
 // GLSL: aerial perspective / exponential height fog using a sky colour LUT
