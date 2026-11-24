@@ -48,7 +48,7 @@ export function buildRoadIndex(features) {
   const idx = new SegmentIndex(24);
   for (const r of features.roads) {
     if (r.tu || !KIND[r.k]) continue;
-    const hw = r._w / 2 + (r._pave || 0);
+    const hw = r._w / 2 + (r._pave || 0) + (r._verge || 0);
     for (let i = 0; i + 1 < r.p.length; i++) {
       const a = r.p[i], b = r.p[i + 1];
       idx.add(a[0], a[1], a[2], b[0], b[1], b[2], hw, r);
@@ -63,7 +63,7 @@ export function conformTerrain(hf, features) {
   const n = cols * rows;
   const target = new Float32Array(n);
   const weight = new Float32Array(n); // 0 = untouched, 1 = fully set to target
-  const consider = (ax, ay, az, bx, by, bz, core, blend) => {
+  const consider = (ax, ay, az, bx, by, bz, core, blend, dy = -0.18) => {
     const R = core + blend;
     const i0 = Math.max(0, Math.floor((Math.min(ax, bx) - R - hf.x0) / res)), i1 = Math.min(cols - 1, Math.ceil((Math.max(ax, bx) + R - hf.x0) / res));
     const j0 = Math.max(0, Math.floor((Math.min(az, bz) - R - hf.z0) / res)), j1 = Math.min(rows - 1, Math.ceil((Math.max(az, bz) + R - hf.z0) / res));
@@ -78,17 +78,21 @@ export function conformTerrain(hf, features) {
       let w = d <= core ? 1 : 1 - (d - core) / blend;
       w = w * w * (3 - 2 * w);
       const k = j * cols + i;
-      const y = ay + (by - ay) * t - 0.18;
+      const y = ay + (by - ay) * t + dy;
       if (w > weight[k] + 1e-4 || (Math.abs(w - weight[k]) < 1e-4 && y < target[k])) { weight[k] = w; target[k] = y; }
     }
   };
   for (const r of features.roads) {
     if (r.tu || r.br || !KIND[r.k]) continue;
-    const core = r._w / 2 + (r._pave || 0) + 1.2;
+    const vg = r._verge || 0;
+    const core = r._w / 2 + (r._pave || 0) + vg + 1.2;
     const blend = r._w > 4 ? 7 : 4;
     for (let i = 0; i + 1 < r.p.length; i++) {
       const a = r.p[i], b = r.p[i + 1];
-      consider(a[0], a[1], a[2], b[0], b[1], b[2], core, blend);
+      if (vg) {
+        consider(a[0], a[1], a[2], b[0], b[1], b[2], r._w / 2 + 0.6, 0.5);
+        consider(a[0], a[1], a[2], b[0], b[1], b[2], core, blend, 0.02);
+      } else consider(a[0], a[1], a[2], b[0], b[1], b[2], core, blend);
     }
   }
   for (const r of features.rail || []) {
@@ -368,7 +372,7 @@ export async function createRoads(features, hf, lc, roadIdx, slicer, bIdx = null
       if (g1 >= 0) addSign(p.length - 1 - Math.round((g1 + 1.5) / Math.max(0.5, L / (p.length - 1))), g1, 1);
     } else B.gw = null;
     B.cross = r._cross != null ? r._cross : null;
-    strip(B, p, F, -hw, hw, lift, r._tc && K.t <= 1 ? RT.TOWN : tt, hw, markFn, null);
+    strip(B, p, F, -hw, hw, lift, (r._tc || r._dyl) && K.t <= 1 ? RT.TOWN : tt, hw, markFn, null);
     B.gw = null;
     // round caps at both ends: fill junction corners / dead ends seamlessly
     for (const e of [0, p.length - 1]) {
@@ -383,16 +387,20 @@ export async function createRoads(features, hf, lc, roadIdx, slicer, bIdx = null
       for (let k = 0; k < seg; k++) B.idx.push(ci, ring[k + 1], ring[k]);
     }
     if (r._pave) {
-      const pw = r._pave;
+      const pw = r._pave, vg = r._verge || 0;
       for (const side of [-1, 1]) {
         const keep = (i) => {
-          const x = p[i][0] + F.nx[i] * side * (hw + pw * 0.5), z = p[i][2] + F.nz[i] * side * (hw + pw * 0.5);
+          const x = p[i][0] + F.nx[i] * side * (hw + vg + pw * 0.5), z = p[i][2] + F.nz[i] * side * (hw + vg + pw * 0.5);
           const q = roadIdx.query(x, z, -pw - 0.2, (s) => s.ref !== r, tmp);
           return q === null && !(bIdx && bIdx.find(x, z));
         };
-        const o0 = side > 0 ? hw : -hw - pw, o1 = side > 0 ? hw + pw : -hw;
-        strip(B, p, F, o0, o1, lift + 0.12, RT.PAVE, hw, null, keep);
-        wall(B, p, F, side * hw, lift - 0.02, lift + 0.12, -side, RT.KERB, hw, keep);
+        const o0 = side > 0 ? hw + vg : -hw - vg - pw, o1 = side > 0 ? hw + vg + pw : -hw - vg;
+        strip(B, p, F, o0, o1, lift + 0.12, RT.PAVE, hw + vg, null, keep);
+        wall(B, p, F, side * hw, lift - 0.02, lift + 0.12, -side, RT.KERB, hw, vg ? null : keep);
+        if (vg) {
+          wall(B, p, F, side * (hw + vg), lift - 0.2, lift + 0.12, -side, RT.KERB, hw, keep);
+          wall(B, p, F, side * (hw + vg + pw), lift - 0.2, lift + 0.12, side, RT.KERB, hw, keep);
+        }
         // town centre: pave forecourts right up to the building line
         if (r._tc && bIdx) {
           let prev = null;
