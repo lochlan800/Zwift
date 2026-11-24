@@ -64,7 +64,7 @@ uniform vec3 uRiderPos;
 float ign(vec2 p) { return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }
 float occFade(vec3 w) {
   vec3 v = w - cameraPosition;
-  float a = smoothstep(2.0, 6.0, length(v));
+  float a = smoothstep(2.5, 8.0, length(v));
   vec3 cr = uRiderPos + vec3(0.0, 1.0, 0.0) - cameraPosition;
   float L = length(cr);
   vec3 d = cr / max(L, 1e-3);

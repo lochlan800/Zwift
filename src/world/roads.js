@@ -91,7 +91,7 @@ export function conformTerrain(hf, features) {
       const a = r.p[i], b = r.p[i + 1];
       if (vg) {
         consider(a[0], a[1], a[2], b[0], b[1], b[2], r._w / 2 + 0.6, 0.5);
-        consider(a[0], a[1], a[2], b[0], b[1], b[2], core, blend, 0.1);
+        consider(a[0], a[1], a[2], b[0], b[1], b[2], core, blend, 0.12);
       } else consider(a[0], a[1], a[2], b[0], b[1], b[2], core, blend);
     }
   }
@@ -395,12 +395,9 @@ export async function createRoads(features, hf, lc, roadIdx, slicer, bIdx = null
           return q === null && !(bIdx && bIdx.find(x, z));
         };
         const o0 = side > 0 ? hw + vg : -hw - vg - pw, o1 = side > 0 ? hw + vg + pw : -hw - vg;
-        strip(B, p, F, o0, o1, lift + 0.12, RT.PAVE, hw + vg, null, keep);
+        strip(B, p, F, o0, o1, lift + (vg ? 0.1 : 0.12), RT.PAVE, hw + vg, null, keep);
         wall(B, p, F, side * hw, lift - 0.02, lift + 0.12, -side, RT.KERB, hw, keep);
-        if (vg) {
-          wall(B, p, F, side * (hw + vg), lift - 0.2, lift + 0.12, -side, RT.KERB, hw, keep);
-          wall(B, p, F, side * (hw + vg + pw), lift - 0.2, lift + 0.12, side, RT.KERB, hw, keep);
-        }
+
         // town centre: pave forecourts right up to the building line
         if (r._tc && bIdx) {
           let prev = null;

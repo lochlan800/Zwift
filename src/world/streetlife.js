@@ -322,7 +322,7 @@ function pubBoardGeometry() {
 }
 
 function tallLampGeometry() {
-  const D = [0.42, 0.43, 0.45], H = [0.9, 0.85, 0.7];
+  const D = [0.14, 0.15, 0.16], H = [0.9, 0.85, 0.7];
   const pole = new THREE.CylinderGeometry(0.07, 0.13, 10.0, 8); pole.translate(0, 5.0, 0);
   const arm = new THREE.CylinderGeometry(0.05, 0.05, 2.0, 6); arm.rotateX(Math.PI / 2 - 0.12); arm.translate(0, 10.05, 0.95);
   return mergeGeometries([colored(pole, ...D), colored(arm, ...D), box(0.28, 0.13, 0.75, 0, 10.1, 2.0, D), box(0.22, 0.02, 0.6, 0, 10.03, 2.0, H)]);
@@ -504,9 +504,9 @@ export function createStreetLife(features, hf, lc, roadIdx, bIdx, routeIdx, give
           const nx = tz * side, nz = -tx * side, o = hw + pw + 0.2;
           const px = x + nx * o, pz = z + nz * o;
           let set = false;
-          for (const d of [3, 5, 7, 10, 13]) { const b = bIdx.find(px + nx * d, pz + nz * d); if (b) { set = true; break; } }
+          for (const d of [3, 5, 7, 10, 13, 16, 20]) { const b = bIdx.find(px + nx * d, pz + nz * d); if (b) { set = true; break; } }
           const ok = set && !bIdx.find(px + nx * 2.2, pz + nz * 2.2) && !bIdx.find(px, pz, 0.3) && !roadIdx.query(px, pz, 0.8, (q) => q.ref !== r, tmp)
-            && hash2(Math.floor(s / 9) + side * 0.3, r.p[0][0]) > 0.12;
+            && hash2(Math.floor(s / 12) + side * 0.3, r.p[0][0]) > 0.06;
           const gy = Math.max(hf.sample(px, pz), y + 0.18) - 0.05;
           const yaw = Math.atan2(tx, tz);
           if (ok) {
@@ -673,7 +673,7 @@ export function createStreetLife(features, hf, lc, roadIdx, bIdx, routeIdx, give
     one(shelterGeometry(), shelter);
     one(clockGeometry(), clock);
   }
-  const counts = { tallLamps: lampsTall.length / 10, poles: poles.length / 10, wires: wirePos.length / 6, dsigns: dsigns.length / 10, planters: planters.length / 10, baskets: baskets.length / 10, beacons: beacons.length / 10, awnings: awnings.length / 10, aboards: aboards.length / 10, shelter: !!shelter, clock: !!clock, walls: walls.length / 10, hedges: hedges.length / 10, lamps: lamps.length / 10, cars: cars.length / 10, signs: signs.length / 10 };
+  const counts = { stoneWalls: stoneWalls.length / 10, pillars: pillars.length / 10, tallLamps: lampsTall.length / 10, poles: poles.length / 10, wires: wirePos.length / 6, dsigns: dsigns.length / 10, planters: planters.length / 10, baskets: baskets.length / 10, beacons: beacons.length / 10, awnings: awnings.length / 10, aboards: aboards.length / 10, shelter: !!shelter, clock: !!clock, walls: walls.length / 10, hedges: hedges.length / 10, lamps: lamps.length / 10, cars: cars.length / 10, signs: signs.length / 10 };
   let scale = 1;
   return {
     group, counts,

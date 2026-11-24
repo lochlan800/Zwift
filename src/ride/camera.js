@@ -51,11 +51,17 @@ export class ChaseCamera {
     const maxD = this.dist + Math.min(2.5, speed * 0.12);
     const clip = this._clipDistance(riderPos, back, maxD);
     this.curDist += (clip - this.curDist) * Math.min(1, dt * (clip < this.curDist ? 8 : 1.5));
-    this.desired.set(riderPos.x + back.x * this.curDist, riderPos.y + this.height, riderPos.z + back.z * this.curDist);
+    // tight turns: raise and pull back a little, and keep the look target closer to the rider
+    route.at(s + 18, this.tmp2); const ax = this.tmp2.x - riderPos.x, az = this.tmp2.z - riderPos.z;
+    const turnA = Math.acos(Math.max(-1, Math.min(1, (ax * this.fwd.x + az * this.fwd.z) / (Math.hypot(ax, az) || 1))));
+    const tk = Math.min(1, Math.max(0, (turnA - 0.25) / 0.8));
+    this.turn = (this.turn || 0) + (tk - (this.turn || 0)) * Math.min(1, dt * 1.2);
+    const lift = this.turn * 1.6;
+    this.desired.set(riderPos.x + back.x * (this.curDist + this.turn * 1.5), riderPos.y + this.height + lift, riderPos.z + back.z * (this.curDist + this.turn * 1.5));
     // look-ahead target
     route.at(s + 10 + speed * 0.4, this.target);
     this.target.y = this.target.y * 0.35 + (riderPos.y + 1.1) * 0.65;
-    this.target.lerp(this.tmp2.copy(riderPos).setY(riderPos.y + 1.2), 0.6);
+    this.target.lerp(this.tmp2.copy(riderPos).setY(riderPos.y + 1.2), 0.6 + 0.3 * (this.turn || 0));
     // drone: high, ~55 deg down, behind along the route heading, looking ahead
     route.at(s - 60, this.dDesired);
     this.tmp.subVectors(riderPos, this.dDesired); this.tmp.y = 0;
@@ -70,7 +76,7 @@ export class ChaseCamera {
       this.blend = this.mode; this.initialized = true;
     }
     this._spring(this.pos, this.vel, this.desired, 3.2, dt);
-    this._spring(this.look, this.lookVel, this.target, 4.5, dt);
+    this._spring(this.look, this.lookVel, this.target, 4.5 - 1.8 * (this.turn || 0), dt);
     this._spring(this.dPos, this.dVel, this.dDesired, 1.2, dt);
     this._spring(this.dLook, this.dLookVel, this.dTarget, 2.0, dt);
     this._ground(this.pos);
