@@ -32,7 +32,7 @@ function skyMaterial(lut) {
   uniforms.groundColor = { value: new THREE.Color(0.06, 0.07, 0.045) };
   return new THREE.ShaderMaterial({
     name: lut ? 'SkyLUT' : 'SkyDome', uniforms, vertexShader: vs, fragmentShader: fs,
-    side: lut ? THREE.FrontSide : THREE.BackSide, depthWrite: false, depthTest: !lut, toneMapped: false,
+    side: lut ? THREE.FrontSide : THREE.BackSide, depthWrite: false, depthTest: false, toneMapped: false,
   });
 }
 
