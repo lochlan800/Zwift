@@ -18,7 +18,7 @@ function leafAtlas() {
       const x = cx + Math.cos(a) * rr, y = cy + Math.sin(a) * rr;
       if (Math.hypot(x - 128, y - 128) > 124) continue;
       const s = 3 + rnd() * 3.5, rot = a + (rnd() - 0.5);
-      const l = 20 + shade * 16 + rnd() * 16 - (r0 < 40 ? 6 : 0);
+      const l = 25 + shade * 11 + rnd() * 8 - (r0 < 40 ? 4 : 0);
       g.fillStyle = `hsl(${84 + rnd() * 28}, ${30 + rnd() * 18}%, ${l}%)`;
       g.beginPath(); g.ellipse(x, y, s, s * 0.55, rot, 0, Math.PI * 2); g.fill();
     }
@@ -282,20 +282,25 @@ export function createTrees(features, hf, opts) {
       attribute vec4 aA; attribute vec4 aB;
       uniform float uNear; uniform vec3 uSunDir; uniform float uTime;
       ${GRID_GLSL}
-      varying vec2 vUv; varying vec3 vWorld; varying vec3 vTint; varying float vFade; varying vec3 vRight; varying vec3 vToCam; varying float vSun; varying float vSp;
+      varying vec2 vUv; varying vec3 vWorld; varying vec3 vTint; varying float vFade; varying vec3 vRight; varying vec3 vUp; varying vec3 vToCam; varying float vSun; varying float vSp;
       void main() {
         vec3 base = aA.xyz; float h = aA.w; float r = aB.x;
-        vec3 toCam = cameraPosition - base; toCam.y = 0.0;
-        float d = length(toCam);
-        toCam /= max(d, 1e-3);
-        vec3 right = vec3(toCam.z, 0.0, -toCam.x);
+        vec3 cc = base + vec3(0.0, h * 0.6, 0.0);
+        vec3 dir = normalize(cameraPosition - cc);
+        float elevF = smoothstep(0.25, 0.85, dir.y);
+        vec3 right = normalize(cross(vec3(0.0, 1.0, 0.0), dir + vec3(1e-4, 0.0, 0.0)));
+        vec3 up3 = normalize(cross(dir, right));
         float w = r * (aB.y > 0.5 ? 1.05 : 1.12);
-        vec3 p = base + right * position.x * w + vec3(0.0, position.y * h * 1.02, 0.0);
-        p += toCam * r * 0.3;
-        vUv = vec2(position.x * 0.5 + 0.5, position.y);
+        float H = mix(h * 1.02, 2.3 * r, elevF);
+        vec3 ctr = mix(base + vec3(0.0, h * 0.51, 0.0), cc, elevF);
+        vec3 p = ctr + right * position.x * w + up3 * (position.y - 0.5) * H;
+        p += dir * r * 0.3;
+        vec3 toCam = dir;
+        vUv = vec2(position.x * 0.5 + 0.5, mix(position.y, 0.3 + position.y * 0.7, elevF));
+        vRight = right; vUp = up3;
         vWorld = p; vTint = vec3(aB.z, (aB.z + aB.w) * 0.5, aB.w);
         vFade = smoothstep(uNear - 30.0, uNear, distance(base, cameraPosition));
-        vRight = right; vToCam = toCam; vSp = aB.y;
+        vToCam = toCam; vSp = aB.y;
         vSun = texture2D(uShadowBake, gridUV(base.xz)).r;
         gl_Position = projectionMatrix * viewMatrix * vec4(p, 1.0);
         if (vFade <= 0.0) gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
@@ -305,7 +310,7 @@ export function createTrees(features, hf, opts) {
       uniform sampler2D uImp; uniform vec3 uEnvAmb; uniform float uSunI; uniform vec3 uSkyAmb;
       ${AERIAL_GLSL}
       ${DITHER}
-      varying vec2 vUv; varying vec3 vWorld; varying vec3 vTint; varying float vFade; varying vec3 vRight; varying vec3 vToCam; varying float vSun; varying float vSp;
+      varying vec2 vUv; varying vec3 vWorld; varying vec3 vTint; varying float vFade; varying vec3 vRight; varying vec3 vUp; varying vec3 vToCam; varying float vSun; varying float vSp;
       void main() {
         if (ign(gl_FragCoord.xy) > vFade) discard;
         vec2 uv = vec2(vUv.x * 0.5 + (vSp > 0.5 ? 0.5 : 0.0), vUv.y);
@@ -315,11 +320,13 @@ export function createTrees(features, hf, opts) {
         // spherical normal approximation
         vec2 q = vec2(vUv.x * 2.0 - 1.0, (vUv.y - 0.55) * 2.2);
         float z = sqrt(max(0.0, 1.0 - dot(q, q) * 0.6));
-        vec3 n = normalize(vRight * q.x + vec3(0.0, 1.0, 0.0) * q.y * 0.8 + vToCam * z);
+        vec3 n = normalize(vRight * q.x + vUp * q.y * 0.8 + vToCam * z);
+        float lum = dot(t.rgb, vec3(0.3, 0.6, 0.1));
+        alb *= 0.8 + 0.5 * lum;
         float ndl = max(dot(n, uSunDir), 0.0) * 0.85 + 0.15;
         vec3 vd = normalize(vWorld - cameraPosition);
         float tr = pow(max(dot(vd, uSunDir), 0.0), 5.0) * 0.6;
-        vec3 col = alb * (uSunColor * uSunI * (ndl * 0.8 + tr) * vSun * 0.3183 + uSkyAmb * 0.55 * (0.55 + 0.45 * vUv.y));
+        vec3 col = alb * (uSunColor * uSunI * (ndl * 0.8 + tr) * vSun * 0.3183 + uSkyAmb * 0.55 * (0.35 + 0.65 * clamp(n.y * 0.5 + 0.5, 0.0, 1.0)));
         col = applyAerial(col, vWorld);
         gl_FragColor = vec4(col, 1.0);
       }`,

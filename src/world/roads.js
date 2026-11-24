@@ -18,6 +18,7 @@ const KIND = {
   path: { t: RT.PATH, w: 1.6, lift: 0.035, pave: false },
 };
 const URBAN = new Set([3, 5, 10, 6, 8, 9]);
+const RANK = { primary: 5, secondary: 4, tertiary: 3, unclassified: 2, residential: 1, service: 0.5 };
 
 export function roadInfo(r) { return KIND[r.k] || null; }
 export function roadWidth(r) { const K = KIND[r.k]; return Math.max(1.2, r.w || (K ? K.w : 4)); }
@@ -120,9 +121,17 @@ export function conformTerrain(hf, features) {
 // ---------------------------------------------------------------------------------------------
 
 class RibbonBuilder {
-  constructor() { this.pos = []; this.nor = []; this.road = []; this.mark = []; this.idx = []; this.n = 0; }
+  constructor() { this.pos = []; this.nor = []; this.road = []; this.mark = []; this.idx = []; this.n = 0; this.gw = null; }
   vert(x, y, z, nx, ny, nz, u, v, hw, t, m) {
-    this.pos.push(x, y, z); this.nor.push(nx, ny, nz); this.road.push(u, v, hw, t); this.mark.push(m);
+    this.pos.push(x, y, z); this.nor.push(nx, ny, nz); this.road.push(u, v, hw, t);
+    // give-way: signed distance from the stop line, lane side, active
+    let gx = 1e4, side = 0, act = 0;
+    const G = this.gw;
+    if (G) {
+      if (G.g0 >= 0 && u < G.g0 + 4) { gx = u - G.g0; side = -1; act = 1; }
+      if (G.g1 >= 0 && G.L - u < G.g1 + 4) { gx = (G.L - u) - G.g1; side = 1; act = 1; }
+    }
+    this.mark.push(m, gx, side, act);
     return this.n++;
   }
   quad(a, b, c, d) { this.idx.push(a, c, b, b, c, d); } // a,b along left edge... see usage
@@ -131,7 +140,7 @@ class RibbonBuilder {
     g.setAttribute('position', new THREE.Float32BufferAttribute(this.pos, 3));
     g.setAttribute('normal', new THREE.Float32BufferAttribute(this.nor, 3));
     g.setAttribute('aRoad', new THREE.Float32BufferAttribute(this.road, 4));
-    g.setAttribute('aMark', new THREE.Float32BufferAttribute(this.mark, 1));
+    g.setAttribute('aMark', new THREE.Float32BufferAttribute(this.mark, 4));
     g.setIndex(this.n > 65535 ? new THREE.Uint32BufferAttribute(this.idx, 1) : new THREE.Uint16BufferAttribute(this.idx, 1));
     g.computeBoundingSphere(); g.computeBoundingBox();
     return g;
@@ -186,7 +195,7 @@ function wall(B, p, F, o, y0, y1, face, type, hw, keepFn) {
 }
 
 const ROAD_FRAG = /* glsl */`
-varying vec4 vRoad; varying float vMark;
+varying vec4 vRoad; varying float vMark; varying vec3 vGw;
 uniform sampler2D uNoise;
 vec3 rAlb; float rRough; float rBump;
 vec3 lin3(vec3 c) { return pow(c, vec3(2.2)); }
@@ -197,13 +206,19 @@ void roadSurface(vec3 w) {
   vec4 n3 = texture2D(uNoise, w.xz / 3.1);
   vec4 n4 = texture2D(uNoise, w.xz / 1.9);
   float dist = distance(w, cameraPosition);
-  vec3 asph = lin3(vec3(0.27, 0.265, 0.26)) * (0.78 + 0.34 * n4.a) * (0.85 + 0.25 * n3.g);
-  asph = mix(asph, lin3(vec3(0.22, 0.22, 0.23)), smoothstep(0.62, 0.7, n2.b) * 0.8); // repair patches
-  float tq = (abs(v) - hw * 0.5) / (hw * 0.18); float track = exp(-tq * tq);
+  vec4 n5 = texture2D(uNoise, w.xz / 0.37);
+  float fa = 1.0 - smoothstep(8.0, 40.0, dist);
+  // neutral warm-grey asphalt, fine aggregate
+  vec3 asph = lin3(vec3(0.335, 0.33, 0.325)) * (1.0 + (n5.a - 0.5) * 0.16 * fa + (n4.b - 0.5) * 0.08) * (0.96 + 0.08 * n2.g);
+  // small rectangular patch repairs (low contrast)
+  vec2 pc = floor(vec2(u / 3.5, (v + hw) / 2.2));
+  float ph = fract(sin(dot(pc, vec2(12.9898, 78.233)) + floor(w.x * 0.003)) * 43758.5453);
+  asph *= mix(1.0, ph > 0.5 ? 0.9 : 1.06, step(0.955, ph) * vMark);
+  float tq = (abs(v) - hw * 0.5) / (hw * 0.16); float track = exp(-tq * tq);
   track *= vMark;
-  asph *= 1.0 - 0.10 * track;
-  asph *= mix(1.0, 0.82 + 0.25 * n3.b, smoothstep(hw - 0.6, hw, abs(v)) * vMark); // edge grime
-  rAlb = asph; rRough = 0.82 - 0.1 * track; rBump = n4.a * 0.6 + n3.b * 0.4;
+  asph *= 1.0 - 0.06 * track;
+  asph *= mix(1.0, 0.9 + 0.1 * n3.b, smoothstep(hw - 0.5, hw, abs(v)) * vMark); // edge grime
+  rAlb = asph; rRough = 0.9 - 0.06 * track; rBump = n5.a * 0.5 + n4.a * 0.3;
   if (t <= 3) {
     float paint = 0.0;
     float m = vMark;
@@ -212,6 +227,15 @@ void roadSurface(vec3 w) {
       paint = max(paint, lineAA(v, 0.06) * dash * m);
     }
     if (t == 0) paint = max(paint, lineAA(abs(v) - (hw - 0.35), 0.05) * m);
+    // give-way: double broken transverse line across the approach lane
+    if (vGw.z > 0.5) {
+      float gx = vGw.x;
+      float lane = step(0.0, v * vGw.y) * step(abs(v), hw - 0.15);
+      float dash = step(fract(v / 0.9), 0.6);
+      float l1 = 1.0 - smoothstep(0.0, 0.03, abs(gx - 0.1) - 0.1);
+      float l2 = 1.0 - smoothstep(0.0, 0.03, abs(gx - 0.5) - 0.1);
+      paint = max(paint, (l1 + l2) * dash * lane);
+    }
     paint *= 0.75 + 0.25 * n4.b;
     paint *= 1.0 - smoothstep(0.62, 0.75, n3.r) * 0.5; // worn
     rAlb = mix(rAlb, vec3(0.72), paint);
@@ -233,10 +257,11 @@ void roadSurface(vec3 w) {
     float joint = 1.0 - (1.0 - smoothstep(0.0, fw.x * 1.5 + 0.03, min(f.x, 1.0 - f.x))) * (1.0 - smoothstep(0.0, fw.y * 1.5 + 0.03, min(f.y, 1.0 - f.y)));
     float jv = min(smoothstep(0.0, 0.04 + fw.x, min(f.x, 1.0 - f.x)), smoothstep(0.0, 0.04 + fw.y, min(f.y, 1.0 - f.y)));
     jv = mix(jv, 1.0, clamp(max(fw.x, fw.y) * 2.0, 0.0, 1.0));
-    vec3 c = lin3(vec3(0.55, 0.54, 0.51)) * (0.85 + 0.2 * n4.a) * (0.9 + 0.15 * n2.g);
-    rAlb = c * (0.7 + 0.3 * jv); rRough = 0.85; rBump = jv * 0.5 + n4.a * 0.2;
+    float fh = fract(sin(dot(floor(fl), vec2(41.3, 289.1))) * 43758.5453);
+    vec3 c = lin3(vec3(0.47, 0.465, 0.45)) * (0.92 + 0.12 * fh) * (0.93 + 0.1 * n4.a) * (0.95 + 0.08 * n2.g);
+    rAlb = c * (0.82 + 0.18 * jv); rRough = 0.92; rBump = jv * 0.4 + n4.a * 0.15;
   } else if (t == ${RT.KERB}) {
-    rAlb = lin3(vec3(0.62, 0.61, 0.58)) * (0.8 + 0.3 * n4.a); rRough = 0.8;
+    rAlb = lin3(vec3(0.40, 0.395, 0.38)) * (0.85 + 0.2 * n4.a); rRough = 0.9;
   } else if (t == ${RT.BALLAST}) {
     float sl = step(0.62, fract(u / 0.65)) * step(abs(v), 1.3);
     rAlb = mix(lin3(vec3(0.40, 0.37, 0.34)) * (0.6 + 0.6 * n4.a), lin3(vec3(0.26, 0.22, 0.18)), sl * (1.0 - smoothstep(30.0, 80.0, dist)));
@@ -253,6 +278,7 @@ void roadSurface(vec3 w) {
 `;
 
 export async function createRoads(features, hf, lc, roadIdx, slicer, bIdx = null) {
+  const giveWays = [];
   const B = new RibbonBuilder();
   const tmp = { seg: null, d: 0, t: 0, y: 0 };
   for (const r of features.roads) {
@@ -266,7 +292,30 @@ export async function createRoads(features, hf, lc, roadIdx, slicer, bIdx = null
       return q !== null;
     };
     const markFn = (i) => (other(i, 1.0) ? 0 : 1); // plain asphalt near junctions -> overlapping ribbons look identical
-    strip(B, p, F, -hw, hw, lift, K.t, hw, markFn, null);
+    // UK practice: no centre line on narrow lanes
+    const tt = (K.t <= 1 && r._w < 5.5) ? RT.MINOR : K.t;
+    // give-way where this (minor) road ends on a road of higher rank
+    const rk = RANK[r.k] || 0;
+    const gwEnd = (pt) => {
+      if (rk <= 0 || rk >= 4) return -1;
+      const q = roadIdx.query(pt[0], pt[2], 0.5, (s) => s.ref !== r && (RANK[s.ref.k] || 0) > rk, tmp);
+      if (!q) return -1;
+      return Math.max(0.5, q.seg.ref._w / 2 - q.d + 0.6);
+    };
+    const L = F.L[p.length - 1];
+    const g0 = gwEnd(p[0]), g1 = gwEnd(p[p.length - 1]);
+    if ((g0 >= 0 || g1 >= 0) && L > 15) {
+      B.gw = { g0, g1, L };
+      const addSign = (i, g, dir) => {
+        // sign on the approach lane's left verge
+        const k = Math.max(0, Math.min(p.length - 1, i));
+        giveWays.push({ x: p[k][0], y: p[k][1], z: p[k][2], nx: F.nx[k], nz: F.nz[k], dir, hw: hw + (r._pave || 0), g });
+      };
+      if (g0 >= 0) addSign(Math.round((g0 + 1.5) / Math.max(0.5, L / (p.length - 1))), g0, -1);
+      if (g1 >= 0) addSign(p.length - 1 - Math.round((g1 + 1.5) / Math.max(0.5, L / (p.length - 1))), g1, 1);
+    } else B.gw = null;
+    strip(B, p, F, -hw, hw, lift, tt, hw, markFn, null);
+    B.gw = null;
     // round caps at both ends: fill junction corners / dead ends seamlessly
     for (const e of [0, p.length - 1]) {
       const c = p[e], seg = 14, y = c[1] + lift - 0.004;
@@ -328,8 +377,8 @@ export async function createRoads(features, hf, lc, roadIdx, slicer, bIdx = null
   const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.85, metalness: 0, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, envMapIntensity: 0.8 });
   patchMaterial(mat, {
     key: 'roads',
-    vertexPars: 'attribute vec4 aRoad; attribute float aMark; varying vec4 vRoad; varying float vMark;',
-    vertex: { begin_vertex: '$\n vRoad = aRoad; vMark = aMark;' },
+    vertexPars: 'attribute vec4 aRoad; attribute vec4 aMark; varying vec4 vRoad; varying float vMark; varying vec3 vGw;',
+    vertex: { begin_vertex: '$\n vRoad = aRoad; vMark = aMark.x; vGw = aMark.yzw;' },
     fragmentPars: ROAD_FRAG,
     fragment: {
       map_fragment: 'roadSurface(vAerialWorld); diffuseColor.rgb = rAlb;',
@@ -353,5 +402,5 @@ export async function createRoads(features, hf, lc, roadIdx, slicer, bIdx = null
   mesh.receiveShadow = true;
   mesh.castShadow = false;
   mesh.name = 'roads';
-  return { mesh, geometry: geo };
+  return { mesh, geometry: geo, giveWays };
 }

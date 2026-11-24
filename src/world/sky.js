@@ -7,7 +7,7 @@ export const SUN_AZIMUTH_DEG = 244; // clockwise from north
 export const SUN_ELEVATION_DEG = 21;
 const SKY_SCALE = 3.2; // brings Preetham output into our lighting units
 
-const PARAMS = { turbidity: 2.4, rayleigh: 1.2, mieCoefficient: 0.0028, mieDirectionalG: 0.82 };
+const PARAMS = { turbidity: 2.0, rayleigh: 1.7, mieCoefficient: 0.0022, mieDirectionalG: 0.8 };
 
 function skyMaterial(lut) {
   const S = Sky.SkyShader;

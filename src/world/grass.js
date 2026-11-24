@@ -4,7 +4,8 @@ import { hash2 } from './heightfield.js';
 
 // Instanced grass clumps in a toroidal ring of cells around the camera.
 const CELL = 6;
-const GRASSY = { 0: 1, 6: 0.9, 9: 0.9, 7: 1, 3: 0.3, 8: 0.5, 1: 0.0, 2: 0.3 };
+const GRASSY = { 0: 1, 6: 1, 9: 1, 7: 1, 3: 0.85, 8: 0.7, 1: 0.0, 2: 0.3 };
+const HEIGHT = { 0: 0.55, 6: 0.28, 9: 0.3, 7: 1.0, 3: 0.26, 8: 0.4, 2: 0.8 };
 
 function clumpGeometry(blades) {
   const pos = [], uv = [], idx = [];
@@ -40,7 +41,7 @@ export function createGrass(hf, lc, roadIdx, bIdx, cfg) {
   const R = cfg.grassRadius;
   const n = Math.ceil(R / CELL);
   const M = 2 * n + 1;
-  const K = Math.round(100 * cfg.grass);
+  const K = Math.round(130 * cfg.grass);
   const total = M * M * K;
   const geo = clumpGeometry(cfg.tier === 'low' ? 6 : 9);
   const inst = new Float32Array(total * 4);
@@ -68,15 +69,16 @@ export function createGrass(hf, lc, roadIdx, bIdx, cfg) {
         float cs = cos(ang), sn = sin(ang);
         vec3 p = position;
         p.xz = mat2(cs, -sn, sn, cs) * p.xz;
-        p *= s;
+        p.y *= s; p.xz *= mix(0.75, 1.0, s) * step(0.001, s);
         float ph = aI.x * 0.31 + aI.z * 0.27;
         float wv = sin(uTime * 1.7 + ph) * 0.5 + sin(uTime * 3.1 + ph * 2.3) * 0.25 + 0.3;
         p.xz += uWind * wv * 0.25 * uv.y * uv.y * s;
         vec3 w = aI.xyz + p;
         vWorld = w; vT = uv.y;
         vec4 n1 = texture2D(uNoise, aI.xz / 260.0), n2 = texture2D(uNoise, aI.xz / 41.0), n3 = texture2D(uNoise, aI.xz / 7.3);
-        vec3 grass = mix(lin(0.25, 0.33, 0.12), lin(0.36, 0.43, 0.17), n2.g);
-        grass = mix(grass, lin(0.46, 0.45, 0.24), smoothstep(0.55, 0.9, n1.r) * 0.55);
+        vec3 grass = aI.w < 0.45 ? mix(lin(0.27, 0.40, 0.12), lin(0.31, 0.44, 0.14), n2.g)
+                                 : mix(lin(0.25, 0.33, 0.12), lin(0.36, 0.43, 0.17), n2.g);
+        grass = mix(grass, lin(0.46, 0.45, 0.24), smoothstep(0.55, 0.9, n1.r) * 0.55 * step(0.45, aI.w));
         grass = mix(grass, lin(0.20, 0.29, 0.10), smoothstep(0.6, 0.9, n3.b) * 0.5);
         vCol = grass * (0.9 + 0.2 * fract(ph * 7.13));
         vSun = texture2D(uShadowBake, gridUV(aI.xz)).r * texture2D(uShadowBake, gridUV(aI.xz)).g;
@@ -90,7 +92,7 @@ export function createGrass(hf, lc, roadIdx, bIdx, cfg) {
       ${AERIAL_GLSL}
       varying vec3 vWorld; varying vec3 vCol; varying float vT; varying float vSun; varying vec3 vN;
       void main() {
-        vec3 alb = vCol * mix(0.85, 1.35, vT) * vec3(1.05, 1.0, 0.9);
+        vec3 alb = vCol * mix(0.9, 1.3, vT);
         vec3 vd = normalize(vWorld - cameraPosition);
         float ndl = max(dot(vN, uSunDir), 0.0) * 0.7 + 0.3;
         float tr = pow(max(dot(vd, uSunDir), 0.0), 4.0) * vT * 1.2;
@@ -110,9 +112,10 @@ export function createGrass(hf, lc, roadIdx, bIdx, cfg) {
       const i = Math.round((x - hf.x0) / hf.res), j = Math.round((z - hf.z0) / hf.res);
       let sc = 0;
       if (i >= 0 && j >= 0 && i < hf.cols && j < hf.rows) {
-        const p = GRASSY[lc[j * hf.cols + i]] || 0;
+        const cls = lc[j * hf.cols + i];
+        const p = GRASSY[cls] || 0;
         if (hash2(x * 1.3, z * 0.7) < p && !roadIdx.query(x, z, 0.4, null, tmp) && !bIdx.find(x, z)) {
-          sc = 0.7 + hash2(z, x) * 0.6;
+          sc = (HEIGHT[cls] || 0.5) * (0.8 + hash2(z, x) * 0.45);
         }
       }
       inst[o] = x; inst[o + 1] = hf.sample(x, z) - 0.04; inst[o + 2] = z; inst[o + 3] = sc;

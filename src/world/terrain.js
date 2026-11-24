@@ -143,7 +143,7 @@ float rows(vec2 xz, float ang, float period) {
   float d = dot(xz, vec2(cos(ang), sin(ang))) / period;
   float fw = fwidth(d);
   float r = 0.5 + 0.5 * sin(d * 6.2831853);
-  return mix(r, 0.5, clamp(fw * 1.5, 0.0, 1.0));
+  return mix(r, 0.5, smoothstep(0.12, 0.45, fw));
 }
 void terrainSurface(vec3 w) {
   vec2 uv = gridUV(w.xz);
@@ -171,16 +171,15 @@ void terrainSurface(vec3 w) {
   // farmland fields (voronoi parcels with crop rows)
   vec3 farm = grass; float farmB = grassB;
   if (sa.r > 0.01) {
-    vec2 warp = (n1.rg - 0.5) * 0.35;
-    vec3 v = voro(w.xz / 165.0 + warp);
+    vec3 v = voro(w.xz / 165.0);
     float h = h12(v.xy), h2 = h12(v.xy + 7.7);
     float ang = h2 * 3.14159;
-    float r = rows(w.xz, ang, 0.85);
+    float r = rows(w.xz, ang, 0.7);
     vec3 c;
     float rb = 0.0;
-    if (h < 0.32) { c = mix(lin(0.66, 0.55, 0.30), lin(0.56, 0.45, 0.24), n2.b); c *= 0.82 + 0.3 * r; rb = r * 0.6; }
-    else if (h < 0.58) { c = mix(lin(0.33, 0.42, 0.13), lin(0.43, 0.50, 0.17), n2.b); c *= 0.75 + 0.4 * r; rb = r * 0.5; }
-    else if (h < 0.80) { c = mix(lin(0.36, 0.27, 0.18), lin(0.30, 0.22, 0.15), n3.g); c *= 0.84 + 0.28 * r; rb = r * 0.8; }
+    if (h < 0.32) { c = mix(lin(0.66, 0.55, 0.30), lin(0.58, 0.47, 0.26), n2.b); c *= 0.9 + 0.16 * r; rb = r * 0.4; }
+    else if (h < 0.58) { c = mix(lin(0.33, 0.42, 0.13), lin(0.40, 0.48, 0.16), n2.b); c *= 0.86 + 0.22 * r; rb = r * 0.35; }
+    else if (h < 0.80) { c = mix(lin(0.36, 0.27, 0.18), lin(0.30, 0.22, 0.15), n3.g); c *= 0.88 + 0.2 * r; rb = r * 0.5; }
     else { c = mix(grass, lin(0.42, 0.48, 0.20), 0.4); rb = grassB; }
     c *= 0.9 + 0.2 * n3.r;
     float margin = smoothstep(0.012, 0.035, v.z);
@@ -188,12 +187,14 @@ void terrainSurface(vec3 w) {
     farmB = mix(grassB, rb + n4.b * 0.2, margin);
   }
   vec3 wood = mix(lin(0.17, 0.18, 0.08), lin(0.25, 0.18, 0.10), n3.g) * (0.8 + 0.4 * n4.b);
-  float gardenM = smoothstep(0.25, 0.35, n2.b + n3.r * 0.2);
-  vec3 resid = mix(lin(0.44, 0.42, 0.39) * (0.85 + 0.3 * n4.b), mix(grass, lin(0.24, 0.34, 0.12), 0.5), gardenM);
+  float gardenM = 1.0;
+  vec3 lawn = mix(lin(0.27, 0.40, 0.12), lin(0.31, 0.44, 0.14), n2.g) * (0.95 + 0.08 * n4.b);
+  lawn = mix(lawn, lin(0.22, 0.33, 0.10), smoothstep(0.55, 0.8, n3.r) * 0.35);
+  vec3 resid = lawn;
   vec3 hard = mix(lin(0.40, 0.39, 0.37), lin(0.30, 0.30, 0.29), n3.g) * (0.85 + 0.25 * n4.a);
   hard = mix(hard, lin(0.22, 0.21, 0.19), smoothstep(0.65, 0.85, n2.r) * 0.5);
   float stripe = step(0.5, fract(w.x / 9.0 + n1.r * 0.05));
-  vec3 mown = mix(lin(0.30, 0.42, 0.13), lin(0.36, 0.48, 0.16), stripe * 0.7 + n3.b * 0.3) * (0.9 + 0.15 * n4.b);
+  vec3 mown = mix(lin(0.28, 0.41, 0.12), lin(0.33, 0.46, 0.15), stripe * 0.6 + n3.b * 0.3) * (0.95 + 0.08 * n4.b);
   vec3 scrub = mix(lin(0.34, 0.33, 0.17), lin(0.16, 0.19, 0.07), smoothstep(0.45, 0.6, n3.b)) * (0.85 + 0.3 * n4.a);
   vec3 mud = lin(0.22, 0.19, 0.13);
   vec2 plot = floor(w.xz / vec2(6.0, 11.0));

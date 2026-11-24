@@ -31,8 +31,8 @@ uniform float uFogDensity;
 uniform float uFogFalloff;
 uniform float uFogBase;
 vec3 skyLUT(vec3 d) {
-  d = normalize(vec3(d.x, max(d.y, 0.035), d.z));
-  return texture2D(uSkyLUT, equirectUv(d)).rgb;
+  d = normalize(vec3(d.x, max(d.y, 0.07), d.z));
+  return texture2D(uSkyLUT, equirectUv(d)).rgb * vec3(0.97, 0.99, 1.05);
 }
 float aerialAmount(vec3 wpos, out vec3 rd, out float dist) {
   vec3 v = wpos - cameraPosition;

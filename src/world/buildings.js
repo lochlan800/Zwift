@@ -159,7 +159,10 @@ function addBuilding(G, b, rnd) {
   }
 
   // ---- roof
-  const uvPoly = poly.map((q) => toUV(q[0], q[1]));
+  const uvPoly0 = poly.map((q) => toUV(q[0], q[1]));
+  // eaves / verge overhang for pitched roofs (approximated by scaling about the OBB centre)
+  const OH = roof === 'flat' ? 0 : 0.32;
+  const uvPoly = OH ? uvPoly0.map((q) => [q[0] * (O.hl + (roof === 'hipped' ? OH : OH * 0.8)) / O.hl, q[1] * (O.hw + OH) / O.hw]) : uvPoly0;
   const addPlane = (pl, hfun, nrm, surf) => {
     if (pl.length < 3) return;
     const tris = triangulate(pl);
@@ -167,12 +170,18 @@ function addBuilding(G, b, rnd) {
       const [x, z] = toXZ(q[0], q[1]);
       return G.v(x, base + hfun(q[0], q[1]), z, nrm[0], nrm[1], nrm[2], q[0], q[1], base, eaveAbs, c, kind, surf, seed);
     });
+    // underside (soffit) only where the roof overhangs: cheap full duplicate, slightly lowered
+    const sid = OH && surf === S_ROOF ? pl.map((q) => {
+      const [x, z] = toXZ(q[0], q[1]);
+      return G.v(x, base + hfun(q[0], q[1]) - 0.06, z, -nrm[0], -nrm[1], -nrm[2], q[0], q[1], base, eaveAbs, c, kind, 4, seed);
+    }) : null;
     for (const t of tris) {
       const p0 = pl[t[0]], p1 = pl[t[1]], p2 = pl[t[2]];
       // orientation in xz (via uv->xz is a rotation, keeps handedness): want +y facing
       const [x0, z0] = toXZ(p0[0], p0[1]), [x1, z1] = toXZ(p1[0], p1[1]), [x2, z2] = toXZ(p2[0], p2[1]);
       const ny = (z1 - z0) * (x2 - x0) - (x1 - x0) * (z2 - z0);
       if (ny > 0) G.idx.push(ids[t[0]], ids[t[1]], ids[t[2]]); else G.idx.push(ids[t[0]], ids[t[2]], ids[t[1]]);
+      if (sid) { if (ny > 0) G.idx.push(sid[t[0]], sid[t[2]], sid[t[1]]); else G.idx.push(sid[t[0]], sid[t[1]], sid[t[2]]); }
     }
   };
   const planeN = (gu, gv) => { // gradient of h wrt (u,v) -> world normal
@@ -242,8 +251,8 @@ vec3 brickCol(int c) {
   if (c == 3) return lin3(vec3(0.62, 0.40, 0.27));
   if (c == 4) return lin3(vec3(0.56, 0.49, 0.37));
   if (c == 5) return lin3(vec3(0.40, 0.35, 0.28));
-  if (c == 6) return lin3(vec3(0.74, 0.70, 0.60));
-  return lin3(vec3(0.66, 0.66, 0.63));
+  if (c == 6) return lin3(vec3(0.70, 0.66, 0.57));
+  return lin3(vec3(0.64, 0.64, 0.61));
 }
 void buildingSurface(vec3 w, vec3 Nw) {
   int c = int(vB.x + 0.5), kind = int(vB.y + 0.5), surf = int(vB.z + 0.5);
@@ -302,7 +311,10 @@ void buildingSurface(vec3 w, vec3 Nw) {
     }
     // grime: darker near ground, streaks under windows
     col *= 0.78 + 0.22 * smoothstep(0.0, 1.2, hgt);
-    bAO = 0.65 + 0.35 * smoothstep(0.0, 1.5, hgt);
+    float underEave = smoothstep(eave - 0.9, eave - 0.05, hgt) * (1.0 - smoothstep(eave, eave + 0.3, hgt));
+    col *= 1.0 - 0.22 * underEave;
+    col *= 1.0 - 0.12 * smoothstep(0.55, 0.85, n3.r) * smoothstep(1.5, 0.0, hgt);
+    bAO = (0.65 + 0.35 * smoothstep(0.0, 1.5, hgt)) * (1.0 - 0.35 * underEave);
     if (surf == 0 && L > 1.8 && hgt < eave - 0.25 && hgt > 0.0) {
       float fh = industrial ? 4.2 : (kind == 6 ? 7.0 : 2.75);
       float nb = max(1.0, floor(L / (industrial ? 5.5 : 3.1) + 0.5));
@@ -326,18 +338,20 @@ void buildingSurface(vec3 w, vec3 Nw) {
         vec2 lp = vec2(lu, lh);
         float frame = boxAA(lp, lo - 0.07, hi + 0.07, fw);
         float glass = boxAA(lp, lo, hi, fw);
-        float sill = boxAA(lp, vec2(lo.x - 0.12, lo.y - 0.12), vec2(hi.x + 0.12, lo.y - 0.02), fw) * (door ? 0.0 : 1.0);
+        float sill = boxAA(lp, vec2(lo.x - 0.12, lo.y - 0.14), vec2(hi.x + 0.12, lo.y - 0.04), fw) * (door ? 0.0 : 1.0);
+        float lintel = boxAA(lp, vec2(lo.x - 0.14, hi.y + 0.07), vec2(hi.x + 0.14, hi.y + 0.28), fw) * ((stone || brick) && !industrial ? 1.0 : 0.0);
+        float reveal = boxAA(lp, vec2(lo.x, hi.y - 0.12), hi, fw) + boxAA(lp, lo, vec2(lo.x + 0.07, hi.y), fw);
         // window muntin
         float mull = door ? 0.0 : (1.0 - smoothstep(0.02, 0.02 + fw.x, abs(lu - bw * 0.5))) * glass;
         float fade = 1.0 - smoothstep(250.0, 700.0, dist);
         vec3 frameCol = (c >= 6 || bayH < 0.6) ? lin3(vec3(0.85, 0.85, 0.83)) : lin3(vec3(0.18, 0.18, 0.2));
-        vec3 glassCol = lin3(vec3(0.05, 0.065, 0.08)) + lin3(vec3(0.15, 0.13, 0.1)) * hb(bay + fl * 7.0 + seed) * 0.4;
+        vec3 glassCol = lin3(vec3(0.035, 0.04, 0.05)) + lin3(vec3(0.12, 0.10, 0.08)) * hb(bay + fl * 7.0 + seed) * 0.3;
         vec3 doorCol = industrial ? lin3(vec3(0.45, 0.47, 0.48)) : (hb(seed + bay) < 0.5 ? lin3(vec3(0.12, 0.16, 0.30)) : lin3(vec3(0.35, 0.06, 0.06)));
         col = mix(col, frameCol, frame * fade);
-        col = mix(col, lin3(vec3(0.72, 0.70, 0.66)), sill * fade);
+        col = mix(col, lin3(vec3(0.62, 0.58, 0.50)) * (0.9 + 0.1 * n4.r), max(sill, lintel) * fade);
         if (door) { col = mix(col, doorCol, glass * fade); bRough = mix(bRough, 0.5, glass * fade); }
         else {
-          col = mix(col, glassCol, glass * fade);
+          col = mix(col, glassCol * (1.0 - 0.6 * clamp(reveal, 0.0, 1.0)), glass * fade);
           col = mix(col, frameCol, mull * fade);
           bRough = mix(bRough, 0.08, glass * fade * (1.0 - mull));
           bMetal = mix(bMetal, 0.0, glass * fade);
@@ -356,7 +370,7 @@ void buildingSurface(vec3 w, vec3 Nw) {
     float down = w.y / slope; // distance along slope
     float ac = dot(w, along);
     bool slate = (c == 4 || c == 5 || kind == 1 || c == 2 || kind == 6);
-    vec3 rc = slate ? lin3(vec3(0.24, 0.25, 0.28)) : (c == 0 || c == 3) ? lin3(vec3(0.42, 0.22, 0.15)) : (c == 6) ? lin3(vec3(0.33, 0.25, 0.20)) : lin3(vec3(0.30, 0.30, 0.31));
+    vec3 rc = slate ? lin3(vec3(0.29, 0.31, 0.345)) : (c == 0 || c == 3) ? lin3(vec3(0.44, 0.29, 0.23)) : (c == 6) ? lin3(vec3(0.34, 0.28, 0.24)) : lin3(vec3(0.31, 0.31, 0.31));
     if (industrial) rc = lin3(vec3(0.42, 0.43, 0.44));
     vec2 tp = slate ? vec2(ac / 0.3, down / 0.22) : vec2(ac / 0.33, down / 0.26);
     float row = floor(tp.y);
@@ -369,8 +383,10 @@ void buildingSurface(vec3 w, vec3 Nw) {
     vec3 col = rc * (0.85 + 0.3 * th * (1.0 - aa)) * shadow * (0.75 + 0.25 * gap);
     col = mix(col, lin3(vec3(0.30, 0.33, 0.18)), smoothstep(0.62, 0.85, n3.g) * 0.35); // moss
     bAlb = col * (0.9 + 0.15 * n4.b);
-    bRough = slate ? 0.6 : 0.75;
+    bRough = slate ? 0.72 : 0.8;
     bBump = shadow * 0.7;
+  } else if (surf == 4) {
+    bAlb = lin3(vec3(0.16, 0.15, 0.14)); bRough = 0.9; bAO = 0.6;
   } else {
     // flat roof: felt / gravel / metal
     vec3 col = industrial ? lin3(vec3(0.46, 0.47, 0.47)) : lin3(vec3(0.20, 0.20, 0.21));

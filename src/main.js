@@ -13,6 +13,8 @@ import { createWater, carveWater } from './world/water.js';
 import { createGrass } from './world/grass.js';
 import { createWalls } from './world/walls.js';
 import { bakeShadows } from './world/shadowbake.js';
+import { generateHedgerows, createStreetLife } from './world/streetlife.js';
+import { SegmentIndex } from './world/heightfield.js';
 import { createRider } from './ride/rider.js';
 import { Route, Physics } from './ride/route.js';
 import { ChaseCamera } from './ride/camera.js';
@@ -52,6 +54,7 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.NoToneMapping;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap;
+renderer.info.autoReset = false;
 renderer.setClearColor(0x8fb3d9);
 
 const scene = new THREE.Scene();
@@ -91,6 +94,11 @@ async function build() {
   const bIdx = new PolygonIndex(24);
   for (const b of features.buildings) if (b.p && b.p.length >= 3) bIdx.add(b.p, b);
   world.hf = hf; world.roadIdx = roadIdx; world.bIdx = bIdx; world.features = features;
+  const hedgerows = generateHedgerows(features, hf, data.landcover, roadIdx, bIdx);
+  for (const w of hedgerows.walls) features.walls.push(w);
+  for (const t of hedgerows.trees) features.trees.push(t);
+  const routeIdx = new SegmentIndex(24);
+  { const rp = features.route.pts; for (let i = 0; i + 1 < rp.length; i++) routeIdx.add(rp[i][0], rp[i][1], rp[i][2], rp[i + 1][0], rp[i + 1][1], rp[i + 1][2], 0, null); }
 
   progress(0.14, 'Building sky');
   await nextFrame();
@@ -135,6 +143,10 @@ async function build() {
   await nextFrame();
   const roads = await createRoads(features, hf, data.landcover, roadIdx, slicer, bIdx);
   scene.add(roads.mesh);
+  const street = createStreetLife(features, hf, data.landcover, roadIdx, bIdx, routeIdx, roads.giveWays, cfg);
+  scene.add(street.group);
+  world.street = street;
+  console.info('street life', JSON.stringify(street.counts), 'hedgerows', hedgerows.walls.length, 'hedgerow trees', hedgerows.trees.length);
 
   progress(0.62, 'Raising buildings');
   const buildings = await createBuildings(features, slicer, (f) => progress(0.62 + f * 0.2, `Raising buildings ${Math.round(f * 100)}%`));
@@ -246,6 +258,7 @@ function setCamMode(mode) {
   U.uBakeFade.value.set(world.sun.shadow.camera.far * 0.55, world.sun.shadow.camera.far * 0.95);
   world.trees.setNearRadius(mode ? Math.max(cfg.treeNear, 260) : cfg.treeNear);
   world.terrain.setLodScale(mode ? cfg.lod * 1.3 : cfg.lod);
+  world.street.setRadiusScale(mode ? 1.8 : 1);
 }
 $('camBtn').addEventListener('click', () => setCamMode(world.chase.mode ? 0 : 1));
 $('pauseBtn').addEventListener('click', () => {
@@ -300,8 +313,10 @@ function frame(now) {
   camera.updateMatrixWorld();
   world.terrain.update(camera);
   world.trees.update(camera.position);
+  world.street.update(camera.position);
   if (world.grass) world.grass.update(camera, rider.root.position);
   world.sky.update(U.uTime.value, camera.position);
+  renderer.info.reset();
   post.composer.render(dt);
   if (dynres && state.mode !== 'title' && !NODYN) dynres.frame(dtMs);
 }
@@ -317,7 +332,7 @@ canvas.addEventListener('webglcontextrestored', () => {
 }, false);
 
 // testing hooks
-window.__hb = { state, world, camera, renderer, getPost: () => post, setCamMode(m) { setCamMode(m); world.chase.initialized = false; }, setS(s) { state.s = s; placeRider(0, 0); world.chase.initialized = false; }, cfg };
+window.__hb = { state, world, camera, renderer, getPost: () => post, setCamMode(m) { setCamMode(m); world.chase.initialized = false; }, setS(s) { state.s = s; state.dist = s; state.time = s / 6.4; placeRider(0, 0); world.chase.initialized = false; }, cfg };
 
 requestAnimationFrame(frame);
 build().catch((e) => { console.error(e); fatal('Could not build the world', String(e && e.message || e)); });
