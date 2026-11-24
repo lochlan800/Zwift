@@ -97,6 +97,26 @@ async function build() {
   const hedgerows = generateHedgerows(features, hf, data.landcover, roadIdx, bIdx);
   for (const w of hedgerows.walls) features.walls.push(w);
   for (const t of hedgerows.trees) features.trees.push(t);
+  {
+    // keep tree trunks >= 1 m clear of carriageway edges and off pavements
+    const q0 = { seg: null, d: 0, t: 0, y: 0 };
+    let moved = 0;
+    for (const t of features.trees) {
+      const q = roadIdx.query(t[0], t[2], 1.2, (s) => s.ref._w >= 2.5, q0);
+      if (!q) continue;
+      const s = q.seg, need = s.ref._w / 2 + (s.ref._pave || 0) + 1.0;
+      if (q.d >= need) continue;
+      const px = s.ax + (s.bx - s.ax) * q.t, pz = s.az + (s.bz - s.az) * q.t;
+      let dx = t[0] - px, dz = t[2] - pz, l = Math.hypot(dx, dz);
+      if (l < 1e-3) { dx = -(s.bz - s.az); dz = s.bx - s.ax; l = Math.hypot(dx, dz) || 1; }
+      t[0] = px + dx / l * need; t[2] = pz + dz / l * need; t[1] = Math.min(t[1], hf.sample(t[0], t[2]));
+      t[1] = hf.sample(t[0], t[2]);
+      if (bIdx.find(t[0], t[2])) t[3] = 0; // would land in a building: drop
+      moved++;
+    }
+    features.trees = features.trees.filter((t) => t[3] > 0);
+    console.info('trees moved off roads', moved);
+  }
   const routeIdx = new SegmentIndex(24);
   { const rp = features.route.pts; for (let i = 0; i + 1 < rp.length; i++) routeIdx.add(rp[i][0], rp[i][1], rp[i][2], rp[i + 1][0], rp[i + 1][1], rp[i + 1][2], 0, null); }
 
@@ -105,11 +125,11 @@ async function build() {
   const sky = createSky(renderer);
   scene.add(sky.dome);
   scene.environment = sky.envMap;
-  scene.environmentIntensity = 0.5;
+  scene.environmentIntensity = 0.43;
   U.uNoise.value = makeNoiseTexture(256);
   world.sky = sky;
 
-  const sun = new SunLight(0xffffff, 8.5);
+  const sun = new SunLight(0xffffff, 7.3);
   sun.color.copy(sky.sunColor);
   U.uSunI.value = sun.intensity;
   sun.position.copy(sky.sunDir);
@@ -161,7 +181,7 @@ async function build() {
 
   const water = createWater(features, hf);
   if (water) scene.add(water.mesh);
-  const walls = await createWalls(features, slicer, cfg.tier !== 'low');
+  const walls = await createWalls(features, slicer, cfg.tier !== 'low', roadIdx, cfg.tier);
   world.walls = walls; world.roads = roads;
   if (walls) scene.add(walls.mesh);
 
@@ -219,8 +239,9 @@ function placeRider(dt, speed) {
   P.x += lx * off; P.z += lz * off;
   // ground: road surface under the wheels if available
   let gy = P.y;
-  const q = roadIdx.query(P.x, P.z, 0.5, null, tmpQ);
-  if (q && Math.abs(q.y - P.y) < 2.5) gy = q.y + (roadInfo(q.seg.ref)?.lift ?? 0.06);
+  const ry = P.y;
+  const q = roadIdx.query(P.x, P.z, 0.5, (s) => Math.abs((s.ay + s.by) * 0.5 - ry) < 1.5, tmpQ);
+  if (q && Math.abs(q.y - P.y) < 1.5) gy = q.y + (roadInfo(q.seg.ref)?.lift ?? 0.06);
   else gy = Math.max(P.y + 0.05, hf.sample(P.x, P.z) + 0.05);
   state.groundY = dt > 0 ? state.groundY + (gy - state.groundY) * Math.min(1, dt * 10) : gy;
   // lean from yaw rate
@@ -324,6 +345,7 @@ function frame(now) {
   }
   if (world.grass) world.grass.update(camera, rider.root.position);
   world.sky.update(U.uTime.value, camera.position);
+  U.uRiderPos.value.copy(rider.root.position);
   renderer.info.reset();
   post.composer.render(dt);
   if (dynres && state.mode !== 'title' && !NODYN) dynres.frame(dtMs);

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { patchMaterial, GRID_GLSL } from './shared.js';
+import { patchMaterial, GRID_GLSL, OCC_GLSL } from './shared.js';
+const OCC_FRAG = { alphatest_fragment: '$\n if (ign(gl_FragCoord.xy) > occFade(vAerialWorld)) discard;' };
 import { hash2, mulberry32 } from './heightfield.js';
 
 // ------------------------------------------------------------------ helpers
@@ -297,12 +298,13 @@ export function createStreetLife(features, hf, lc, roadIdx, bIdx, routeIdx, give
   const sets = [];
   const R = cfg.propRadius;
   // shared props material (vertex colours x instance colour)
-  const propMat = patchMaterial(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.1, envMapIntensity: 1.0 }), { key: 'props' });
-  const carMat = patchMaterial(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.3, metalness: 0.35, envMapIntensity: 1.2 }), { key: 'cars' });
+  const propMat = patchMaterial(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.1, envMapIntensity: 1.0 }), { key: 'props', fragmentPars: OCC_GLSL, fragment: OCC_FRAG });
+  const carMat = patchMaterial(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.3, metalness: 0.35, envMapIntensity: 1.2 }), { key: 'cars', fragmentPars: OCC_GLSL, fragment: OCC_FRAG });
   const boundaryMat = patchMaterial(new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9 }), {
     key: 'gwall',
-    fragmentPars: 'uniform sampler2D uNoise; vec3 lin3(vec3 c) { return pow(c, vec3(2.2)); }',
+    fragmentPars: OCC_GLSL + 'uniform sampler2D uNoise; vec3 lin3(vec3 c) { return pow(c, vec3(2.2)); }',
     fragment: {
+      ...OCC_FRAG,
       color_fragment: `$
         {
           vec3 w = vAerialWorld;
@@ -316,8 +318,9 @@ export function createStreetLife(features, hf, lc, roadIdx, bIdx, routeIdx, give
   });
   const hedgeMat = patchMaterial(new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95 }), {
     key: 'ghedge',
-    fragmentPars: 'uniform sampler2D uNoise;',
+    fragmentPars: OCC_GLSL + 'uniform sampler2D uNoise;',
     fragment: {
+      ...OCC_FRAG,
       color_fragment: `$
         {
           vec3 w = vAerialWorld;

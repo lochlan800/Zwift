@@ -5,7 +5,7 @@ import { U } from './shared.js';
 // Late-afternoon UK light: sun low in the WSW.
 export const SUN_AZIMUTH_DEG = 244; // clockwise from north
 export const SUN_ELEVATION_DEG = 21;
-const SKY_SCALE = 3.2; // brings Preetham output into our lighting units
+const SKY_SCALE = 2.6; // brings Preetham output into our lighting units
 
 const PARAMS = { turbidity: 2.0, rayleigh: 1.7, mieCoefficient: 0.0022, mieDirectionalG: 0.8 };
 
@@ -24,7 +24,10 @@ function skyMaterial(lut) {
   fs = fs.replace('uniform float time;', 'uniform float time;\nuniform float skyScale;\nuniform vec3 groundColor;\nuniform float desat;')
     .replace('gl_FragColor = vec4( texColor, 1.0 );',
       `texColor *= skyScale;
-       { float sl = dot(texColor, vec3(0.2126, 0.7152, 0.0722)); texColor = max(mix(vec3(sl), texColor, 1.22), 0.0); }
+       { float sl = dot(texColor, vec3(0.2126, 0.7152, 0.0722)); texColor = max(mix(vec3(sl), texColor, 1.25), 0.0);
+         // soft pale blue-grey toward the horizon instead of white
+         float hz = 1.0 - smoothstep(0.0, 0.3, abs(direction.y));
+         texColor *= mix(vec3(1.0), vec3(0.80, 0.88, 1.0), hz); }
        if (any(isnan(texColor)) || any(isinf(texColor))) texColor = vec3(0.4, 0.5, 0.7);
        texColor = clamp(texColor, 0.0, 30.0);
        ${lut ? 'texColor = mix(texColor, vec3(dot(texColor, vec3(0.3, 0.5, 0.2))), desat); texColor = mix(texColor, groundColor, smoothstep(0.0, -0.25, direction.y));' : ''}

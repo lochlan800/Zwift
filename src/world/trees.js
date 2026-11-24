@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { U, AERIAL_GLSL, GRID_GLSL, patchMaterial } from './shared.js';
+import { U, AERIAL_GLSL, GRID_GLSL, OCC_GLSL, patchMaterial } from './shared.js';
 import { mulberry32, hash2 } from './heightfield.js';
 
 // ---------------------------------------------------------------- textures
@@ -215,12 +215,13 @@ export function createTrees(features, hf, opts) {
         transformed.xz += uWind * (sway * 0.025 * position.y * position.y) + flutter;
         transformed.y += flutter * 0.5;`,
     },
-    fragmentPars: `${GRID_GLSL} varying vec2 vT; varying float vIDist; uniform float uNear; ${DITHER} float hbSun;`,
+    fragmentPars: `${GRID_GLSL} ${OCC_GLSL} varying vec2 vT; varying float vIDist; uniform float uNear; float hbSun;`,
     fragment: {
       map_fragment: `$
         {
           float fade = smoothstep(uNear - ${fadeBand.toFixed(1)}, uNear, vIDist);
-          if (ign(gl_FragCoord.xy) < fade) discard;
+          float dn = ign(gl_FragCoord.xy);
+          if (dn < fade || dn > occFade(vAerialWorld)) discard;
         }`,
       lights_fragment_begin: THREE.ShaderChunk.lights_fragment_begin.replace('getSunLightInfo( sunLight, directLight );', 'getSunLightInfo( sunLight, directLight ); directLight.color *= hbSun;'),
       normal_fragment_begin: `$

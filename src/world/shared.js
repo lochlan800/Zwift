@@ -18,6 +18,7 @@ export const U = {
   uBakeFade: { value: new THREE.Vector2(180, 260) },
   uSkyAmb: { value: new THREE.Color(0.5, 0.6, 0.8) },
   uSunI: { value: 8.5 },
+  uRiderPos: { value: new THREE.Vector3(0, -1e5, 0) },
 };
 
 // GLSL: aerial perspective / exponential height fog using a sky colour LUT
@@ -54,6 +55,22 @@ vec3 applyAerial(vec3 col, vec3 wpos) {
   // slight blue extinction tint of mid-distance before full haze
   col *= mix(vec3(1.0), vec3(0.86, 0.93, 1.06), clamp(t * 1.6, 0.0, 1.0));
   return mix(col, fc, t);
+}
+`;
+
+// Screen-door fade for things that get too close to the camera or sit between camera and rider
+export const OCC_GLSL = /* glsl */`
+uniform vec3 uRiderPos;
+float ign(vec2 p) { return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00583715)))); }
+float occFade(vec3 w) {
+  vec3 v = w - cameraPosition;
+  float a = smoothstep(2.0, 6.0, length(v));
+  vec3 cr = uRiderPos + vec3(0.0, 1.0, 0.0) - cameraPosition;
+  float L = length(cr);
+  vec3 d = cr / max(L, 1e-3);
+  float t = dot(v, d);
+  if (t > 0.0 && t < L - 1.2) a = min(a, smoothstep(0.7, 1.8, length(v - d * t)));
+  return a;
 }
 `;
 
