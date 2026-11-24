@@ -251,8 +251,8 @@ vec3 brickCol(int c) {
   if (c == 3) return lin3(vec3(0.62, 0.40, 0.27));
   if (c == 4) return lin3(vec3(0.56, 0.49, 0.37));
   if (c == 5) return lin3(vec3(0.40, 0.35, 0.28));
-  if (c == 6) return lin3(vec3(0.70, 0.66, 0.57));
-  return lin3(vec3(0.64, 0.64, 0.61));
+  if (c == 6) return lin3(vec3(0.64, 0.60, 0.52));
+  return lin3(vec3(0.58, 0.58, 0.555));
 }
 void buildingSurface(vec3 w, vec3 Nw) {
   int c = int(vB.x + 0.5), kind = int(vB.y + 0.5), surf = int(vB.z + 0.5);

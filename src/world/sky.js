@@ -24,6 +24,7 @@ function skyMaterial(lut) {
   fs = fs.replace('uniform float time;', 'uniform float time;\nuniform float skyScale;\nuniform vec3 groundColor;\nuniform float desat;')
     .replace('gl_FragColor = vec4( texColor, 1.0 );',
       `texColor *= skyScale;
+       { float sl = dot(texColor, vec3(0.2126, 0.7152, 0.0722)); texColor = max(mix(vec3(sl), texColor, 1.22), 0.0); }
        if (any(isnan(texColor)) || any(isinf(texColor))) texColor = vec3(0.4, 0.5, 0.7);
        texColor = clamp(texColor, 0.0, 30.0);
        ${lut ? 'texColor = mix(texColor, vec3(dot(texColor, vec3(0.3, 0.5, 0.2))), desat); texColor = mix(texColor, groundColor, smoothstep(0.0, -0.25, direction.y));' : ''}

@@ -297,14 +297,26 @@ export async function createRoads(features, hf, lc, roadIdx, slicer, bIdx = null
     const tt = (K.t <= 1 && (r._w < 6.0 || (!r._pave && r._w < 6.6 && (r.k === 'tertiary' || r.k === 'unclassified')))) ? RT.MINOR : K.t;
     // give-way where this (minor) road ends on a road of higher rank
     const rk = RANK[r.k] || 0;
-    const gwEnd = (pt) => {
+    const gwEnd = (pt, fromEnd) => {
       if (rk <= 0 || rk >= 4) return -1;
-      const q = roadIdx.query(pt[0], pt[2], 0.5, (s) => s.ref !== r && (RANK[s.ref.k] || 0) > rk, tmp);
-      if (!q) return -1;
-      return Math.max(0.5, q.seg.ref._w / 2 - q.d + 0.6);
+      const flt = (s) => s.ref !== r && (RANK[s.ref.k] || 0) > rk;
+      if (!roadIdx.query(pt[0], pt[2], 0.5, flt, tmp)) return -1;
+      // walk back along this road until we leave the major carriageway
+      const pts = fromEnd ? [...p].reverse() : p;
+      let acc = 0;
+      for (let i = 0; i + 1 < pts.length && acc < 25; i++) {
+        const a = pts[i], b = pts[i + 1], L = Math.hypot(b[0] - a[0], b[2] - a[2]);
+        for (let t = 0; t < L; t += 0.25) {
+          const x = a[0] + (b[0] - a[0]) * t / L, z = a[2] + (b[2] - a[2]) * t / L;
+          const q = roadIdx.query(x, z, 0.5, flt, tmp);
+          if (!q || q.d > q.seg.ref._w / 2) return acc + t + 0.35;
+        }
+        acc += L;
+      }
+      return -1;
     };
     const L = F.L[p.length - 1];
-    const g0 = gwEnd(p[0]), g1 = gwEnd(p[p.length - 1]);
+    const g0 = gwEnd(p[0], false), g1 = gwEnd(p[p.length - 1], true);
     if ((g0 >= 0 || g1 >= 0) && L > 15) {
       B.gw = { g0, g1, L };
       const addSign = (i, g, dir) => {

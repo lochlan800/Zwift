@@ -45,7 +45,7 @@ function impostorAtlas() {
   for (let i = 0; i < 900; i++) {
     const a = rnd() * Math.PI * 2, rr = Math.sqrt(rnd());
     const x = 64 + Math.cos(a) * rr * 58, y = 112 + Math.sin(a) * rr * 92;
-    const s = 3 + rnd() * 6; const l = 34 + rnd() * 40;
+    const s = 3 + rnd() * 6; const l = 20 + rnd() * 24 + (y < 112 ? 6 : -4);
     g.fillStyle = `hsl(${90 + rnd() * 25}, 40%, ${l}%)`;
     g.beginPath(); g.arc(x, y, s, 0, Math.PI * 2); g.fill();
   }
@@ -54,7 +54,7 @@ function impostorAtlas() {
   for (let i = 0; i < 900; i++) {
     const t = rnd(); const y = 8 + t * 220; const half = (t * 0.92 + 0.04) * 56;
     const x = 192 + (rnd() * 2 - 1) * half;
-    const s = 2.5 + rnd() * 4; const l = 22 + rnd() * 30;
+    const s = 2.5 + rnd() * 4; const l = 16 + rnd() * 20;
     g.fillStyle = `hsl(${110 + rnd() * 30}, 35%, ${l}%)`;
     g.beginPath(); g.arc(x, y, s, 0, Math.PI * 2); g.fill();
   }
@@ -194,7 +194,7 @@ export function createTrees(features, hf, opts) {
   // --- near detailed trees (InstancedMesh, lit, shadowed)
   const fadeBand = 30;
   const uNear = { value: opts.nearRadius };
-  const mat = new THREE.MeshStandardMaterial({ map: leafTex, alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.82, metalness: 0, envMapIntensity: 0.8 });
+  const mat = new THREE.MeshStandardMaterial({ map: leafTex, alphaTest: 0.45, side: THREE.DoubleSide, roughness: 1.0, metalness: 0, envMapIntensity: 0.55, color: 0xd0d8c8 });
   patchMaterial(mat, {
     key: 'treesNear', uniforms: { uNear },
     vertexPars: `attribute vec2 aT; attribute vec3 aC; varying vec2 vT; varying float vIDist; uniform float uTime; uniform float uNear; uniform vec2 uWind;`,
@@ -322,11 +322,11 @@ export function createTrees(features, hf, opts) {
         float z = sqrt(max(0.0, 1.0 - dot(q, q) * 0.6));
         vec3 n = normalize(vRight * q.x + vUp * q.y * 0.8 + vToCam * z);
         float lum = dot(t.rgb, vec3(0.3, 0.6, 0.1));
-        alb *= 0.8 + 0.5 * lum;
+        alb *= (0.8 + 0.5 * lum) * 0.72;
         float ndl = max(dot(n, uSunDir), 0.0) * 0.85 + 0.15;
         vec3 vd = normalize(vWorld - cameraPosition);
         float tr = pow(max(dot(vd, uSunDir), 0.0), 5.0) * 0.6;
-        vec3 col = alb * (uSunColor * uSunI * (ndl * 0.8 + tr) * vSun * 0.3183 + uSkyAmb * 0.55 * (0.35 + 0.65 * clamp(n.y * 0.5 + 0.5, 0.0, 1.0)));
+        vec3 col = alb * (uSunColor * uSunI * (ndl * 0.8 + tr) * vSun * 0.3183 + uSkyAmb * 0.3 * (0.3 + 0.7 * clamp(n.y * 0.5 + 0.5, 0.0, 1.0)));
         col = applyAerial(col, vWorld);
         gl_FragColor = vec4(col, 1.0);
       }`,

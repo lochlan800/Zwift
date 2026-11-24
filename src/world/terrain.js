@@ -143,7 +143,7 @@ float rows(vec2 xz, float ang, float period) {
   float d = dot(xz, vec2(cos(ang), sin(ang))) / period;
   float fw = fwidth(d);
   float r = 0.5 + 0.5 * sin(d * 6.2831853);
-  return mix(r, 0.5, smoothstep(0.12, 0.45, fw));
+  return mix(r, 0.5, smoothstep(0.05, 0.22, fw));
 }
 void terrainSurface(vec3 w) {
   vec2 uv = gridUV(w.xz);
