@@ -219,7 +219,16 @@ void roadSurface(vec3 w) {
   vec4 n5 = texture2D(uNoise, w.xz / 0.37);
   float fa = 1.0 - smoothstep(8.0, 40.0, dist);
   // neutral warm-grey asphalt, fine aggregate
-  vec3 asph = lin3(vec3(0.335, 0.33, 0.325)) * (1.0 + (n5.a - 0.5) * 0.16 * fa + (n4.b - 0.5) * 0.08) * (0.96 + 0.08 * n2.g);
+  vec3 asph = lin3(vec3(0.255, 0.258, 0.27)) * (1.0 + (n5.a - 0.5) * 0.28 * fa + (n4.b - 0.5) * 0.1) * (0.95 + 0.1 * n2.g);
+  // fine cracks (thin dark lines from the noise iso-contours) and longitudinal tar-seal joints
+  {
+    float cn = texture2D(uNoise, w.xz / 4.7).g;
+    float cw = fwidth(cn) * 1.2 + 1e-4;
+    float crack = (1.0 - smoothstep(0.0, cw, abs(cn - 0.5))) * smoothstep(0.55, 0.75, n2.r) * fa;
+    float seal = (1.0 - smoothstep(0.0, 0.05 + fwidth(v), abs(v - (hw * 0.5 - 0.1) * sign(v + 1e-3)))) * step(0.5, hw) * 0.6 * fa;
+    seal = max(seal, (1.0 - smoothstep(0.0, 0.04 + fwidth(u), abs(fract(u / 47.0) - 0.5) * 47.0)) * 0.7 * fa);
+    asph *= 1.0 - 0.55 * max(crack, seal);
+  }
   // small rectangular patch repairs (low contrast)
   vec2 pc = floor(vec2(u / 3.5, (v + hw) / 2.2));
   float ph = fract(sin(dot(pc, vec2(12.9898, 78.233)) + floor(w.x * 0.003)) * 43758.5453);
@@ -268,13 +277,19 @@ void roadSurface(vec3 w) {
     }
     paint *= 0.75 + 0.25 * n4.b;
     paint *= 1.0 - smoothstep(0.62, 0.75, n3.r) * 0.5; // worn
-    rAlb = mix(rAlb, vec3(0.72), paint);
+    rAlb = mix(rAlb, vec3(0.86), paint);
+    // rural lanes without pavements: narrow grit shoulder
+    if (t >= 1 && vMark > 0.5 && hw > 1.6 && !town && vRoad.w < 2.5) {
+      float sh = smoothstep(hw - 0.45, hw - 0.3, abs(v));
+      rAlb = mix(rAlb, lin3(vec3(0.42, 0.38, 0.32)) * (0.7 + 0.5 * n5.a), sh * 0.85);
+      rBump = mix(rBump, n5.a, sh);
+    }
     rRough = mix(rRough, 0.55, paint);
     if (town && abs(gxc) > 14.5) {
       // double yellow lines along both kerbs
       float yl = max(lineAA(abs(v) - (hw - 0.22), 0.05), lineAA(abs(v) - (hw - 0.42), 0.05)) * m;
       yl *= 0.8 + 0.2 * n4.b;
-      rAlb = mix(rAlb, lin3(vec3(0.85, 0.66, 0.12)), yl);
+      rAlb = mix(rAlb, lin3(vec3(0.95, 0.72, 0.08)), yl);
       rRough = mix(rRough, 0.6, yl);
     }
   } else if (t == ${RT.TRACK}) {
@@ -306,7 +321,11 @@ void roadSurface(vec3 w) {
       else rAlb = lin3(vec3(0.50, 0.26, 0.22)) * (0.82 + 0.18 * jv);   // red block paving
     }
   } else if (t == ${RT.KERB}) {
-    rAlb = lin3(vec3(0.40, 0.395, 0.38)) * (0.85 + 0.2 * n4.a); rRough = 0.9;
+    // kerbstones: 0.9 m blocks with joints, top arris lighter
+    float kj = smoothstep(0.0, 0.03 + fwidth(u / 0.9) * 0.9, min(fract(u / 0.9), 1.0 - fract(u / 0.9)));
+    float kh = fract(sin(floor(u / 0.9) * 12.9898) * 43758.5453);
+    rAlb = lin3(vec3(0.55, 0.545, 0.53)) * (0.85 + 0.15 * kh) * (0.55 + 0.45 * kj) * (0.9 + 0.15 * n4.a);
+    rAlb *= mix(0.75, 1.1, smoothstep(0.0, 0.12, v - 0.02)); rRough = 0.85; rBump = kj;
   } else if (t == ${RT.BALLAST}) {
     float sl = step(0.62, fract(u / 0.65)) * step(abs(v), 1.3);
     rAlb = mix(lin3(vec3(0.40, 0.37, 0.34)) * (0.6 + 0.6 * n4.a), lin3(vec3(0.26, 0.22, 0.18)), sl * (1.0 - smoothstep(30.0, 80.0, dist)));
