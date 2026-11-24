@@ -74,7 +74,7 @@ function pushQuad(arr, c, ax, ay, s, nrmFn, uv0, uv1, leaf, ao) {
     arr.pos.push(x, y, z);
     const n = nrmFn(x, y, z); arr.nor.push(n.x, n.y, n.z);
     arr.uv.push(uv0[0] + (i * 0.5 + 0.5) * (uv1[0] - uv0[0]), uv0[1] + (j * 0.5 + 0.5) * (uv1[1] - uv0[1]));
-    arr.t.push(leaf, ao);
+    arr.t.push(leaf, ao); arr.c.push(c.x, c.y, c.z);
   }
   arr.idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
 }
@@ -92,7 +92,7 @@ function cylinder(arr, x0, y0, z0, x1, y1, z1, r0, r1, seg = 6) {
       arr.pos.push(p.x + n.x * r, p.y + n.y * r, p.z + n.z * r);
       arr.nor.push(n.x, n.y, n.z);
       arr.uv.push(0.55 + 0.4 * k / seg, vv);
-      arr.t.push(0, 0.8);
+      arr.t.push(0, 0.8); arr.c.push(p.x + n.x * r, p.y + n.y * r, p.z + n.z * r);
     }
   }
   for (let k = 0; k < seg; k++) { const i = base + k * 2; arr.idx.push(i, i + 2, i + 1, i + 1, i + 2, i + 3); }
@@ -104,6 +104,7 @@ function buildArr(arr) {
   g.setAttribute('normal', new THREE.Float32BufferAttribute(arr.nor, 3));
   g.setAttribute('uv', new THREE.Float32BufferAttribute(arr.uv, 2));
   g.setAttribute('aT', new THREE.Float32BufferAttribute(arr.t, 2));
+  g.setAttribute('aC', new THREE.Float32BufferAttribute(arr.c, 3));
   g.setIndex(arr.idx);
   return g;
 }
@@ -111,7 +112,7 @@ function buildArr(arr) {
 // unit deciduous tree: base at y=0, top y=1, crown horizontal radius 1
 function deciduousGeo(seed, cards) {
   const rnd = mulberry32(seed);
-  const arr = { pos: [], nor: [], uv: [], t: [], idx: [] };
+  const arr = { pos: [], nor: [], uv: [], t: [], c: [], idx: [] };
   const cy = 0.6, ry = 0.38;
   cylinder(arr, 0, -0.05, 0, 0.02, cy + 0.05, 0.01, 0.05, 0.025, 7);
   for (let b = 0; b < 4; b++) {
@@ -139,7 +140,7 @@ function deciduousGeo(seed, cards) {
 
 function coniferGeo(seed, tiers) {
   const rnd = mulberry32(seed);
-  const arr = { pos: [], nor: [], uv: [], t: [], idx: [] };
+  const arr = { pos: [], nor: [], uv: [], t: [], c: [], idx: [] };
   cylinder(arr, 0, -0.05, 0, 0, 0.95, 0, 0.045, 0.01, 6);
   for (let t = 0; t < tiers; t++) {
     const f = t / (tiers - 1);
@@ -196,10 +197,16 @@ export function createTrees(features, hf, opts) {
   const mat = new THREE.MeshStandardMaterial({ map: leafTex, alphaTest: 0.45, side: THREE.DoubleSide, roughness: 0.82, metalness: 0, envMapIntensity: 0.8 });
   patchMaterial(mat, {
     key: 'treesNear', uniforms: { uNear },
-    vertexPars: `attribute vec2 aT; varying vec2 vT; varying float vIDist; uniform float uTime; uniform float uNear; uniform vec2 uWind;`,
+    vertexPars: `attribute vec2 aT; attribute vec3 aC; varying vec2 vT; varying float vIDist; uniform float uTime; uniform float uNear; uniform vec2 uWind;`,
     vertex: {
       begin_vertex: `$
         vT = aT;
+        {
+          // keep leaf cards isotropic under the non-uniform (r, h, r) instance scale
+          float sx = length(instanceMatrix[0].xyz), sy = length(instanceMatrix[1].xyz);
+          vec3 off = position - aC;
+          transformed = aC + off * vec3(1.0, sx / sy, 1.0);
+        }
         vec3 ip = vec3(instanceMatrix[3][0], instanceMatrix[3][1], instanceMatrix[3][2]);
         vIDist = distance(ip, cameraPosition);
         float ph = ip.x * 0.13 + ip.z * 0.17;

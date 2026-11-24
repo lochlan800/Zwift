@@ -48,8 +48,9 @@ vec3 applyAerial(vec3 col, vec3 wpos) {
   vec3 rd; float dist;
   float t = aerialAmount(wpos, rd, dist);
   vec3 fc = skyLUT(rd);
-  float s = max(dot(rd, uSunDir), 0.0);
-  fc += uSunColor * (pow(s, 10.0) * 0.06);
+  // keep the near-sun inscatter from veiling nearby objects (LUT is very bright there)
+  float fl = dot(fc, vec3(0.2126, 0.7152, 0.0722));
+  fc *= min(1.0, 1.3 / max(fl, 1e-4));
   // slight blue extinction tint of mid-distance before full haze
   col *= mix(vec3(1.0), vec3(0.86, 0.93, 1.06), clamp(t * 1.6, 0.0, 1.0));
   return mix(col, fc, t);

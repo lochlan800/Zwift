@@ -53,9 +53,9 @@ export class ChaseCamera {
     this.curDist += (clip - this.curDist) * Math.min(1, dt * (clip < this.curDist ? 8 : 1.5));
     this.desired.set(riderPos.x + back.x * this.curDist, riderPos.y + this.height, riderPos.z + back.z * this.curDist);
     // look-ahead target
-    route.at(s + 14 + speed * 0.6, this.target);
+    route.at(s + 10 + speed * 0.4, this.target);
     this.target.y = this.target.y * 0.35 + (riderPos.y + 1.1) * 0.65;
-    this.target.lerp(this.tmp2.copy(riderPos).setY(riderPos.y + 1.2), 0.45);
+    this.target.lerp(this.tmp2.copy(riderPos).setY(riderPos.y + 1.2), 0.6);
     // drone: high, ~55 deg down, behind along the route heading, looking ahead
     route.at(s - 60, this.dDesired);
     this.tmp.subVectors(riderPos, this.dDesired); this.tmp.y = 0;

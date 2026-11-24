@@ -11,7 +11,7 @@ export function detectTier() {
   if (q === 'low' || q === 'medium' || q === 'high') tier = q;
   const T = {
     low: { tier: 'low', mobile, dprCap: 1.0, shadowMap: 1024, shadowFar: 140, treeNear: 90, maxNear: 900, grass: 0.45, lod: 0.7, smaa: false, bloom: true, msaa: 0, grassRadius: 18 },
-    medium: { tier: 'medium', mobile, dprCap: 1.5, shadowMap: 1024, shadowFar: 200, treeNear: 140, maxNear: 1800, grass: 0.7, lod: 0.9, smaa: true, bloom: true, msaa: 0, grassRadius: 26 },
+    medium: { tier: 'medium', mobile, dprCap: 1.5, shadowMap: 1024, shadowFar: 200, treeNear: 140, maxNear: 1800, grass: 0.55, lod: 0.9, smaa: true, bloom: true, msaa: 0, grassRadius: 26 },
     high: { tier: 'high', mobile, dprCap: 2.0, shadowMap: 2048, shadowFar: 260, treeNear: 220, maxNear: 4000, grass: 1.0, lod: 1.25, smaa: true, bloom: true, msaa: 0, grassRadius: 36 },
   };
   return T[tier];
