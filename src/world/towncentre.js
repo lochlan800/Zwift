@@ -112,3 +112,58 @@ export function markTownCentre(features, hf, lc) {
   for (const t of streetTrees) features.trees.push(t);
   return { roads, tcIdx, crossings, paved, fronting: fronting.length, landmarks, streetTrees: streetTrees.length, pub };
 }
+
+// ---------------------------------------------------------------- Quarry Hill
+const QH = new Set(['Quarry Hill']);
+export function markQuarryHill(features) {
+  const roads = features.roads.filter((r) => r.n && QH.has(r.n) && !r.tu && Math.abs(r.p[0][0] + 560) < 400 && Math.abs(r.p[0][2] - 310) < 200);
+  for (const r of roads) { r._qh = true; r._dyl = true; r._pave = 2.0; r._verge = r.k === 'primary' ? 2.4 : 1.6; }
+  return { roads };
+}
+
+// mature trees lining Quarry Hill + a wooded bank on the side away from the houses
+export function quarryTrees(qh, hf, bIdx) {
+  const out = [];
+  for (const r of qh.roads) {
+    const hw = r._w / 2 + r._pave + r._verge;
+    let acc = 0;
+    for (let i = 0; i + 1 < r.p.length; i++) {
+      const a = r.p[i], b = r.p[i + 1], L = Math.hypot(b[0] - a[0], b[2] - a[2]);
+      const tx = (b[0] - a[0]) / L, tz = (b[2] - a[2]) / L;
+      acc += L;
+      if (acc < 11) continue;
+      acc = 0;
+      for (const side of [-1, 1]) {
+        let houses = 0;
+        for (const d of [4, 8, 12]) if (bIdx.find(a[0] + tz * side * (hw + d), a[2] - tx * side * (hw + d))) houses++;
+        const rows = houses ? 0 : (side > 0 ? 3 : 1);
+        for (let k = 0; k < rows; k++) {
+          const o = hw + 2.2 + k * 6 + hash2(a[0] + k, a[2]) * 2;
+          const x = a[0] + tz * side * o + tx * (hash2(a[2], k) - 0.5) * 6, z = a[2] - tx * side * o + tz * (hash2(k, a[0]) - 0.5) * 6;
+          if (bIdx.find(x, z, 2)) continue;
+          const h = 13 + hash2(x, z) * 8;
+          out.push([x, hf.sample(x, z), z, h, h * (0.34 + hash2(z, x) * 0.1)]);
+        }
+      }
+    }
+  }
+  return out;
+}
+
+// pick a stone roadside pub on Quarry Hill (Quarry Inn style)
+export function quarryPub(qh, features, tcIdx) {
+  let best = null, bd = 1e9;
+  const tmp = { seg: null, d: 0, t: 0, y: 0 };
+  const idx = new SegmentIndex(24);
+  for (const r of qh.roads) for (let i = 0; i + 1 < r.p.length; i++) { const a = r.p[i], b = r.p[i + 1]; idx.add(a[0], a[1], a[2], b[0], b[1], b[2], r._w / 2, r); }
+  for (const b of features.buildings) {
+    if (!b.p || b.k === 'shed' || b.k === 'garage' || b._tc) continue;
+    let A = 0; for (let i = 0; i < b.p.length; i++) { const q = b.p[i], r = b.p[(i + 1) % b.p.length]; A += q[0] * r[1] - r[0] * q[1]; } A = Math.abs(A / 2);
+    if (A < 90 || A > 450 || (b.e || 0) < 4.5) continue;
+    for (const q of b.p) { const h = idx.query(q[0], q[1], 9, null, tmp); if (h && h.d < bd) { bd = h.d; best = b; } }
+  }
+  if (!best) return null;
+  best.k = 'pub'; best.c = 5; best._tc = true; best._qinn = true;
+  for (const r of qh.roads) for (let i = 0; i + 1 < r.p.length; i++) { const a = r.p[i], b = r.p[i + 1]; tcIdx.add(a[0], a[1], a[2], b[0], b[1], b[2], r._w / 2 + r._pave + r._verge, r); }
+  return best;
+}

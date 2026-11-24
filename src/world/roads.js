@@ -396,7 +396,7 @@ export async function createRoads(features, hf, lc, roadIdx, slicer, bIdx = null
         };
         const o0 = side > 0 ? hw + vg : -hw - vg - pw, o1 = side > 0 ? hw + vg + pw : -hw - vg;
         strip(B, p, F, o0, o1, lift + 0.12, RT.PAVE, hw + vg, null, keep);
-        wall(B, p, F, side * hw, lift - 0.02, lift + 0.12, -side, RT.KERB, hw, vg ? null : keep);
+        wall(B, p, F, side * hw, lift - 0.02, lift + 0.12, -side, RT.KERB, hw, keep);
         if (vg) {
           wall(B, p, F, side * (hw + vg), lift - 0.2, lift + 0.12, -side, RT.KERB, hw, keep);
           wall(B, p, F, side * (hw + vg + pw), lift - 0.2, lift + 0.12, side, RT.KERB, hw, keep);

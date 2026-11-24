@@ -14,7 +14,7 @@ import { createGrass } from './world/grass.js';
 import { createWalls } from './world/walls.js';
 import { bakeShadows } from './world/shadowbake.js';
 import { generateHedgerows, createStreetLife } from './world/streetlife.js';
-import { markTownCentre } from './world/towncentre.js';
+import { markTownCentre, markQuarryHill, quarryTrees, quarryPub } from './world/towncentre.js';
 import { SegmentIndex, distanceCull } from './world/heightfield.js';
 import { createRider } from './ride/rider.js';
 import { Route, Physics } from './ride/route.js';
@@ -106,6 +106,7 @@ async function build() {
   }
   annotateRoads(features, hf, data.landcover);
   const tc = markTownCentre(features, hf, data.landcover);
+  const qh = markQuarryHill(features);
   console.info('town centre', tc.roads.length, 'roads,', tc.fronting, 'fronting buildings, paved', tc.paved, 'crossings', tc.crossings.map((c) => c.note).join('; '));
   const roadIdx = buildRoadIndex(features);
   conformTerrain(hf, features);
@@ -116,6 +117,9 @@ async function build() {
   const hedgerows = generateHedgerows(features, hf, data.landcover, roadIdx, bIdx);
   for (const w of hedgerows.walls) features.walls.push(w);
   for (const t of hedgerows.trees) features.trees.push(t);
+  const qTrees = quarryTrees(qh, hf, bIdx); for (const t of qTrees) features.trees.push(t);
+  const qPub = quarryPub(qh, features, tc.tcIdx);
+  console.info('quarry hill roads', qh.roads.length, 'trees', qTrees.length, 'pub', qPub ? JSON.stringify(qPub.p[0]) : 'none');
   {
     // keep tree trunks >= 1 m clear of carriageway edges and off pavements
     const q0 = { seg: null, d: 0, t: 0, y: 0 };
@@ -185,10 +189,10 @@ async function build() {
 
 
   progress(0.62, 'Raising buildings');
-  const buildings = await createBuildings(features, slicer, (f) => progress(0.62 + f * 0.2, `Raising buildings ${Math.round(f * 100)}%`), tc.tcIdx);
+  const buildings = await createBuildings(features, slicer, (f) => progress(0.62 + f * 0.2, `Raising buildings ${Math.round(f * 100)}%`), tc.tcIdx, roadIdx);
   scene.add(buildings.group);
   world.buildings = buildings;
-  const street = createStreetLife(features, hf, data.landcover, roadIdx, bIdx, routeIdx, roads.giveWays, cfg, tc, shopUnits, pubFronts);
+  const street = createStreetLife(features, hf, data.landcover, roadIdx, bIdx, routeIdx, roads.giveWays, cfg, tc, shopUnits, pubFronts, qh);
   console.info('landmarks', JSON.stringify(tc.landmarks), 'street trees', tc.streetTrees, 'gap fills', buildings.fills);
   scene.add(street.group);
   world.street = street;

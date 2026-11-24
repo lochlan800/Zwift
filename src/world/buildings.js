@@ -7,7 +7,7 @@ export const frontEnds = []; // front-edge endpoints of town-centre buildings (f
 export const pubFronts = [];
 // shop units found while building facades (used to place awnings, A-boards, the clock)
 export const shopUnits = [];
-const S_WALL = 0, S_ROOF = 1, S_FLAT = 2, S_CHIM = 3, S_SHOP = 5, S_POT = 6;
+const S_WALL = 0, S_ROOF = 1, S_FLAT = 2, S_CHIM = 3, S_SHOP = 5, S_POT = 6, S_BAY = 7;
 const CELL = 600;
 
 // --- growable vertex buffers -------------------------------------------------------------
@@ -79,6 +79,7 @@ function obb(poly) {
   };
 }
 
+function hash2b(x, z) { const s = Math.sin(x * 12.9898 + z * 78.233) * 43758.5453; return s - Math.floor(s); }
 function polyArea(p) { let a = 0; for (let i = 0; i < p.length; i++) { const q = p[i], r = p[(i + 1) % p.length]; a += q[0] * r[1] - r[0] * q[1]; } return a / 2; }
 
 // Sutherland-Hodgman clip of polygon (array of [u,v]) by half-plane a*u + b*v >= c
@@ -101,7 +102,7 @@ function triangulate(poly2) {
 }
 
 // --- building generation -----------------------------------------------------------------------
-function addBuilding(G, b, rnd, tcIdx) {
+function addBuilding(G, b, rnd, tcIdx, roadIdx) {
   const tq = { seg: null, d: 0, t: 0, y: 0 };
   let poly = b.p;
   if (!poly || poly.length < 3) return;
@@ -157,9 +158,39 @@ function addBuilding(G, b, rnd, tcIdx) {
         const s = h.seg, px = s.ax + (s.bx - s.ax) * h.t, pz = s.az + (s.bz - s.az) * h.t;
         shopEdge = (px - mx) * nx + (pz - mz) * nz > 0;
       }
+      // Victorian bay windows on road-facing long walls of terraces (and some houses)
+      const bayOk = !shopEdge && roadIdx && len > 4.2 && E > 4.2 && roof !== 'flat' && (c <= 5 || c === 8 || c === 9)
+        && (b.k === 'terrace' || (b.k === 'house' && hash2b(b.p[0][0], b.p[0][1]) < 0.3))
+        && Math.abs((ex * O.ux + ez * O.uz) / len) > 0.85;
+      if (bayOk && roadIdx.query((P[0] + Q[0]) / 2 + nx * 7, (P[1] + Q[1]) / 2 + nz * 7, 5, null, tq)) {
+        const nb = Math.max(1, Math.floor(len / 4.8)), uw = len / nb;
+        const dx = ex / len, dz = ez / len;
+        for (let k = 0; k < nb; k++) {
+          const cu = (k + 0.5) * uw + (uw > 3.6 ? uw * 0.18 : 0);
+          const pts = [[cu - 1.15, 0], [cu - 0.8, 0.62], [cu + 0.8, 0.62], [cu + 1.15, 0]].map(([s, o]) => [P[0] + dx * s + nx * o, P[1] + dz * s + nz * o]);
+          const yb = base - 0.5, yt = base + 2.95;
+          let acc = 0;
+          for (let f = 0; f < 3; f++) {
+            const A = pts[f], Bq = pts[f + 1];
+            const fx = Bq[0] - A[0], fz = Bq[1] - A[1], fl = Math.hypot(fx, fz);
+            let fnx = fz / fl, fnz = -fx / fl;
+            if (fnx * nx + fnz * nz < 0) { fnx = -fnx; fnz = -fnz; }
+            const a0 = G.v(A[0], yb, A[1], fnx, 0, fnz, 0, fl, base, base + 3.2, c, kind, S_BAY, seed);
+            const a1 = G.v(Bq[0], yb, Bq[1], fnx, 0, fnz, fl, fl, base, base + 3.2, c, kind, S_BAY, seed);
+            const b0 = G.v(A[0], yt, A[1], fnx, 0, fnz, 0, fl, base, base + 3.2, c, kind, S_BAY, seed);
+            const b1 = G.v(Bq[0], yt, Bq[1], fnx, 0, fnz, fl, fl, base, base + 3.2, c, kind, S_BAY, seed);
+            if (fx * fnz - fz * fnx > 0) G.idx.push(a0, a1, b0, b0, a1, b1); else G.idx.push(a0, b0, a1, a1, b0, b1);
+            acc += fl;
+          }
+          // small slate lid sloping back to the wall
+          const lid = pts.map((q, i) => G.v(q[0], yt + (i === 0 || i === 3 ? 0.45 : 0), q[1], nx * 0.5, 0.87, nz * 0.5, 0, 0, base, base + 3.2, c, kind, S_ROOF, seed));
+          const ny = (pts[1][1] - pts[0][1]) * (pts[2][0] - pts[0][0]) - (pts[1][0] - pts[0][0]) * (pts[2][1] - pts[0][1]);
+          if (ny > 0) G.idx.push(lid[0], lid[1], lid[2], lid[0], lid[2], lid[3]); else G.idx.push(lid[0], lid[2], lid[1], lid[0], lid[3], lid[2]);
+        }
+      }
       if (shopEdge) frontEnds.push({ b, P, Q, nx, nz, base, E, c, kind, seed, G });
       if (shopEdge && (b.k === 'coop' || b.k === 'pub')) {
-        if (b.k === 'pub') pubFronts.push({ x: (P[0] + Q[0]) / 2, z: (P[1] + Q[1]) / 2, y: base, nx, nz, tx: ex / len, tz: ez / len, w: len, E });
+        if (b.k === 'pub') pubFronts.push({ x: (P[0] + Q[0]) / 2, z: (P[1] + Q[1]) / 2, y: base, nx, nz, tx: ex / len, tz: ez / len, w: len, E, qinn: !!b._qinn });
         shopEdge = false;
       }
       if (shopEdge) {
@@ -299,8 +330,8 @@ void buildingSurface(vec3 w, vec3 Nw) {
   float dist = distance(w, cameraPosition);
   bRough = 0.85; bMetal = 0.0; bBump = 0.0; bAO = 1.0;
   bool industrial = (kind == 3 || kind == 4 || kind == 5);
-  if (surf == 0 || surf == 3 || surf == 5) {
-    bool shop = surf == 5;
+  if (surf == 0 || surf == 3 || surf == 5 || surf == 7) {
+    bool shop = surf == 5, bayW = surf == 7;
     float hgt = w.y - vW.z;           // above base
     float eave = vW.w - vW.z;
     float u = vW.x, L = vW.y;
@@ -429,6 +460,27 @@ void buildingSurface(vec3 w, vec3 Nw) {
       bMetal = 0.0; bBump = 0.0;
       bAO = mix(1.0, 0.7, doorM) * mix(1.0, 0.4, win);
     }
+    if (bayW) {
+      // bay window: glazing band across each face, white frames, stone sill & head
+      vec2 fw = vec2(fwidth(u), fwidth(hgt)) * 0.75;
+      float m = L < 0.6 ? 0.08 : 0.12;
+      float glass = boxAA(vec2(u, hgt), vec2(m, 0.8), vec2(L - m, 2.45), fw);
+      float frame = boxAA(vec2(u, hgt), vec2(m - 0.07, 0.73), vec2(L - m + 0.07, 2.52), fw);
+      float tr = (1.0 - smoothstep(0.025, 0.025 + fw.y, abs(hgt - 2.0))) * glass;
+      float ml = L > 1.0 ? (1.0 - smoothstep(0.025, 0.025 + fw.x, abs(u - L * 0.5))) * glass : 0.0;
+      float sill = boxAA(vec2(u, hgt), vec2(-0.1, 0.6), vec2(L + 0.1, 0.73), fw);
+      float head = boxAA(vec2(u, hgt), vec2(-0.1, 2.52), vec2(L + 0.1, 2.95), fw);
+      vec3 white = lin3(vec3(0.86, 0.86, 0.84));
+      float wh = hb(seed + floor(w.x * 0.3) + floor(w.z * 0.3));
+      vec3 gl = lin3(vec3(0.10, 0.11, 0.12));
+      if (wh < 0.5) gl = mix(gl, lin3(vec3(0.62, 0.62, 0.6)), smoothstep(1.6, 1.5, hgt) * 0.8);
+      col = mix(col, white, frame);
+      col = mix(col, gl * 0.85, glass);
+      col = mix(col, white, max(tr, ml));
+      col = mix(col, dress || stone ? (dress ? dressCol : base * 1.15) : lin3(vec3(0.62, 0.58, 0.5)), max(sill, head * 0.9));
+      bRough = mix(bRough, 0.12, glass * (1.0 - max(tr, ml)));
+      bBump = mix(bBump, 0.0, max(frame, max(sill, head)));
+    }
     if ((surf == 0 || (shop && hgt > 3.6)) && L > 1.8 && hgt < eave - 0.25 && hgt > 0.0) {
       float hOff = shop ? 3.6 : 0.0;
       bool arched = kind == 6 || kind == 11;
@@ -535,7 +587,7 @@ void buildingSurface(vec3 w, vec3 Nw) {
 }
 `;
 
-export async function createBuildings(features, slicer, onProgress, tcIdx = null) {
+export async function createBuildings(features, slicer, onProgress, tcIdx = null, roadIdx = null) {
   const cells = new Map();
   const rnd = mulberry32(1234);
   const list = features.buildings;
@@ -546,7 +598,7 @@ export async function createBuildings(features, slicer, onProgress, tcIdx = null
     const key = Math.floor(q[0] / CELL) + ',' + Math.floor(q[1] / CELL);
     let G = cells.get(key);
     if (!G) { G = new GeoBuf(); cells.set(key, G); }
-    try { addBuilding(G, b, rnd, tcIdx); } catch (e) { /* skip broken footprint */ }
+    try { addBuilding(G, b, rnd, tcIdx, roadIdx); } catch (e) { /* skip broken footprint */ }
     if ((i & 63) === 0) { await slicer.tick(); onProgress && onProgress(i / list.length); }
   }
   // fill small (<2 m) gaps between adjacent town-centre frontages with a short wall
