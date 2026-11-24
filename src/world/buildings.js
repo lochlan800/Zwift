@@ -4,7 +4,7 @@ import { mulberry32 } from './heightfield.js';
 
 const KINDS = ['house', 'terrace', 'residential', 'commercial', 'retail', 'industrial', 'church', 'school', 'garage', 'shed', 'other'];
 const S_WALL = 0, S_ROOF = 1, S_FLAT = 2, S_CHIM = 3;
-const CELL = 400;
+const CELL = 600;
 
 // --- growable vertex buffers -------------------------------------------------------------
 class GeoBuf {

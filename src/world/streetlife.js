@@ -210,8 +210,8 @@ function lampGeometry() {
 function signGeometry() {
   const D = [0.35, 0.36, 0.37], Rd = [0.6, 0.04, 0.04], W = [0.9, 0.9, 0.9];
   const post = new THREE.CylinderGeometry(0.04, 0.04, 2.3, 6); post.translate(0, 1.15, 0);
-  const tri = new THREE.CylinderGeometry(0.5, 0.5, 0.04, 3); tri.rotateX(Math.PI / 2); tri.rotateZ(Math.PI / 2 + Math.PI / 3 * 0 + Math.PI); tri.translate(0, 2.15, 0.03);
-  const triW = new THREE.CylinderGeometry(0.32, 0.32, 0.02, 3); triW.rotateX(Math.PI / 2); triW.rotateZ(Math.PI / 2 + Math.PI); triW.translate(0, 2.15, 0.06);
+  const tri = new THREE.CylinderGeometry(0.5, 0.5, 0.04, 3); tri.rotateX(Math.PI / 2); tri.translate(0, 2.15, 0.03);
+  const triW = new THREE.CylinderGeometry(0.32, 0.32, 0.02, 3); triW.rotateX(Math.PI / 2); triW.translate(0, 2.15, 0.06);
   return mergeGeometries([colored(post, ...D), colored(tri, ...Rd), colored(triW, ...W)]);
 }
 

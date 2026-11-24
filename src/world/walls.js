@@ -1,10 +1,11 @@
 import * as THREE from 'three';
 import { patchMaterial, GRID_GLSL } from './shared.js';
+import { splitByCell } from './heightfield.js';
 
 // Hedges, dry-stone walls and fences as extruded profiles along polylines.
-const SPEC = { hedge: { w: 1.1, h: 1.7, t: 0 }, wall: { w: 0.5, h: 1.15, t: 1 }, fence: { w: 0.08, h: 1.1, t: 2 } };
+const SPEC = { hedge: { w: 1.0, h: 1.45, t: 0 }, wall: { w: 0.5, h: 1.15, t: 1 }, fence: { w: 0.08, h: 1.1, t: 2 } };
 
-export async function createWalls(features, slicer) {
+export async function createWalls(features, slicer, castShadow = true) {
   const list = features.walls || [];
   if (!list.length) return null;
   const pos = [], nor = [], at = [], idx = [];
@@ -20,8 +21,9 @@ export async function createWalls(features, slicer) {
       let dx = b[0] - a[0], dz = b[2] - a[2]; const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
       if (i > 0) L += Math.hypot(p[i][0] - p[i - 1][0], p[i][2] - p[i - 1][2]);
       const nx = dz, nz = -dx; // left
-      const hw = S.w / 2, y0 = p[i][1] - 0.4, y1 = p[i][1] + S.h;
-      const bulge = S.t === 0 ? 0.25 : 0;
+      const lump = S.t === 0 ? (Math.sin(L * 1.7 + i) * 0.5 + Math.sin(L * 0.53) * 0.5) : 0;
+      const hw = S.w / 2, y0 = p[i][1] - 0.4, y1 = p[i][1] + S.h + lump * 0.25;
+      const bulge = S.t === 0 ? 0.22 + lump * 0.12 : 0;
       const ids = [
         vert(p[i][0] + nx * hw, y0, p[i][2] + nz * hw, nx, 0, nz, L, 0, S.t),
         vert(p[i][0] + nx * (hw + bulge), y1 - 0.4, p[i][2] + nz * (hw + bulge), nx, 0.3, nz, L, 0.7, S.t),
@@ -53,7 +55,7 @@ export async function createWalls(features, slicer) {
         vec4 m = texture2D(uNoise, vAerialWorld.xz / 0.35 + vAerialWorld.y * 0.9);
         int t = int(vWl.z + 0.5);
         vec3 c;
-        if (t == 0) c = mix(lin3(vec3(0.16, 0.24, 0.08)), lin3(vec3(0.30, 0.38, 0.14)), m.a) * (0.7 + 0.5 * n.g);
+        if (t == 0) { vec4 q = texture2D(uNoise, vAerialWorld.xz / 0.18 + vAerialWorld.y * 1.7); c = mix(lin3(vec3(0.13, 0.20, 0.06)), lin3(vec3(0.27, 0.35, 0.12)), m.a) * (0.65 + 0.5 * n.g) * (0.6 + 0.6 * q.a) * mix(0.6, 1.0, smoothstep(0.0, 0.8, vWl.y)); }
         else if (t == 1) { vec2 st = vec2(vWl.x / 0.35, vAerialWorld.y / 0.18); vec2 f = fract(st + vec2(fract(floor(st.y) * 0.37), 0.0));
           float j = smoothstep(0.0, 0.12, min(min(f.x, 1.0 - f.x), min(f.y, 1.0 - f.y)));
           c = lin3(vec3(0.42, 0.39, 0.33)) * (0.6 + 0.4 * j) * (0.75 + 0.35 * m.b); }
@@ -64,8 +66,13 @@ export async function createWalls(features, slicer) {
       lights_fragment_begin: THREE.ShaderChunk.lights_fragment_begin.replace('getSunLightInfo( sunLight, directLight );', 'getSunLightInfo( sunLight, directLight ); directLight.color *= hbSun;'),
     },
   });
-  const mesh = new THREE.Mesh(g, mat);
-  mesh.castShadow = true; mesh.receiveShadow = true;
+  const mesh = new THREE.Group();
   mesh.name = 'walls';
+  for (const sg of splitByCell(g, 400)) {
+    const m = new THREE.Mesh(sg, mat);
+    m.castShadow = castShadow; m.receiveShadow = true; m.matrixAutoUpdate = false;
+    mesh.add(m);
+  }
+  g.dispose();
   return { mesh };
 }

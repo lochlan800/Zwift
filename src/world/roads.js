@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { SegmentIndex } from './heightfield.js';
+import { SegmentIndex, splitByCell } from './heightfield.js';
 import { patchMaterial } from './shared.js';
 
 // type codes used by the road shader
@@ -128,8 +128,9 @@ class RibbonBuilder {
     let gx = 1e4, side = 0, act = 0;
     const G = this.gw;
     if (G) {
-      if (G.g0 >= 0 && u < G.g0 + 4) { gx = u - G.g0; side = -1; act = 1; }
-      if (G.g1 >= 0 && G.L - u < G.g1 + 4) { gx = (G.L - u) - G.g1; side = 1; act = 1; }
+      // linear in u so interpolation across long ribbon quads stays exact
+      const useStart = G.g0 >= 0 && (G.g1 < 0 || u < G.L * 0.5);
+      if (useStart) { gx = u - G.g0; side = -1; act = 1; } else if (G.g1 >= 0) { gx = (G.L - u) - G.g1; side = 1; act = 1; }
     }
     this.mark.push(m, gx, side, act);
     return this.n++;
@@ -228,7 +229,7 @@ void roadSurface(vec3 w) {
     }
     if (t == 0) paint = max(paint, lineAA(abs(v) - (hw - 0.35), 0.05) * m);
     // give-way: double broken transverse line across the approach lane
-    if (vGw.z > 0.5) {
+    if (vGw.z > 0.5 && vGw.x > -0.5 && vGw.x < 1.2) {
       float gx = vGw.x;
       float lane = step(0.0, v * vGw.y) * step(abs(v), hw - 0.15);
       float dash = step(fract(v / 0.9), 0.6);
@@ -293,7 +294,7 @@ export async function createRoads(features, hf, lc, roadIdx, slicer, bIdx = null
     };
     const markFn = (i) => (other(i, 1.0) ? 0 : 1); // plain asphalt near junctions -> overlapping ribbons look identical
     // UK practice: no centre line on narrow lanes
-    const tt = (K.t <= 1 && r._w < 5.5) ? RT.MINOR : K.t;
+    const tt = (K.t <= 1 && (r._w < 6.0 || (!r._pave && r._w < 6.6 && (r.k === 'tertiary' || r.k === 'unclassified')))) ? RT.MINOR : K.t;
     // give-way where this (minor) road ends on a road of higher rank
     const rk = RANK[r.k] || 0;
     const gwEnd = (pt) => {
@@ -398,9 +399,13 @@ export async function createRoads(features, hf, lc, roadIdx, slicer, bIdx = null
     },
     uniforms: {},
   });
-  const mesh = new THREE.Mesh(geo, mat);
-  mesh.receiveShadow = true;
-  mesh.castShadow = false;
+  const mesh = new THREE.Group();
   mesh.name = 'roads';
+  for (const g of splitByCell(geo, 500)) {
+    const m = new THREE.Mesh(g, mat);
+    m.receiveShadow = true; m.castShadow = false; m.matrixAutoUpdate = false;
+    mesh.add(m);
+  }
+  geo.dispose();
   return { mesh, geometry: geo, giveWays };
 }

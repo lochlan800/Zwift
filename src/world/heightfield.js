@@ -148,3 +148,47 @@ export class Slicer {
     if (performance.now() - this.t > this.budget) { await nextFrame(); this.t = performance.now(); }
   }
 }
+
+// Split an indexed BufferGeometry into per-cell geometries (by triangle centroid) so
+// large merged meshes (roads, hedges) get frustum + distance culling.
+import { BufferGeometry, BufferAttribute, Uint16BufferAttribute, Uint32BufferAttribute } from 'three';
+export function splitByCell(geo, cell) {
+  const pos = geo.attributes.position.array, idx = geo.index.array;
+  const names = Object.keys(geo.attributes);
+  const buckets = new Map();
+  for (let t = 0; t < idx.length; t += 3) {
+    const a = idx[t], b = idx[t + 1], c = idx[t + 2];
+    const cx = Math.floor((pos[a * 3] + pos[b * 3] + pos[c * 3]) / 3 / cell), cz = Math.floor((pos[a * 3 + 2] + pos[b * 3 + 2] + pos[c * 3 + 2]) / 3 / cell);
+    const k = cx + ',' + cz;
+    let B = buckets.get(k);
+    if (!B) { B = { map: new Map(), verts: [], tris: [] }; buckets.set(k, B); }
+    for (const v of [a, b, c]) {
+      let n = B.map.get(v);
+      if (n === undefined) { n = B.verts.length; B.map.set(v, n); B.verts.push(v); }
+      B.tris.push(n);
+    }
+  }
+  const out = [];
+  for (const B of buckets.values()) {
+    const g = new BufferGeometry();
+    for (const nm of names) {
+      const src = geo.attributes[nm], sz = src.itemSize, arr = new src.array.constructor(B.verts.length * sz);
+      for (let i = 0; i < B.verts.length; i++) for (let k = 0; k < sz; k++) arr[i * sz + k] = src.array[B.verts[i] * sz + k];
+      g.setAttribute(nm, new BufferAttribute(arr, sz, src.normalized));
+    }
+    g.setIndex(B.verts.length > 65535 ? new Uint32BufferAttribute(B.tris, 1) : new Uint16BufferAttribute(B.tris, 1));
+    g.computeBoundingSphere();
+    out.push(g);
+  }
+  return out;
+}
+
+// distance culling helper for a group of chunk meshes
+export function distanceCull(group, cam, maxD) {
+  for (const m of group.children) {
+    const s = m.geometry.boundingSphere;
+    if (!s) continue;
+    const d = Math.hypot(s.center.x - cam.x, s.center.z - cam.z) - s.radius;
+    m.visible = d < maxD;
+  }
+}

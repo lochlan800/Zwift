@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { patchMaterial } from '../world/shared.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 // Procedural road bike + rider. Local frame: +z forward, +y up, +x = rider's left.
 const R_WHEEL = 0.336;
@@ -137,6 +138,71 @@ export function createRider() {
     hand: joint(body, 0.038, mats.frame2),
   }));
   root.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  // ---- draw-call reduction: bake parts into vertex-coloured merged meshes
+  const colGeo = (o, matrix) => {
+    const g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
+    if (matrix) g.applyMatrix4(matrix);
+    for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal') g.deleteAttribute(k);
+    const n = g.attributes.position.count, c = new Float32Array(n * 3), col = o.material.color;
+    for (let i = 0; i < n; i++) { c[i * 3] = col.r; c[i * 3 + 1] = col.g; c[i * 3 + 2] = col.b; }
+    g.setAttribute('color', new THREE.BufferAttribute(c, 3));
+    return g;
+  };
+  const bikeMat = patchMaterial(new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.35, metalness: 0.3, clearcoat: 0.8, clearcoatRoughness: 0.15 }), { key: 'riderBike' });
+  const bodyMat = patchMaterial(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, metalness: 0.0 }), { key: 'riderBody' });
+  // static bike: one mesh
+  {
+    const gs = [];
+    for (const o of [...bike.children]) { if (!o.isMesh) continue; o.updateMatrix(); gs.push(colGeo(o, o.matrix)); bike.remove(o); }
+    const mm = new THREE.Mesh(mergeGeometries(gs), bikeMat); mm.castShadow = true; mm.receiveShadow = true; bike.add(mm);
+  }
+  // wheels: tyre+rim+hub in one mesh each (spokes stay a line)
+  for (const w of [wR, wF]) {
+    const gs = [];
+    for (const o of [...w.children]) { if (!o.isMesh) continue; o.updateMatrix(); gs.push(colGeo(o, o.matrix)); w.remove(o); }
+    const mm = new THREE.Mesh(mergeGeometries(gs), bikeMat); mm.castShadow = true; mm.receiveShadow = true; w.add(mm);
+  }
+  // animated body: CPU-skinned single mesh rebuilt each frame from the (hidden) part transforms
+  const parts = [];
+  for (const o of [...body.children]) {
+    if (!o.isMesh) continue;
+    const g = colGeo(o, null);
+    parts.push({ o, pos: g.attributes.position.array, nor: g.attributes.normal.array, col: g.attributes.color.array });
+    o.visible = false;
+  }
+  const nv = parts.reduce((a, p) => a + p.pos.length / 3, 0);
+  const bPos = new Float32Array(nv * 3), bNor = new Float32Array(nv * 3), bCol = new Float32Array(nv * 3);
+  { let o = 0; for (const p of parts) { bCol.set(p.col, o); o += p.col.length; } }
+  const bodyGeo = new THREE.BufferGeometry();
+  bodyGeo.setAttribute('position', new THREE.BufferAttribute(bPos, 3).setUsage(THREE.DynamicDrawUsage));
+  bodyGeo.setAttribute('normal', new THREE.BufferAttribute(bNor, 3).setUsage(THREE.DynamicDrawUsage));
+  bodyGeo.setAttribute('color', new THREE.BufferAttribute(bCol, 3));
+  bodyGeo.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 1, 0), 2);
+  const bodyMesh = new THREE.Mesh(bodyGeo, bodyMat);
+  bodyMesh.castShadow = true; bodyMesh.receiveShadow = true;
+  body.add(bodyMesh);
+  const _m = new THREE.Matrix4(), _n = new THREE.Matrix3();
+  function skin() {
+    let o = 0;
+    for (const p of parts) {
+      p.o.updateMatrix();
+      const e = _m.copy(p.o.matrix).elements;
+      _n.getNormalMatrix(_m); const q = _n.elements;
+      const P = p.pos, N = p.nor;
+      for (let i = 0; i < P.length; i += 3, o += 3) {
+        const x = P[i], y = P[i + 1], z = P[i + 2];
+        bPos[o] = e[0] * x + e[4] * y + e[8] * z + e[12];
+        bPos[o + 1] = e[1] * x + e[5] * y + e[9] * z + e[13];
+        bPos[o + 2] = e[2] * x + e[6] * y + e[10] * z + e[14];
+        const a = N[i], b = N[i + 1], c = N[i + 2];
+        let nx = q[0] * a + q[3] * b + q[6] * c, ny = q[1] * a + q[4] * b + q[7] * c, nz = q[2] * a + q[5] * b + q[8] * c;
+        const l = 1 / (Math.hypot(nx, ny, nz) || 1);
+        bNor[o] = nx * l; bNor[o + 1] = ny * l; bNor[o + 2] = nz * l;
+      }
+    }
+    bodyGeo.attributes.position.needsUpdate = true;
+    bodyGeo.attributes.normal.needsUpdate = true;
+  }
 
   const hipJ = new THREE.Vector3(), pedal = new THREE.Vector3(), knee = new THREE.Vector3(), ankle = new THREE.Vector3();
   const shJ = new THREE.Vector3(), hand = new THREE.Vector3(), elbow = new THREE.Vector3();
@@ -193,6 +259,7 @@ export function createRider() {
       A.upper.set(shJ, elbow); A.fore.set(elbow, hand);
       A.elbow.position.copy(elbow); A.hand.position.copy(hand);
     }
+    skin();
   }
   update(0, 0, 0, 0);
   return { root, update };

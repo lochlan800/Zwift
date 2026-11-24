@@ -14,7 +14,7 @@ import { createGrass } from './world/grass.js';
 import { createWalls } from './world/walls.js';
 import { bakeShadows } from './world/shadowbake.js';
 import { generateHedgerows, createStreetLife } from './world/streetlife.js';
-import { SegmentIndex } from './world/heightfield.js';
+import { SegmentIndex, distanceCull } from './world/heightfield.js';
 import { createRider } from './ride/rider.js';
 import { Route, Physics } from './ride/route.js';
 import { ChaseCamera } from './ride/camera.js';
@@ -151,6 +151,7 @@ async function build() {
   progress(0.62, 'Raising buildings');
   const buildings = await createBuildings(features, slicer, (f) => progress(0.62 + f * 0.2, `Raising buildings ${Math.round(f * 100)}%`));
   scene.add(buildings.group);
+  world.buildings = buildings;
 
   progress(0.83, 'Planting trees');
   await nextFrame();
@@ -160,7 +161,8 @@ async function build() {
 
   const water = createWater(features, hf);
   if (water) scene.add(water.mesh);
-  const walls = await createWalls(features, slicer);
+  const walls = await createWalls(features, slicer, cfg.tier !== 'low');
+  world.walls = walls; world.roads = roads;
   if (walls) scene.add(walls.mesh);
 
   progress(0.9, 'Growing grass');
@@ -281,7 +283,7 @@ document.addEventListener('keydown', (e) => {
 document.addEventListener('visibilitychange', () => { if (document.hidden && state.mode === 'ride') $('pauseBtn').click(); });
 
 // ---------------------------------------------------------------- loop
-let lastT = performance.now(), contextLost = false, titleT = 0;
+let lastT = performance.now(), contextLost = false, titleT = 0, frameNo = 0;
 const center = new THREE.Vector3();
 function frame(now) {
   requestAnimationFrame(frame);
@@ -314,6 +316,12 @@ function frame(now) {
   world.terrain.update(camera);
   world.trees.update(camera.position);
   world.street.update(camera.position);
+  if ((frameNo++ & 7) === 0) {
+    const k = world.chase && world.chase.mode ? 1.6 : 1;
+    distanceCull(world.roads.mesh, camera.position, 2600 * cfg.lod * k);
+    distanceCull(world.buildings.group, camera.position, (cfg.tier === 'low' ? 1500 : cfg.tier === 'medium' ? 2200 : 3500) * k);
+    if (world.walls) distanceCull(world.walls.mesh, camera.position, (cfg.tier === 'low' ? 700 : cfg.tier === 'medium' ? 1100 : 1700) * k);
+  }
   if (world.grass) world.grass.update(camera, rider.root.position);
   world.sky.update(U.uTime.value, camera.position);
   renderer.info.reset();
@@ -332,7 +340,11 @@ canvas.addEventListener('webglcontextrestored', () => {
 }, false);
 
 // testing hooks
-window.__hb = { state, world, camera, renderer, getPost: () => post, setCamMode(m) { setCamMode(m); world.chase.initialized = false; }, setS(s) { state.s = s; state.dist = s; state.time = s / 6.4; placeRider(0, 0); world.chase.initialized = false; }, cfg };
+window.__hb = { state, world, camera, renderer, breakdown() {
+  const out = {}; const meas = () => { renderer.info.reset(); post.composer.render(0); return [renderer.info.render.calls, renderer.info.render.triangles]; };
+  const all = meas(); out.all = all;
+  for (const c of scene.children) { const v = c.visible; c.visible = false; const m = meas(); out[c.name || c.type] = [all[0] - m[0], all[1] - m[1]]; c.visible = v; }
+  return out; }, getPost: () => post, setCamMode(m) { setCamMode(m); world.chase.initialized = false; }, setS(s) { state.s = s; state.dist = s; state.time = s / 6.4; placeRider(0, 0); world.chase.initialized = false; }, cfg };
 
 requestAnimationFrame(frame);
 build().catch((e) => { console.error(e); fatal('Could not build the world', String(e && e.message || e)); });
