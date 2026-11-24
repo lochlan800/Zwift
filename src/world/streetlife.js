@@ -504,7 +504,7 @@ export function createStreetLife(features, hf, lc, roadIdx, bIdx, routeIdx, give
           const nx = tz * side, nz = -tx * side, o = hw + pw + 0.2;
           const px = x + nx * o, pz = z + nz * o;
           let set = false;
-          for (const d of [3, 5, 7, 10]) { const b = bIdx.find(px + nx * d, pz + nz * d); if (b) { set = true; break; } }
+          for (const d of [3, 5, 7, 10, 13]) { const b = bIdx.find(px + nx * d, pz + nz * d); if (b) { set = true; break; } }
           const ok = set && !bIdx.find(px + nx * 2.2, pz + nz * 2.2) && !bIdx.find(px, pz, 0.3) && !roadIdx.query(px, pz, 0.8, (q) => q.ref !== r, tmp)
             && hash2(Math.floor(s / 9) + side * 0.3, r.p[0][0]) > 0.12;
           const gy = Math.max(hf.sample(px, pz), y + 0.18) - 0.05;
@@ -617,7 +617,7 @@ export function createStreetLife(features, hf, lc, roadIdx, bIdx, routeIdx, give
           float j = max(1.0 - smoothstep(0.0, 0.04 + fw.x, min(f.x, 1.0 - f.x)), 1.0 - smoothstep(0.0, 0.06 + fw.y, min(f.y, 1.0 - f.y)));
           float h = fract(sin(floor(ux) * 12.9898 + row * 78.233) * 43758.5453);
           vec4 n = texture2D(uNoise, (w.xz + w.y) / 2.1);
-          diffuseColor.rgb = lin3(diffuseColor.rgb) * (0.82 + 0.25 * h) * mix(1.0, 0.65, j) * (0.85 + 0.25 * n.g) * mix(1.0, 0.6, smoothstep(0.6, 0.85, n.r));
+          diffuseColor.rgb = lin3(diffuseColor.rgb) * (0.86 + 0.2 * h) * mix(1.0, 0.72, j) * (0.9 + 0.15 * n.g) * mix(1.0, 0.85, smoothstep(0.6, 0.85, n.r));
         }` },
     });
     return _bsm;

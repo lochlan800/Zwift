@@ -131,18 +131,18 @@ export function quarryTrees(qh, hf, bIdx) {
       const a = r.p[i], b = r.p[i + 1], L = Math.hypot(b[0] - a[0], b[2] - a[2]);
       const tx = (b[0] - a[0]) / L, tz = (b[2] - a[2]) / L;
       acc += L;
-      if (acc < 11) continue;
+      if (acc < 15) continue;
       acc = 0;
       for (const side of [-1, 1]) {
         let houses = 0;
         for (const d of [4, 8, 12]) if (bIdx.find(a[0] + tz * side * (hw + d), a[2] - tx * side * (hw + d))) houses++;
-        const rows = houses ? 0 : (side > 0 ? 3 : 1);
+        const rows = houses ? 0 : (side > 0 ? 3 : (hash2(a[0], a[2]) < 0.6 ? 1 : 0));
         for (let k = 0; k < rows; k++) {
           const o = hw + 2.2 + k * 6 + hash2(a[0] + k, a[2]) * 2;
           const x = a[0] + tz * side * o + tx * (hash2(a[2], k) - 0.5) * 6, z = a[2] - tx * side * o + tz * (hash2(k, a[0]) - 0.5) * 6;
           if (bIdx.find(x, z, 2)) continue;
           const h = 13 + hash2(x, z) * 8;
-          out.push([x, hf.sample(x, z), z, h, h * (0.34 + hash2(z, x) * 0.1)]);
+          out.push([x, hf.sample(x, z), z, h, h * (0.4 + hash2(z, x) * 0.1)]);
         }
       }
     }

@@ -158,11 +158,13 @@ function addBuilding(G, b, rnd, tcIdx, roadIdx) {
         const s = h.seg, px = s.ax + (s.bx - s.ax) * h.t, pz = s.az + (s.bz - s.az) * h.t;
         shopEdge = (px - mx) * nx + (pz - mz) * nz > 0;
       }
+    }
+    {
       // Victorian bay windows on road-facing long walls of terraces (and some houses)
       const bayOk = !shopEdge && roadIdx && len > 4.2 && E > 4.2 && roof !== 'flat' && (c <= 5 || c === 8 || c === 9)
-        && (b.k === 'terrace' || (b.k === 'house' && hash2b(b.p[0][0], b.p[0][1]) < 0.3))
+        && (b.k === 'terrace' || (b.k === 'house' && hash2b(b.p[0][0], b.p[0][1]) < 0.45))
         && Math.abs((ex * O.ux + ez * O.uz) / len) > 0.85;
-      if (bayOk && roadIdx.query((P[0] + Q[0]) / 2 + nx * 7, (P[1] + Q[1]) / 2 + nz * 7, 5, null, tq)) {
+      if (bayOk && roadIdx.query((P[0] + Q[0]) / 2 + nx * 9, (P[1] + Q[1]) / 2 + nz * 9, 8, null, tq)) {
         const nb = Math.max(1, Math.floor(len / 4.8)), uw = len / nb;
         const dx = ex / len, dz = ez / len;
         for (let k = 0; k < nb; k++) {
@@ -188,6 +190,8 @@ function addBuilding(G, b, rnd, tcIdx, roadIdx) {
           if (ny > 0) G.idx.push(lid[0], lid[1], lid[2], lid[0], lid[2], lid[3]); else G.idx.push(lid[0], lid[2], lid[1], lid[0], lid[3], lid[2]);
         }
       }
+    }
+    if (b._tc && tcIdx) {
       if (shopEdge) frontEnds.push({ b, P, Q, nx, nz, base, E, c, kind, seed, G });
       if (shopEdge && (b.k === 'coop' || b.k === 'pub')) {
         if (b.k === 'pub') pubFronts.push({ x: (P[0] + Q[0]) / 2, z: (P[1] + Q[1]) / 2, y: base, nx, nz, tx: ex / len, tz: ez / len, w: len, E, qinn: !!b._qinn });
@@ -387,7 +391,7 @@ void buildingSurface(vec3 w, vec3 Nw) {
       vec3 sc = base * (0.84 + 0.26 * sh) * mix(vec3(1.0), vec3(1.04, 0.98, 0.9), sh2) * (0.9 + 0.18 * n4.g);
       // sooty weathering patches (whole blocks darkened)
       float soot = smoothstep(0.55, 0.8, n3.r * 0.7 + hb(blockId + row * 2.0) * 0.45);
-      sc *= mix(1.0, 0.55, soot * 0.7);
+      sc *= mix(1.0, 0.7, soot * 0.45);
       vec3 mortar = base * 0.62;
       col = mix(mix(sc, mortar, j * 0.8), base * 0.9, aa);
       bBump = (1.0 - j) * (1.0 - aa) * (0.7 + 0.3 * sh);
@@ -396,10 +400,10 @@ void buildingSurface(vec3 w, vec3 Nw) {
       bRough = 0.9;
     }
     // grime: darker near ground, streaks under windows
-    col *= 0.78 + 0.22 * smoothstep(0.0, 1.2, hgt);
+    col *= 0.88 + 0.12 * smoothstep(0.0, 1.2, hgt);
     float underEave = smoothstep(eave - 0.9, eave - 0.05, hgt) * (1.0 - smoothstep(eave, eave + 0.3, hgt));
-    col *= 1.0 - 0.22 * underEave;
-    col *= 1.0 - 0.12 * smoothstep(0.55, 0.85, n3.r) * smoothstep(1.5, 0.0, hgt);
+    col *= 1.0 - 0.14 * underEave;
+    col *= 1.0 - 0.06 * smoothstep(0.55, 0.85, n3.r) * (1.0 - smoothstep(0.0, 1.5, hgt));
     bAO = (0.65 + 0.35 * smoothstep(0.0, 1.5, hgt)) * (1.0 - 0.35 * underEave);
     if (dress && hgt > (shop ? 3.55 : 0.3)) {
       // dressed quoins on the corners, alternating long/short
@@ -529,7 +533,7 @@ void buildingSurface(vec3 w, vec3 Nw) {
         if (wh < 0.35) glassCol = mix(glassCol, lin3(vec3(0.62, 0.62, 0.60)), smoothstep(0.6, 0.5, wy) * 0.8); // net curtain
         else if (wh < 0.6) glassCol = mix(glassCol, lin3(vec3(0.58, 0.52, 0.42)), smoothstep(0.32 + 0.4 * hb(wh * 9.0), 0.3 + 0.4 * hb(wh * 9.0), 1.0 - wy)); // roller blind
         else if (wh < 0.75) glassCol = mix(glassCol, lin3(vec3(0.40, 0.18, 0.15)), smoothstep(0.34, 0.4, abs(wxr - 0.5)) * 0.9); // curtains
-        glassCol *= 0.75;
+        glassCol *= 0.9;
         vec3 doorCol = industrial ? lin3(vec3(0.45, 0.47, 0.48)) : (hb(seed + bay) < 0.5 ? lin3(vec3(0.12, 0.16, 0.30)) : lin3(vec3(0.35, 0.06, 0.06)));
         col = mix(col, frameCol, frame * fade);
         float surround = dress && c == 9 ? clamp(boxAA(lp, lo - 0.2, hi + 0.2, fw) - frame, 0.0, 1.0) : 0.0;
@@ -567,7 +571,7 @@ void buildingSurface(vec3 w, vec3 Nw) {
     float gap = mix(smoothstep(0.0, 0.06 + fw.x, min(f.x, 1.0 - f.x)), 1.0, aa);
     float th = hb(floor(tp.x) + row * 13.1 + seed);
     vec3 col = rc * (0.85 + 0.3 * th * (1.0 - aa)) * shadow * (0.75 + 0.25 * gap);
-    col = mix(col, lin3(vec3(0.30, 0.33, 0.18)), smoothstep(0.62, 0.85, n3.g) * 0.35); // moss
+    col = mix(col, lin3(vec3(0.30, 0.33, 0.18)), smoothstep(0.62, 0.85, n3.g) * 0.15); // moss
     bAlb = col * (0.9 + 0.15 * n4.b);
     bRough = slate ? 0.72 : 0.8;
     bBump = shadow * 0.7;

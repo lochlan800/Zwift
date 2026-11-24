@@ -91,7 +91,7 @@ export function conformTerrain(hf, features) {
       const a = r.p[i], b = r.p[i + 1];
       if (vg) {
         consider(a[0], a[1], a[2], b[0], b[1], b[2], r._w / 2 + 0.6, 0.5);
-        consider(a[0], a[1], a[2], b[0], b[1], b[2], core, blend, 0.02);
+        consider(a[0], a[1], a[2], b[0], b[1], b[2], core, blend, 0.1);
       } else consider(a[0], a[1], a[2], b[0], b[1], b[2], core, blend);
     }
   }
