@@ -3,7 +3,9 @@ import { patchMaterial, GRID_GLSL } from './shared.js';
 import { mulberry32 } from './heightfield.js';
 
 const KINDS = ['house', 'terrace', 'residential', 'commercial', 'retail', 'industrial', 'church', 'school', 'garage', 'shed', 'other'];
-const S_WALL = 0, S_ROOF = 1, S_FLAT = 2, S_CHIM = 3;
+// shop units found while building facades (used to place awnings, A-boards, the clock)
+export const shopUnits = [];
+const S_WALL = 0, S_ROOF = 1, S_FLAT = 2, S_CHIM = 3, S_SHOP = 5, S_POT = 6;
 const CELL = 600;
 
 // --- growable vertex buffers -------------------------------------------------------------
@@ -97,7 +99,8 @@ function triangulate(poly2) {
 }
 
 // --- building generation -----------------------------------------------------------------------
-function addBuilding(G, b, rnd) {
+function addBuilding(G, b, rnd, tcIdx) {
+  const tq = { seg: null, d: 0, t: 0, y: 0 };
   let poly = b.p;
   if (!poly || poly.length < 3) return;
   // drop duplicate consecutive points
@@ -123,7 +126,7 @@ function addBuilding(G, b, rnd) {
   const roofH = roof === 'gabled' ? (u, v) => E + s * (O.hw - Math.abs(v))
     : roof === 'hipped' ? (u, v) => E + s * Math.min(O.hw - Math.abs(v), O.hl - Math.abs(u))
       : () => H;
-  const c = (b.c | 0) & 7;
+  const c = Math.min(15, b.c | 0);
   const seed = (rnd() * 255) | 0;
   const bottom = base - 1.5;
   const eaveAbs = base + E;
@@ -143,16 +146,34 @@ function addBuilding(G, b, rnd) {
       if ((dp > 0) !== (dq > 0) && Math.abs(dp - dq) > 1e-9) ts.push(dp / (dp - dq));
     }
     ts.sort((x, y) => x - y);
+    // town-centre shopfront: wall faces a centre street within a few metres
+    let shopEdge = false;
+    if (b._tc && tcIdx && len > 3 && E > 4.5 && b.k !== 'shed' && b.k !== 'garage') {
+      const mx = (P[0] + Q[0]) / 2, mz = (P[1] + Q[1]) / 2;
+      const h = tcIdx.query(mx + nx * 2, mz + nz * 2, 5, null, tq);
+      if (h) {
+        const s = h.seg, px = s.ax + (s.bx - s.ax) * h.t, pz = s.az + (s.bz - s.az) * h.t;
+        shopEdge = (px - mx) * nx + (pz - mz) * nz > 0;
+      }
+      if (shopEdge) {
+        const nu = Math.max(1, Math.floor(len / 5.5 + 0.5)), uw = len / nu;
+        for (let k = 0; k < nu; k++) {
+          const f = (k + 0.5) * uw / len;
+          shopUnits.push({ x: P[0] + ex * f, z: P[1] + ez * f, y: base, nx, nz, tx: ex / len, tz: ez / len, w: uw, c, k, eave: E, id: shopUnits.length });
+        }
+      }
+    }
     for (let t = 0; t + 1 < ts.length; t++) {
       const t0 = ts[t], t1 = ts[t + 1];
       if (t1 - t0 < 1e-4) continue;
       const x0 = P[0] + ex * t0, z0 = P[1] + ez * t0, x1 = P[0] + ex * t1, z1 = P[1] + ez * t1;
       const uv0 = toUV(x0, z0), uv1 = toUV(x1, z1);
       const y0 = base + roofH(uv0[0], uv0[1]), y1 = base + roofH(uv1[0], uv1[1]);
-      const a0 = G.v(x0, bottom, z0, nx, 0, nz, t0 * len, len, base, eaveAbs, c, kind, S_WALL, seed);
-      const a1 = G.v(x1, bottom, z1, nx, 0, nz, t1 * len, len, base, eaveAbs, c, kind, S_WALL, seed);
-      const b0 = G.v(x0, y0, z0, nx, 0, nz, t0 * len, len, base, eaveAbs, c, kind, S_WALL, seed);
-      const b1 = G.v(x1, y1, z1, nx, 0, nz, t1 * len, len, base, eaveAbs, c, kind, S_WALL, seed);
+      const sw = shopEdge ? S_SHOP : S_WALL;
+      const a0 = G.v(x0, bottom, z0, nx, 0, nz, t0 * len, len, base, eaveAbs, c, kind, sw, seed);
+      const a1 = G.v(x1, bottom, z1, nx, 0, nz, t1 * len, len, base, eaveAbs, c, kind, sw, seed);
+      const b0 = G.v(x0, y0, z0, nx, 0, nz, t0 * len, len, base, eaveAbs, c, kind, sw, seed);
+      const b1 = G.v(x1, y1, z1, nx, 0, nz, t1 * len, len, base, eaveAbs, c, kind, sw, seed);
       // (a1-a0)x(b0-a0) = (-ez, 0, ex)*h : front-facing when it agrees with the outward normal
       if (ex * nz - ez * nx > 0) G.idx.push(a0, a1, b0, b0, a1, b1); else G.idx.push(a0, b0, a1, a1, b0, b1);
     }
@@ -204,30 +225,34 @@ function addBuilding(G, b, rnd) {
     addPlane(F, (u, v) => E + s * (O.hl + u), planeN(s, 0), S_ROOF);
   }
 
-  // ---- chimneys on houses / terraces
-  if (roof !== 'flat' && (kind <= 2) && O.hl > 2.5) {
+  // ---- chimneys (with pots) on houses / terraces / town-centre buildings
+  const prism = (u, v, w, d, yb, top, surfSide, surfTop) => {
+    const corners = [[u - w, v - d], [u + w, v - d], [u + w, v + d], [u - w, v + d]].map((q) => toXZ(q[0], q[1]));
+    const fn = [[-O.vx, -O.vz], [O.ux, O.uz], [O.vx, O.vz], [-O.ux, -O.uz]];
+    for (let e = 0; e < 4; e++) {
+      const P = corners[e], Q = corners[(e + 1) % 4];
+      const [nx, nz] = fn[e];
+      const ids = [G.v(P[0], yb, P[1], nx, 0, nz, 0, 1, base, eaveAbs, c, kind, surfSide, seed),
+        G.v(Q[0], yb, Q[1], nx, 0, nz, 1, 1, base, eaveAbs, c, kind, surfSide, seed),
+        G.v(P[0], top, P[1], nx, 0, nz, 0, 1, base, eaveAbs, c, kind, surfSide, seed),
+        G.v(Q[0], top, Q[1], nx, 0, nz, 1, 1, base, eaveAbs, c, kind, surfSide, seed)];
+      const ex = Q[0] - P[0], ez = Q[1] - P[1];
+      if (ex * nz - ez * nx > 0) G.idx.push(ids[0], ids[1], ids[2], ids[2], ids[1], ids[3]); else G.idx.push(ids[0], ids[2], ids[1], ids[1], ids[2], ids[3]);
+    }
+    const tids = corners.map((q) => G.v(q[0], top, q[1], 0, 1, 0, 0, 0, base, eaveAbs, c, kind, surfTop, seed));
+    const ny = (corners[1][1] - corners[0][1]) * (corners[2][0] - corners[0][0]) - (corners[1][0] - corners[0][0]) * (corners[2][1] - corners[0][1]);
+    if (ny > 0) G.idx.push(tids[0], tids[1], tids[2], tids[0], tids[2], tids[3]); else G.idx.push(tids[0], tids[2], tids[1], tids[0], tids[3], tids[2]);
+  };
+  if (roof !== 'flat' && (kind <= 2 || b._tc) && O.hl > 2.5 && b.k !== 'shed' && b.k !== 'garage') {
     const spots = [];
     if (kind === 1 || O.hl > 9) { for (let u = -O.hl + 3.5; u < O.hl - 2; u += 6.5 + rnd() * 1.5) spots.push(u); }
-    else if (rnd() < 0.85) { spots.push((rnd() < 0.5 ? -1 : 1) * (O.hl - (roof === 'hipped' ? O.hw * 0.9 : 0.6))); if (rnd() < 0.35) spots.push(-spots[0]); }
+    else if (rnd() < (b._tc ? 1 : 0.85)) { spots.push((rnd() < 0.5 ? -1 : 1) * (O.hl - (roof === 'hipped' ? O.hw * 0.9 : 0.6))); if (rnd() < (b._tc ? 0.7 : 0.35)) spots.push(-spots[0]); }
     for (const u of spots) {
       const top = base + roofH(u, 0) + 0.9 + rnd() * 0.4;
       const yb = base + roofH(u, 0.5) - 0.6;
-      const w = 0.45, d = 0.7;
-      const corners = [[u - w, -d], [u + w, -d], [u + w, d], [u - w, d]].map((q) => toXZ(q[0], q[1]));
-      const fn = [[-O.vx, -O.vz], [O.ux, O.uz], [O.vx, O.vz], [-O.ux, -O.uz]];
-      for (let e = 0; e < 4; e++) {
-        const P = corners[e], Q = corners[(e + 1) % 4];
-        const [nx, nz] = fn[e];
-        const ids = [G.v(P[0], yb, P[1], nx, 0, nz, 0, 1, base, eaveAbs, c, kind, S_CHIM, seed),
-          G.v(Q[0], yb, Q[1], nx, 0, nz, 1, 1, base, eaveAbs, c, kind, S_CHIM, seed),
-          G.v(P[0], top, P[1], nx, 0, nz, 0, 1, base, eaveAbs, c, kind, S_CHIM, seed),
-          G.v(Q[0], top, Q[1], nx, 0, nz, 1, 1, base, eaveAbs, c, kind, S_CHIM, seed)];
-        const ex = Q[0] - P[0], ez = Q[1] - P[1];
-        if (ex * nz - ez * nx > 0) G.idx.push(ids[0], ids[1], ids[2], ids[2], ids[1], ids[3]); else G.idx.push(ids[0], ids[2], ids[1], ids[1], ids[2], ids[3]);
-      }
-      const tids = corners.map((q) => G.v(q[0], top, q[1], 0, 1, 0, 0, 0, base, eaveAbs, c, kind, S_FLAT, seed));
-      const ny = (corners[1][1] - corners[0][1]) * (corners[2][0] - corners[0][0]) - (corners[1][0] - corners[0][0]) * (corners[2][1] - corners[0][1]);
-      if (ny > 0) G.idx.push(tids[0], tids[1], tids[2], tids[0], tids[2], tids[3]); else G.idx.push(tids[0], tids[2], tids[1], tids[0], tids[3], tids[2]);
+      prism(u, 0, 0.45, 0.7, yb, top, S_CHIM, S_FLAT);
+      const np = 2 + (rnd() < 0.4 ? 1 : 0);
+      for (let k = 0; k < np; k++) prism(u, (k - (np - 1) / 2) * 0.42, 0.1, 0.1, top - 0.02, top + 0.32 + rnd() * 0.12, S_POT, S_POT);
     }
   }
 }
@@ -249,8 +274,11 @@ vec3 brickCol(int c) {
   if (c == 1) return lin3(vec3(0.58, 0.32, 0.21));
   if (c == 2) return lin3(vec3(0.42, 0.21, 0.15));
   if (c == 3) return lin3(vec3(0.62, 0.40, 0.27));
-  if (c == 4) return lin3(vec3(0.56, 0.49, 0.37));
-  if (c == 5) return lin3(vec3(0.40, 0.35, 0.28));
+  if (c == 4) return lin3(vec3(0.60, 0.50, 0.35));   // weathered buff gritstone
+  if (c == 5) return lin3(vec3(0.47, 0.40, 0.30));   // darker sooted stone
+  if (c == 8) return lin3(vec3(0.58, 0.23, 0.15));   // bright Victorian red brick
+  if (c == 9) return lin3(vec3(0.72, 0.60, 0.42));   // honey/buff Yorkshire sandstone ashlar
+  if (c == 10) return lin3(vec3(0.74, 0.72, 0.66));  // whitewashed render
   if (c == 6) return lin3(vec3(0.64, 0.60, 0.52));
   return lin3(vec3(0.58, 0.58, 0.555));
 }
@@ -262,16 +290,19 @@ void buildingSurface(vec3 w, vec3 Nw) {
   float dist = distance(w, cameraPosition);
   bRough = 0.85; bMetal = 0.0; bBump = 0.0; bAO = 1.0;
   bool industrial = (kind == 3 || kind == 4 || kind == 5);
-  if (surf == 0 || surf == 3) {
+  if (surf == 0 || surf == 3 || surf == 5) {
+    bool shop = surf == 5;
     float hgt = w.y - vW.z;           // above base
     float eave = vW.w - vW.z;
     float u = vW.x, L = vW.y;
     vec3 base = brickCol(c);
-    bool brick = c <= 3 || (surf == 3);
-    bool stone = c == 4 || c == 5 || kind == 6;
+    bool brick = c <= 3 || c == 8 || (surf == 3);
+    bool stone = (c == 4 || c == 5 || c == 9 || kind == 6) && surf != 3;
+    bool dress = (c == 8 || c == 9) && surf != 3;
+    vec3 dressCol = c == 8 ? lin3(vec3(0.82, 0.81, 0.77)) : lin3(vec3(0.80, 0.70, 0.52));
     if (kind == 6) base = lin3(vec3(0.50, 0.44, 0.34));
     vec3 col = base;
-    if (industrial && surf == 0) {
+    if (industrial && surf == 0 && !shop) {
       // profiled metal cladding above brick plinth
       vec3 clad = c < 3 ? lin3(vec3(0.42, 0.47, 0.46)) : c < 6 ? lin3(vec3(0.36, 0.41, 0.50)) : lin3(vec3(0.66, 0.63, 0.55));
       float rib = 0.5 + 0.5 * sin(u / 0.25 * 6.2831);
@@ -294,9 +325,9 @@ void buildingSurface(vec3 w, vec3 Nw) {
       col = mix(mix(bc, mc, mortar * 0.85), mix(base, mc, 0.18), aa);
       bBump = (1.0 - mortar) * (1.0 - aa);
     } else if (stone) {
-      vec2 sp = vec2(u / 0.6, hgt / 0.28);
+      vec2 sp = c == 9 ? vec2(u / 0.75, hgt / 0.32) : vec2(u / 0.6, hgt / 0.28);
       float row = floor(sp.y);
-      sp.x += hb(row + seed) ;
+      sp.x += c == 9 ? mod(row, 2.0) * 0.5 : hb(row + seed);
       vec2 f = fract(sp); vec2 fw = fwidth(sp);
       float j = 1.0 - smoothstep(0.0, 0.05 + fw.x, min(f.x, 1.0 - f.x)) * 1.0;
       j = max(j, 1.0 - smoothstep(0.0, 0.08 + fw.y, min(f.y, 1.0 - f.y)));
@@ -315,20 +346,81 @@ void buildingSurface(vec3 w, vec3 Nw) {
     col *= 1.0 - 0.22 * underEave;
     col *= 1.0 - 0.12 * smoothstep(0.55, 0.85, n3.r) * smoothstep(1.5, 0.0, hgt);
     bAO = (0.65 + 0.35 * smoothstep(0.0, 1.5, hgt)) * (1.0 - 0.35 * underEave);
-    if (surf == 0 && L > 1.8 && hgt < eave - 0.25 && hgt > 0.0) {
+    if (dress && hgt > (shop ? 3.55 : 0.3)) {
+      // dressed quoins on the corners, alternating long/short
+      float qd = min(u, L - u);
+      float qr = floor(hgt / 0.32);
+      float qw = mod(qr, 2.0) < 0.5 ? 0.55 : 0.3;
+      vec2 fwq = vec2(fwidth(u), fwidth(hgt));
+      float quoin = (1.0 - smoothstep(qw - fwq.x, qw + fwq.x, qd)) * (1.0 - smoothstep(0.0, 0.03 + fwq.y, 0.015 - min(fract(hgt / 0.32), 1.0 - fract(hgt / 0.32)) + 0.015));
+      quoin = (1.0 - smoothstep(qw - fwq.x, qw + fwq.x, qd)) * smoothstep(0.0, 0.025 + fwq.y, min(fract(hgt / 0.32), 1.0 - fract(hgt / 0.32)));
+      col = mix(col, dressCol * (0.92 + 0.1 * n4.g), quoin * (1.0 - smoothstep(300.0, 600.0, dist)));
+      // string course between floors (stone only)
+      if (c == 9) col = mix(col, dressCol, boxAA(vec2(0.5, hgt), vec2(0.0, eave - 0.35), vec2(1.0, eave - 0.2), fwq) * 0.8);
+    }
+    if (shop && hgt < 3.55) {
+      // ---- ground-floor shopfronts (units of ~5.5 m)
+      float nu = max(1.0, floor(L / 5.5 + 0.5));
+      float uw = L / nu;
+      float unit = floor(u / uw);
+      float lu = u - unit * uw;
+      float uh = hb(unit * 5.31 + seed * 0.71 + floor(L));
+      float uh2 = hb(unit * 2.17 + seed * 1.37 + 3.0);
+      vec2 fw = vec2(fwidth(u), fwidth(hgt)) * 0.75;
+      vec3 fasc = uh < 0.22 ? lin3(vec3(0.05, 0.05, 0.06)) : uh < 0.4 ? lin3(vec3(0.16, 0.17, 0.18)) : uh < 0.58 ? lin3(vec3(0.06, 0.18, 0.12))
+                : uh < 0.76 ? lin3(vec3(0.28, 0.06, 0.08)) : uh < 0.9 ? lin3(vec3(0.06, 0.09, 0.22)) : lin3(vec3(0.75, 0.74, 0.70));
+      vec3 letter = uh < 0.9 ? lin3(vec3(0.86, 0.80, 0.62)) : lin3(vec3(0.08, 0.08, 0.10));
+      vec3 pil = dress ? dressCol : (c == 10 ? lin3(vec3(0.62, 0.61, 0.58)) : lin3(vec3(0.20, 0.20, 0.21)));
+      float pw = 0.32;
+      float inPil = 1.0 - boxAA(vec2(lu, 0.5), vec2(pw, 0.0), vec2(uw - pw, 1.0), fw);
+      vec3 sc = pil;
+      // fascia band with "lettering" stripes (no real text)
+      float fas = boxAA(vec2(lu, hgt), vec2(pw, 2.95), vec2(uw - pw, 3.45), fw);
+      float txtZone = boxAA(vec2(lu, hgt), vec2(uw * 0.25, 3.08), vec2(uw * 0.75, 3.32), fw);
+      float glyph = step(0.35, fract(lu / 0.16)) * step(0.22, hb(floor(lu / 0.16) + unit * 13.0)) * step(0.1, fract(lu / 1.1 + uh));
+      vec3 fcol = mix(fasc, letter, txtZone * glyph * (1.0 - smoothstep(60.0, 160.0, dist)) * 0.9);
+      // door at one side, display window across the rest
+      bool doorLeft = uh2 < 0.5;
+      float dx0 = doorLeft ? pw + 0.15 : uw - pw - 1.15, dx1 = dx0 + 1.0;
+      float doorM = boxAA(vec2(lu, hgt), vec2(dx0, 0.0), vec2(dx1, 2.35), fw);
+      float wx0 = doorLeft ? dx1 + 0.12 : pw + 0.12, wx1 = doorLeft ? uw - pw - 0.12 : dx0 - 0.12;
+      float win = boxAA(vec2(lu, hgt), vec2(wx0, 0.6), vec2(wx1, 2.8), fw);
+      float riser = boxAA(vec2(lu, hgt), vec2(wx0, 0.0), vec2(wx1, 0.6), fw);
+      float nm = max(1.0, floor((wx1 - wx0) / 1.7 + 0.5));
+      float mw = (wx1 - wx0) / nm;
+      float mull = (1.0 - smoothstep(0.025, 0.025 + fw.x, abs(fract((lu - wx0) / mw + 0.5) - 0.5) * mw)) * win;
+      float transom = (1.0 - smoothstep(0.025, 0.025 + fw.y, abs(hgt - 2.35))) * win;
+      float frameW = clamp(win - boxAA(vec2(lu, hgt), vec2(wx0 + 0.05, 0.65), vec2(wx1 - 0.05, 2.75), fw), 0.0, 1.0);
+      bool shutter = uh2 > 0.86;
+      vec3 glassC = lin3(vec3(0.03, 0.035, 0.045)) + lin3(vec3(0.22, 0.2, 0.17)) * smoothstep(0.4, 1.0, hb(floor(lu / 0.4) + unit)) * 0.25 * step(hgt, 1.6);
+      if (shutter) glassC = lin3(vec3(0.42, 0.43, 0.44)) * (0.85 + 0.15 * step(0.5, fract(hgt / 0.08)));
+      sc = mix(sc, fasc * 1.1, riser);
+      sc = mix(sc, glassC, win);
+      sc = mix(sc, lin3(vec3(0.06, 0.06, 0.07)), max(max(mull, transom), frameW) * (shutter ? 0.0 : 1.0));
+      sc = mix(sc, mix(fasc * 0.8, glassC, boxAA(vec2(lu, hgt), vec2(dx0 + 0.15, 0.9), vec2(dx1 - 0.15, 2.1), fw)) * 0.8, doorM);
+      sc = mix(sc, fcol, fas);
+      // cornice above fascia
+      sc = mix(sc, pil * 0.9, boxAA(vec2(lu, hgt), vec2(0.0, 3.45), vec2(uw, 3.55), fw));
+      col = mix(sc, col, 0.0);
+      bRough = mix(0.6, 0.06, win * (shutter ? 0.0 : 1.0));
+      bMetal = 0.0; bBump = 0.0;
+      bAO = mix(1.0, 0.7, doorM);
+    }
+    if ((surf == 0 || (shop && hgt > 3.6)) && L > 1.8 && hgt < eave - 0.25 && hgt > 0.0) {
+      float hOff = shop ? 3.6 : 0.0;
       float fh = industrial ? 4.2 : (kind == 6 ? 7.0 : 2.75);
       float nb = max(1.0, floor(L / (industrial ? 5.5 : 3.1) + 0.5));
       float bw = L / nb;
       float bay = floor(u / bw);
       float lu = u - bay * bw;
-      float fl = floor(hgt / fh);
-      float lh = hgt - fl * fh;
+      float fl = shop ? 1.0 + floor((hgt - hOff) / fh) : floor(hgt / fh);
+      float lh = shop ? (hgt - hOff) - (fl - 1.0) * fh : hgt - fl * fh;
       float bayH = hb(bay * 3.7 + seed * 1.3 + L);
       vec2 fw = vec2(fwidth(u), fwidth(hgt)) * 0.75;
       float winW = industrial ? min(bw * 0.7, 3.5) : (kind == 6 ? 1.0 : min(bw * 0.48, 1.35));
       float winB = industrial ? 2.2 : (kind == 6 ? 1.5 : 0.85), winT = industrial ? 3.4 : (kind == 6 ? 5.5 : 2.2);
       if (fl == 0.0 && !industrial) { winB = 0.9; winT = 2.15; }
-      float topLimit = eave - 0.2 - fl * fh;
+      float topLimit = eave - 0.2 - (shop ? hOff + (fl - 1.0) * fh : fl * fh);
       winT = min(winT, topLimit - 0.25);
       bool door = (fl == 0.0) && (bayH < (industrial ? 0.2 : 0.33)) && L > 4.0;
       vec2 lo = vec2(bw * 0.5 - winW * 0.5, winB), hi = vec2(bw * 0.5 + winW * 0.5, winT);
@@ -343,12 +435,15 @@ void buildingSurface(vec3 w, vec3 Nw) {
         float reveal = boxAA(lp, vec2(lo.x, hi.y - 0.12), hi, fw) + boxAA(lp, lo, vec2(lo.x + 0.07, hi.y), fw);
         // window muntin
         float mull = door ? 0.0 : (1.0 - smoothstep(0.02, 0.02 + fw.x, abs(lu - bw * 0.5))) * glass;
+        // sash meeting rail on older (dressed / stone / town-centre) buildings
+        if (!door && !industrial && (dress || stone || shop || brick)) mull = max(mull, (1.0 - smoothstep(0.025, 0.025 + fw.y, abs(lh - (lo.y + hi.y) * 0.5))) * glass);
         float fade = 1.0 - smoothstep(250.0, 700.0, dist);
-        vec3 frameCol = (c >= 6 || bayH < 0.6) ? lin3(vec3(0.85, 0.85, 0.83)) : lin3(vec3(0.18, 0.18, 0.2));
+        vec3 frameCol = (c >= 6 || bayH < 0.6 || shop) ? lin3(vec3(0.85, 0.85, 0.83)) : lin3(vec3(0.18, 0.18, 0.2));
         vec3 glassCol = lin3(vec3(0.035, 0.04, 0.05)) + lin3(vec3(0.12, 0.10, 0.08)) * hb(bay + fl * 7.0 + seed) * 0.3;
         vec3 doorCol = industrial ? lin3(vec3(0.45, 0.47, 0.48)) : (hb(seed + bay) < 0.5 ? lin3(vec3(0.12, 0.16, 0.30)) : lin3(vec3(0.35, 0.06, 0.06)));
         col = mix(col, frameCol, frame * fade);
-        col = mix(col, lin3(vec3(0.62, 0.58, 0.50)) * (0.9 + 0.1 * n4.r), max(sill, lintel) * fade);
+        float surround = dress && c == 9 ? clamp(boxAA(lp, lo - 0.2, hi + 0.2, fw) - frame, 0.0, 1.0) : 0.0;
+        col = mix(col, dress ? dressCol : lin3(vec3(0.62, 0.58, 0.50)) * (0.9 + 0.1 * n4.r), max(max(sill, lintel), surround) * fade);
         if (door) { col = mix(col, doorCol, glass * fade); bRough = mix(bRough, 0.5, glass * fade); }
         else {
           col = mix(col, glassCol * (1.0 - 0.6 * clamp(reveal, 0.0, 1.0)), glass * fade);
@@ -369,7 +464,7 @@ void buildingSurface(vec3 w, vec3 Nw) {
     float slope = sqrt(max(1.0 - Nw.y * Nw.y, 0.05));
     float down = w.y / slope; // distance along slope
     float ac = dot(w, along);
-    bool slate = (c == 4 || c == 5 || kind == 1 || c == 2 || kind == 6);
+    bool slate = (c == 4 || c == 5 || kind == 1 || c == 2 || kind == 6 || c >= 8);
     vec3 rc = slate ? lin3(vec3(0.29, 0.31, 0.345)) : (c == 0 || c == 3) ? lin3(vec3(0.44, 0.29, 0.23)) : (c == 6) ? lin3(vec3(0.34, 0.28, 0.24)) : lin3(vec3(0.31, 0.31, 0.31));
     if (industrial) rc = lin3(vec3(0.42, 0.43, 0.44));
     vec2 tp = slate ? vec2(ac / 0.3, down / 0.22) : vec2(ac / 0.33, down / 0.26);
@@ -385,6 +480,8 @@ void buildingSurface(vec3 w, vec3 Nw) {
     bAlb = col * (0.9 + 0.15 * n4.b);
     bRough = slate ? 0.72 : 0.8;
     bBump = shadow * 0.7;
+  } else if (surf == 6) {
+    bAlb = lin3(vec3(0.52, 0.28, 0.18)) * (0.8 + 0.3 * n4.r); bRough = 0.85;
   } else if (surf == 4) {
     bAlb = lin3(vec3(0.16, 0.15, 0.14)); bRough = 0.9; bAO = 0.6;
   } else {
@@ -399,7 +496,7 @@ void buildingSurface(vec3 w, vec3 Nw) {
 }
 `;
 
-export async function createBuildings(features, slicer, onProgress) {
+export async function createBuildings(features, slicer, onProgress, tcIdx = null) {
   const cells = new Map();
   const rnd = mulberry32(1234);
   const list = features.buildings;
@@ -410,7 +507,7 @@ export async function createBuildings(features, slicer, onProgress) {
     const key = Math.floor(q[0] / CELL) + ',' + Math.floor(q[1] / CELL);
     let G = cells.get(key);
     if (!G) { G = new GeoBuf(); cells.set(key, G); }
-    try { addBuilding(G, b, rnd); } catch (e) { /* skip broken footprint */ }
+    try { addBuilding(G, b, rnd, tcIdx); } catch (e) { /* skip broken footprint */ }
     if ((i & 63) === 0) { await slicer.tick(); onProgress && onProgress(i / list.length); }
   }
   const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.85, metalness: 0.0, envMapIntensity: 1.0 });

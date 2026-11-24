@@ -3,7 +3,7 @@ import { SegmentIndex, splitByCell } from './heightfield.js';
 import { patchMaterial } from './shared.js';
 
 // type codes used by the road shader
-export const RT = { MAJOR: 0, MAJOR_DASH: 1, MINOR: 2, SERVICE: 3, TRACK: 4, FOOT: 5, PATH: 6, PAVE: 7, KERB: 8, BALLAST: 9, RAIL: 10, PARAPET: 11, CYCLE: 12 };
+export const RT = { MAJOR: 0, MAJOR_DASH: 1, MINOR: 2, SERVICE: 3, TRACK: 4, FOOT: 5, PATH: 6, PAVE: 7, KERB: 8, BALLAST: 9, RAIL: 10, PARAPET: 11, CYCLE: 12, TOWN: 13 };
 
 const KIND = {
   primary: { t: RT.MAJOR, w: 7.3, lift: 0.07, pave: true },
@@ -121,13 +121,14 @@ export function conformTerrain(hf, features) {
 // ---------------------------------------------------------------------------------------------
 
 class RibbonBuilder {
-  constructor() { this.pos = []; this.nor = []; this.road = []; this.mark = []; this.idx = []; this.n = 0; this.gw = null; }
+  constructor() { this.pos = []; this.nor = []; this.road = []; this.mark = []; this.idx = []; this.n = 0; this.gw = null; this.cross = null; }
   vert(x, y, z, nx, ny, nz, u, v, hw, t, m) {
     this.pos.push(x, y, z); this.nor.push(nx, ny, nz); this.road.push(u, v, hw, t);
     // give-way: signed distance from the stop line, lane side, active
     let gx = 1e4, side = 0, act = 0;
     const G = this.gw;
-    if (G) {
+    if (this.cross != null) { gx = u - this.cross; act = 2; }
+    else if (G) {
       // linear in u so interpolation across long ribbon quads stays exact
       const useStart = G.g0 >= 0 && (G.g1 < 0 || u < G.L * 0.5);
       if (useStart) { gx = u - G.g0; side = -1; act = 1; } else if (G.g1 >= 0) { gx = (G.L - u) - G.g1; side = 1; act = 1; }
@@ -203,6 +204,10 @@ vec3 lin3(vec3 c) { return pow(c, vec3(2.2)); }
 float lineAA(float d, float w) { float fw = max(fwidth(d), 1e-4); return 1.0 - smoothstep(w - fw, w + fw, abs(d)); }
 void roadSurface(vec3 w) {
   float u = vRoad.x, v = vRoad.y, hw = vRoad.z; int t = int(vRoad.w + 0.5);
+  bool town = t == ${RT.TOWN};
+  if (town) t = 1;
+  bool xing = vGw.z > 1.5;
+  float gxc = xing ? vGw.x : 1e4;
   vec4 n2 = texture2D(uNoise, w.xz / 23.0);
   vec4 n3 = texture2D(uNoise, w.xz / 3.1);
   vec4 n4 = texture2D(uNoise, w.xz / 1.9);
@@ -223,11 +228,23 @@ void roadSurface(vec3 w) {
   if (t <= 3) {
     float paint = 0.0;
     float m = vMark;
-    if (t <= 1) {
+    if (t <= 1 && abs(gxc) > 17.0) {
       float dash = step(fract(u / 9.0), t == 0 ? 0.5 : 0.33);
       paint = max(paint, lineAA(v, 0.06) * dash * m);
     }
-    if (t == 0) paint = max(paint, lineAA(abs(v) - (hw - 0.35), 0.05) * m);
+    if (xing) {
+      float ax = abs(gxc);
+      // zebra bars (parallel to traffic), give-way dashes, zig-zags on approach
+      float bars = step(ax, 1.5) * step(0.5, fract((v + hw) / 1.0)) * step(abs(v), hw - 0.1);
+      float gwl = (1.0 - smoothstep(0.0, 0.03, abs(ax - 2.5) - 0.1)) * step(fract(v / 0.9), 0.55) * step(abs(v), hw - 0.15);
+      float zz = 0.0;
+      if (ax > 3.0 && ax < 17.0) {
+        float tri = abs(fract(ax / 2.0) - 0.5) * 2.0;
+        zz = max(lineAA(abs(v) - (hw - 0.45 + 0.25 * tri), 0.05), lineAA(v - 0.25 * (tri - 0.5) * 2.0, 0.05));
+      }
+      paint = max(paint, max(bars, max(gwl, zz)));
+    }
+    if (t == 0 && !town) paint = max(paint, lineAA(abs(v) - (hw - 0.35), 0.05) * m);
     // give-way: double broken transverse line across the approach lane
     if (vGw.z > 0.5 && vGw.x > -0.5 && vGw.x < 1.2) {
       float gx = vGw.x;
@@ -241,6 +258,13 @@ void roadSurface(vec3 w) {
     paint *= 1.0 - smoothstep(0.62, 0.75, n3.r) * 0.5; // worn
     rAlb = mix(rAlb, vec3(0.72), paint);
     rRough = mix(rRough, 0.55, paint);
+    if (town && abs(gxc) > 18.0) {
+      // double yellow lines along both kerbs
+      float yl = max(lineAA(abs(v) - (hw - 0.22), 0.05), lineAA(abs(v) - (hw - 0.42), 0.05)) * m;
+      yl *= 0.8 + 0.2 * n4.b;
+      rAlb = mix(rAlb, lin3(vec3(0.85, 0.66, 0.12)), yl);
+      rRough = mix(rRough, 0.6, yl);
+    }
   } else if (t == ${RT.TRACK}) {
     float rq = (abs(v) - 0.8) / 0.35; float ruts = exp(-rq * rq);
     vec3 grav = lin3(vec3(0.50, 0.45, 0.37)) * (0.75 + 0.4 * n4.a);
@@ -261,6 +285,14 @@ void roadSurface(vec3 w) {
     float fh = fract(sin(dot(floor(fl), vec2(41.3, 289.1))) * 43758.5453);
     vec3 c = lin3(vec3(0.47, 0.465, 0.45)) * (0.92 + 0.12 * fh) * (0.93 + 0.1 * n4.a) * (0.95 + 0.08 * n2.g);
     rAlb = c * (0.82 + 0.18 * jv); rRough = 0.92; rBump = jv * 0.4 + n4.a * 0.15;
+    if (xing && abs(gxc) < 1.8) {
+      float edge = abs(v) - hw;
+      vec2 dp = fract(vec2(u, abs(v)) / 0.067) - 0.5;
+      float blister = 1.0 - smoothstep(0.18, 0.3, length(dp));
+      vec3 red = lin3(vec3(0.62, 0.30, 0.28)) * (0.9 + 0.1 * n4.a);
+      if (edge < 1.2) { rAlb = red * (0.85 + 0.2 * blister); rBump = blister; }
+      else rAlb = lin3(vec3(0.50, 0.26, 0.22)) * (0.82 + 0.18 * jv);   // red block paving
+    }
   } else if (t == ${RT.KERB}) {
     rAlb = lin3(vec3(0.40, 0.395, 0.38)) * (0.85 + 0.2 * n4.a); rRough = 0.9;
   } else if (t == ${RT.BALLAST}) {
@@ -327,7 +359,8 @@ export async function createRoads(features, hf, lc, roadIdx, slicer, bIdx = null
       if (g0 >= 0) addSign(Math.round((g0 + 1.5) / Math.max(0.5, L / (p.length - 1))), g0, -1);
       if (g1 >= 0) addSign(p.length - 1 - Math.round((g1 + 1.5) / Math.max(0.5, L / (p.length - 1))), g1, 1);
     } else B.gw = null;
-    strip(B, p, F, -hw, hw, lift, tt, hw, markFn, null);
+    B.cross = r._cross != null ? r._cross : null;
+    strip(B, p, F, -hw, hw, lift, r._tc && K.t <= 1 ? RT.TOWN : tt, hw, markFn, null);
     B.gw = null;
     // round caps at both ends: fill junction corners / dead ends seamlessly
     for (const e of [0, p.length - 1]) {
@@ -354,6 +387,7 @@ export async function createRoads(features, hf, lc, roadIdx, slicer, bIdx = null
         wall(B, p, F, side * hw, lift - 0.02, lift + 0.12, -side, RT.KERB, hw, keep);
       }
     }
+    B.cross = null;
     if (r.br) {
       const ow = hw + (r._pave || 0.3);
       for (const side of [-1, 1]) {

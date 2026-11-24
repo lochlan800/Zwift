@@ -216,13 +216,77 @@ function signGeometry() {
   return mergeGeometries([colored(post, ...D), colored(tri, ...Rd), colored(triW, ...W)]);
 }
 
+function cyl(r0, r1, h, y, col, seg = 10) { const g = new THREE.CylinderGeometry(r1, r0, h, seg); g.translate(0, y + h / 2, 0); return colored(g, ...col); }
+function basketGeometry() {
+  // bracket off the lamp column (local +z = towards the road) with a hanging flower basket
+  const D = [0.16, 0.17, 0.18];
+  const arm = new THREE.CylinderGeometry(0.025, 0.025, 0.6, 6); arm.rotateX(Math.PI / 2); arm.translate(0, 3.95, 0.3);
+  const chain = new THREE.CylinderGeometry(0.01, 0.01, 0.45, 4); chain.translate(0, 3.72, 0.55);
+  const bowl = new THREE.SphereGeometry(0.3, 10, 6, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2); bowl.translate(0, 3.5, 0.55);
+  const flowers = new THREE.IcosahedronGeometry(0.42, 2); flowers.scale(1, 0.8, 1); flowers.translate(0, 3.42, 0.55);
+  const fn = flowers.toNonIndexed ? flowers.toNonIndexed() : flowers;
+  const n = fn.attributes.position.count, c = new Float32Array(n * 3);
+  const pal = [[0.85, 0.18, 0.5], [0.55, 0.15, 0.6], [0.8, 0.08, 0.12], [0.95, 0.5, 0.75], [0.12, 0.3, 0.08], [0.15, 0.35, 0.1]];
+  for (let i = 0; i < n; i += 3) { const p = pal[Math.floor(Math.abs(Math.sin(i * 12.9898) * 43758.5) % 1 * pal.length)]; for (let k = 0; k < 3; k++) { c[(i + k) * 3] = p[0]; c[(i + k) * 3 + 1] = p[1]; c[(i + k) * 3 + 2] = p[2]; } }
+  fn.setAttribute('color', new THREE.BufferAttribute(c, 3)); fn.deleteAttribute('uv');
+  return mergeGeometries([colored(arm, ...D), colored(chain, ...D), colored(bowl, 0.05, 0.05, 0.05), fn]);
+}
+function beaconPoleGeometry() {
+  const parts = [];
+  for (let k = 0; k < 8; k++) parts.push(cyl(0.055, 0.055, 0.3, 0.1 + k * 0.3, k % 2 ? [0.9, 0.9, 0.88] : [0.03, 0.03, 0.03], 10));
+  parts.push(cyl(0.09, 0.09, 0.1, 0, [0.03, 0.03, 0.03], 10));
+  return mergeGeometries(parts);
+}
+function bollardGeometry() { return mergeGeometries([cyl(0.1, 0.1, 0.85, 0, [0.03, 0.03, 0.035], 10), cyl(0.11, 0.06, 0.1, 0.85, [0.03, 0.03, 0.035], 10), cyl(0.105, 0.105, 0.04, 0.65, [0.7, 0.6, 0.2], 10)]); }
+function railGeometry() {
+  const C = [0.08, 0.1, 0.09];
+  return mergeGeometries([box(0.05, 1.0, 0.05, 0, 0.5, -1.0, C), box(0.05, 1.0, 0.05, 0, 0.5, 1.0, C), box(0.05, 1.0, 0.05, 0, 0.5, 0, C),
+    box(0.05, 0.05, 2.05, 0, 1.0, 0, C), box(0.04, 0.04, 2.05, 0, 0.55, 0, C), box(0.03, 0.03, 2.05, 0, 0.15, 0, C)]);
+}
+function aboardGeometry() {
+  const a = new THREE.BoxGeometry(0.6, 0.85, 0.03); a.rotateX(0.18); a.translate(0, 0.42, 0.08);
+  const b = new THREE.BoxGeometry(0.6, 0.85, 0.03); b.rotateX(-0.18); b.translate(0, 0.42, -0.08);
+  const pa = new THREE.BoxGeometry(0.48, 0.5, 0.005); pa.rotateX(0.18); pa.translate(0, 0.48, 0.1);
+  return mergeGeometries([colored(a, 1, 1, 1), colored(b, 1, 1, 1), colored(pa, 3.5, 3.5, 3.4)]);
+}
+function awningGeometry() {
+  // unit width along local x (instance scale), slopes out along +z from the fascia
+  const W = [1, 1, 1];
+  const top = new THREE.PlaneGeometry(1, 1.25); top.rotateX(-Math.PI / 2 + 0.42); top.translate(0, 2.68, 0.57);
+  const val = new THREE.PlaneGeometry(1, 0.22); val.translate(0, 2.33, 1.15);
+  const g1 = colored(top, ...W), g2 = colored(val, ...W);
+  const g3 = colored(top.clone().rotateY(Math.PI).translate(0, 0, 1.14), ...W);
+  return mergeGeometries([g1, g2, g3]);
+}
+function shelterGeometry() {
+  const R = [0.62, 0.05, 0.05], G = [0.12, 0.14, 0.15], S = [0.25, 0.25, 0.27];
+  const parts = [box(3.4, 0.1, 1.6, 0, 2.45, 0, R), box(3.5, 0.18, 0.08, 0, 2.38, 0.8, R)];
+  for (const x of [-1.65, 1.65]) for (const z of [-0.7, 0.7]) parts.push(box(0.07, 2.4, 0.07, x, 1.2, z, R));
+  parts.push(box(3.3, 1.9, 0.02, 0, 1.25, -0.72, G), box(0.02, 1.9, 1.3, -1.65, 1.25, 0, G), box(1.6, 0.05, 0.35, 0.6, 0.48, -0.5, S), box(0.4, 2.2, 0.06, 1.62, 1.1, 0.75, [0.1, 0.1, 0.1]));
+  return mergeGeometries(parts);
+}
+function clockGeometry() {
+  // ornate bracket clock projecting from the wall (local +z = out of the wall), faces along the street
+  const B = [0.04, 0.04, 0.045], Gd = [0.7, 0.55, 0.18], F = [0.92, 0.9, 0.84];
+  const parts = [box(0.08, 0.08, 0.75, 0, 0.35, 0.37, B), box(0.06, 0.5, 0.06, 0, 0.1, 0.05, B), box(0.05, 0.05, 0.6, 0, 0.05, 0.3, B)];
+  const body = new THREE.CylinderGeometry(0.36, 0.36, 0.16, 24); body.rotateZ(Math.PI / 2); body.translate(0, 0.35, 0.85); parts.push(colored(body, ...B));
+  for (const s of [-1, 1]) {
+    const face = new THREE.CylinderGeometry(0.3, 0.3, 0.01, 24); face.rotateZ(Math.PI / 2); face.translate(s * 0.085, 0.35, 0.85); parts.push(colored(face, ...F));
+    const rim = new THREE.TorusGeometry(0.33, 0.025, 6, 24); rim.rotateY(Math.PI / 2); rim.translate(s * 0.085, 0.35, 0.85); parts.push(colored(rim, ...Gd));
+    parts.push(box(0.012, 0.2, 0.025, s * 0.095, 0.43, 0.85, B), box(0.012, 0.025, 0.14, s * 0.095, 0.35, 0.91, B));
+  }
+  const fin = new THREE.SphereGeometry(0.06, 8, 6); fin.translate(0, 0.76, 0.85); parts.push(colored(fin, ...Gd));
+  return mergeGeometries(parts);
+}
+
 const CAR_COLS = [[0.85, 0.85, 0.84], [0.55, 0.56, 0.58], [0.05, 0.05, 0.06], [0.08, 0.15, 0.35], [0.5, 0.06, 0.05], [0.3, 0.3, 0.32], [0.12, 0.25, 0.16], [0.62, 0.6, 0.55]];
 
 // ------------------------------------------------------------------ main
-export function createStreetLife(features, hf, lc, roadIdx, bIdx, routeIdx, giveWays, cfg) {
+export function createStreetLife(features, hf, lc, roadIdx, bIdx, routeIdx, giveWays, cfg, tc = null, shopUnits = []) {
   const tmp = { seg: null, d: 0, t: 0, y: 0 };
   const rnd = mulberry32(99);
   const walls = [], hedges = [], lamps = [], cars = [], signs = [];
+  const baskets = [], beacons = [], bollards = [], rails = [], aboards = [], awnings = [];
   const push = (arr, x, y, z, yaw, sx, sy, sz, c) => arr.push(x, y, z, yaw, sx, sy, sz, c[0], c[1], c[2]);
   const routeClear = (x, z, m) => !routeIdx.query(x, z, m, null, tmp);
 
@@ -231,7 +295,7 @@ export function createStreetLife(features, hf, lc, roadIdx, bIdx, routeIdx, give
     const hw = r._w / 2, pw = r._pave, lift = 0.06;
     for (const side of [-1, 1]) {
       // --- front garden boundaries
-      walk(r.p, 2.0, (x, y, z, tx, tz, s) => {
+      if (!r._tc) walk(r.p, 2.0, (x, y, z, tx, tz, s) => {
         const nx = tz * side, nz = -tx * side; // side=+1 -> left of travel
         const o = hw + pw + 0.25;
         const px = x + nx * o, pz = z + nz * o;
@@ -259,6 +323,7 @@ export function createStreetLife(features, hf, lc, roadIdx, bIdx, routeIdx, give
         const px = x + nx * o, pz = z + nz * o;
         if (bIdx.find(px, pz, 0.5) || roadIdx.query(px, pz, 0.3, (q) => q.ref !== r, tmp)) return;
         push(lamps, px, y + lift + 0.12, pz, Math.atan2(-nx, -nz), 1, 1, 1, [1, 1, 1]);
+        if (r._tc && r.n === 'High Street') push(baskets, px, y + lift + 0.12, pz, Math.atan2(-nx, -nz), 1, 1, 1, [1, 1, 1]);
       });
     }
   }
@@ -292,6 +357,61 @@ export function createStreetLife(features, hf, lc, roadIdx, bIdx, routeIdx, give
     const tx = -g.nz, tz = g.nx; // tangent from left normal
     const yaw = Math.atan2(tx * -side, tz * -side);
     signs.push(px, hf.sample(px, pz), pz, yaw, 1, 1, 1, 1, 1, 1);
+  }
+
+  // ---- town centre: crossings furniture, awnings, A-boards
+  const pointAt = (p, u) => {
+    let acc = 0;
+    for (let i = 0; i + 1 < p.length; i++) {
+      const a = p[i], b = p[i + 1], L = Math.hypot(b[0] - a[0], b[2] - a[2]);
+      if (acc + L >= u || i + 2 === p.length) { const t = Math.min(1, (u - acc) / L); return { x: a[0] + (b[0] - a[0]) * t, y: a[1] + (b[1] - a[1]) * t, z: a[2] + (b[2] - a[2]) * t, tx: (b[0] - a[0]) / L, tz: (b[2] - a[2]) / L }; }
+      acc += L;
+    }
+    return null;
+  };
+  let shelter = null, clock = null;
+  if (tc) {
+    for (const cr of tc.crossings) {
+      const r = cr.road, hw = r._w / 2, pw = r._pave || 2;
+      for (const side of [-1, 1]) for (const du of [-1.9, 1.9]) {
+        const q = pointAt(r.p, cr.u + du); if (!q) continue;
+        const nx = q.tz * side, nz = -q.tx * side;
+        const px = q.x + nx * (hw + 0.45), pz = q.z + nz * (hw + 0.45);
+        push(beacons, px, q.y + 0.18, pz, 0, 1, 1, 1, [1, 1, 1]);
+        // bollards on the kerb either side of the crossing
+        const qb = pointAt(r.p, cr.u + du * 1.6);
+        if (qb) push(bollards, qb.x + nx * (hw + 0.35), qb.y + 0.18, qb.z + nz * (hw + 0.35), 0, 1, 1, 1, [1, 1, 1]);
+        // guard railing on the approach
+        for (let k = 0; k < 3; k++) {
+          const qr = pointAt(r.p, cr.u + Math.sign(du) * (3.4 + k * 2.05)); if (!qr) continue;
+          push(rails, qr.x + nx * (hw + 0.4), qr.y + 0.18, qr.z + nz * (hw + 0.4), Math.atan2(qr.tx, qr.tz), 1, 1, 1, [1, 1, 1]);
+        }
+      }
+    }
+    // shop awnings and A-boards
+    for (const su of shopUnits) {
+      const h = hash2(su.x * 0.37, su.z * 0.53), h2 = hash2(su.z, su.x);
+      const yaw = Math.atan2(su.nx, su.nz); // local +z = outward
+      if (h < 0.38) {
+        const cols = [[0.07, 0.2, 0.12], [0.3, 0.05, 0.07], [0.06, 0.08, 0.22], [0.08, 0.08, 0.09]];
+        push(awnings, su.x + su.nx * 0.02, hf.sample(su.x + su.nx * 1, su.z + su.nz * 1) * 0 + su.y, su.z + su.nz * 0.02, yaw, Math.max(1.5, su.w - 0.9), 1, 1, cols[Math.floor(h2 * 4)]);
+      }
+      if (h2 < 0.16) {
+        const ax = su.x + su.nx * 1.1 + su.tx * (h - 0.5) * su.w * 0.6, az = su.z + su.nz * 1.1 + su.tz * (h - 0.5) * su.w * 0.6;
+        const q = roadIdx.query(ax, az, 0, null, tmp);
+        push(aboards, ax, q ? q.y + 0.18 : hf.sample(ax, az), az, yaw + 0.3 * (h - 0.5), 1, 1, 1, h > 0.5 ? [0.1, 0.1, 0.12] : [0.12, 0.25, 0.15]);
+      }
+    }
+    // bracket clock on a honey-stone building
+    const stoneUnits = shopUnits.filter((u) => u.c === 9 && u.eave > 5.5);
+    const cu = stoneUnits.length ? stoneUnits[Math.floor(stoneUnits.length / 2)] : shopUnits[0];
+    if (cu) clock = { x: cu.x + cu.tx * cu.w * 0.45, y: cu.y + 4.7, z: cu.z + cu.tz * cu.w * 0.45, yaw: Math.atan2(cu.nx, cu.nz) };
+    // red bus shelter on the mid High Street pavement, away from the crossing
+    const cr2 = tc.crossings[1] || tc.crossings[0];
+    if (cr2) {
+      const r = cr2.road, q = pointAt(r.p, Math.max(8, cr2.u - 28));
+      if (q) { const side = 1, nx = q.tz * side, nz = -q.tx * side, o = r._w / 2 + (r._pave || 2) - 0.75; shelter = { x: q.x + nx * o, y: q.y + 0.18, z: q.z + nz * o, yaw: Math.atan2(-nx, -nz) + Math.PI }; }
+    }
   }
 
   const group = new THREE.Group(); group.name = 'streetlife';
@@ -349,7 +469,21 @@ export function createStreetLife(features, hf, lc, roadIdx, bIdx, routeIdx, give
   mk(lampGeometry(), propMat, lamps, 600 * lowF, R, true);
   mk(carGeometry(), carMat, cars, 900 * lowF, R * 0.8, true);
   mk(signGeometry(), propMat, signs, 200, R * 0.6, false);
-  const counts = { walls: walls.length / 10, hedges: hedges.length / 10, lamps: lamps.length / 10, cars: cars.length / 10, signs: signs.length / 10 };
+  if (tc) {
+    mk(basketGeometry(), propMat, baskets, 100, R * 0.6, false);
+    mk(beaconPoleGeometry(), propMat, beacons, 16, R * 0.7, true);
+    const globeMat = patchMaterial(new THREE.MeshStandardMaterial({ color: 0xffa21a, emissive: 0xff8a00, emissiveIntensity: 2.2, roughness: 0.3 }), { key: 'globe' });
+    const globe = new THREE.SphereGeometry(0.17, 14, 10); globe.translate(0, 2.62, 0);
+    mk(globe, globeMat, beacons, 16, R * 0.7, false);
+    mk(bollardGeometry(), propMat, bollards, 40, R * 0.5, true);
+    mk(railGeometry(), propMat, rails, 60, R * 0.5, true);
+    mk(aboardGeometry(), propMat, aboards, 60, R * 0.4, true);
+    mk(awningGeometry(), propMat, awnings, 120, R * 0.6, true);
+    const one = (geo, o) => { if (!o) return; const m = new THREE.Mesh(geo, propMat); m.position.set(o.x, o.y, o.z); m.rotation.y = o.yaw; m.castShadow = true; m.receiveShadow = true; group.add(m); };
+    one(shelterGeometry(), shelter);
+    one(clockGeometry(), clock);
+  }
+  const counts = { baskets: baskets.length / 10, beacons: beacons.length / 10, awnings: awnings.length / 10, aboards: aboards.length / 10, shelter: !!shelter, clock: !!clock, walls: walls.length / 10, hedges: hedges.length / 10, lamps: lamps.length / 10, cars: cars.length / 10, signs: signs.length / 10 };
   let scale = 1;
   return {
     group, counts,
