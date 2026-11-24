@@ -201,7 +201,7 @@ varying vec4 vRoad; varying float vMark; varying vec3 vGw;
 uniform sampler2D uNoise;
 vec3 rAlb; float rRough; float rBump;
 vec3 lin3(vec3 c) { return pow(c, vec3(2.2)); }
-float lineAA(float d, float w) { float fw = max(fwidth(d), 1e-4); return 1.0 - smoothstep(w - fw, w + fw, abs(d)); }
+float lineAA(float d, float w) { float fw = max(fwidth(d), 1e-3); return 1.0 - smoothstep(w - fw, w + fw, abs(d)); }
 void roadSurface(vec3 w) {
   float u = vRoad.x, v = vRoad.y, hw = vRoad.z; int t = int(vRoad.w + 0.5);
   bool town = t == ${RT.TOWN};
@@ -228,7 +228,7 @@ void roadSurface(vec3 w) {
   if (t <= 3) {
     float paint = 0.0;
     float m = vMark;
-    if (t <= 1 && abs(gxc) > 17.0) {
+    if (t <= 1 && abs(gxc) > 14.0) {
       float dash = step(fract(u / 9.0), t == 0 ? 0.5 : 0.33);
       paint = max(paint, lineAA(v, 0.06) * dash * m);
     }
@@ -238,9 +238,17 @@ void roadSurface(vec3 w) {
       float bars = step(ax, 1.5) * step(0.5, fract((v + hw) / 1.0)) * step(abs(v), hw - 0.1);
       float gwl = (1.0 - smoothstep(0.0, 0.03, abs(ax - 2.5) - 0.1)) * step(fract(v / 0.9), 0.55) * step(abs(v), hw - 0.15);
       float zz = 0.0;
-      if (ax > 3.0 && ax < 17.0) {
-        float tri = abs(fract(ax / 1.6) - 0.5) * 2.0;
-        zz = max(lineAA(abs(v) - (hw - 0.55 + 0.4 * tri), 0.05), lineAA(v - 0.4 * (tri - 0.5) * 2.0, 0.05));
+      if (ax > 3.0 && ax < 14.0) {
+        // sharp zig-zags: triangle wave, thickness measured perpendicular to each leg
+        float P = 1.9, A = 0.32;
+        float ph = fract((ax - 3.0) / P);
+        float tri = abs(ph - 0.5) * 2.0;             // 1 -> 0 -> 1
+        float slope = 4.0 * A / P;
+        float k = 1.0 / sqrt(1.0 + slope * slope);
+        float dK = abs(abs(v) - (hw - 0.3 - A * tri)) * k;     // kerb-side zig-zag
+        float dC = abs(v - (A * (tri - 0.5) * 2.0)) * k;      // centre zig-zag
+        float fwz = fwidth(v) * 0.7 + 0.01;
+        zz = max(1.0 - smoothstep(0.05 - fwz, 0.05 + fwz, dK), 1.0 - smoothstep(0.05 - fwz, 0.05 + fwz, dC));
       }
       paint = max(paint, max(bars, max(gwl, zz)));
     }
@@ -258,7 +266,7 @@ void roadSurface(vec3 w) {
     paint *= 1.0 - smoothstep(0.62, 0.75, n3.r) * 0.5; // worn
     rAlb = mix(rAlb, vec3(0.72), paint);
     rRough = mix(rRough, 0.55, paint);
-    if (town && abs(gxc) > 18.0) {
+    if (town && abs(gxc) > 14.5) {
       // double yellow lines along both kerbs
       float yl = max(lineAA(abs(v) - (hw - 0.22), 0.05), lineAA(abs(v) - (hw - 0.42), 0.05)) * m;
       yl *= 0.8 + 0.2 * n4.b;
@@ -385,6 +393,27 @@ export async function createRoads(features, hf, lc, roadIdx, slicer, bIdx = null
         const o0 = side > 0 ? hw : -hw - pw, o1 = side > 0 ? hw + pw : -hw;
         strip(B, p, F, o0, o1, lift + 0.12, RT.PAVE, hw, null, keep);
         wall(B, p, F, side * hw, lift - 0.02, lift + 0.12, -side, RT.KERB, hw, keep);
+        // town centre: pave forecourts right up to the building line
+        if (r._tc && bIdx) {
+          let prev = null;
+          for (let i = 0; i < p.length; i++) {
+            let d = -1;
+            for (let s = 0.3; s <= 7.5; s += 0.4) {
+              const x = p[i][0] + F.nx[i] * side * (hw + pw + s), z = p[i][2] + F.nz[i] * side * (hw + pw + s);
+              if (bIdx.find(x, z)) { d = s + 0.25; break; }
+              if (roadIdx.query(x, z, 0, (q) => q.ref !== r, tmp)) break;
+            }
+            if (d < 0 || !keep(i)) { prev = null; continue; }
+            const y0 = p[i][1] + lift + 0.12;
+            const ox = p[i][0] + F.nx[i] * side * (hw + pw + d), oz = p[i][2] + F.nz[i] * side * (hw + pw + d);
+            const y1 = Math.max(y0, hf.sample(ox, oz) + 0.06);
+            const inner = B.vert(p[i][0] + F.nx[i] * side * (hw + pw), y0, p[i][2] + F.nz[i] * side * (hw + pw), 0, 1, 0, F.L[i], side * (hw + pw), hw, RT.PAVE, 1);
+            const outer = B.vert(ox, y1, oz, 0, 1, 0, F.L[i], side * (hw + pw + d), hw, RT.PAVE, 1);
+            const a = side > 0 ? inner : outer, b = side > 0 ? outer : inner;
+            if (prev) B.idx.push(prev[0], a, prev[1], prev[1], a, b);
+            prev = [a, b];
+          }
+        }
       }
     }
     B.cross = null;

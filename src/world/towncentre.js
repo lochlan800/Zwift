@@ -34,7 +34,7 @@ export function markTownCentre(features, hf, lc) {
     for (let i = 0; i < cols; i++) {
       const x = hf.x0 + i * res;
       if (x < -400 || x > 420) continue;
-      if (tcIdx.query(x, z, 9, null, tmp)) { const k = j * cols + i; if (lc[k] !== 4) { lc[k] = 10; paved++; } }
+      void x; void z;
     }
   }
 
@@ -77,5 +77,38 @@ export function markTownCentre(features, hf, lc) {
   const r2 = byNameStart('High Street', 93.5, 217.2) || roads.filter((r) => r.n === 'High Street').sort((a, c) => c.p.length - a.p.length)[0];
   if (r2 && r2 !== r1) crossings.push({ road: r2, u: 55, kind: 'zebra', note: 'mid High Street (east, by Cluntergate)' });
   for (const c of crossings) { c.road._cross = c.u; }
-  return { roads, tcIdx, crossings, paved, fronting: fronting.length };
+  // landmarks
+  const area = (p) => { let a = 0; for (let i = 0; i < p.length; i++) { const q = p[i], r = p[(i + 1) % p.length]; a += q[0] * r[1] - r[0] * q[1]; } return Math.abs(a / 2); };
+  const cen = (p) => p.reduce((a, q) => [a[0] + q[0] / p.length, a[1] + q[1] / p.length], [0, 0]);
+  const landmarks = [];
+  let coop = null, pub = null;
+  if (crossings[0]) {
+    const cp = crossings[0].road.p;
+    let best = 0;
+    for (const f of fronting) { const c = cen(f.b.p), A = area(f.b.p); if (Math.hypot(c[0] - cp[0][0], c[1] - cp[0][2]) < 70 && A > best && A < 900) { best = A; coop = f.b; } }
+  }
+  { let best = 1e9; for (const f of fronting) { if (f.b === coop) continue; const c = cen(f.b.p), A = area(f.b.p); const d = Math.hypot(c[0] + 110, c[1] - 150); if (A > 70 && A < 500 && d < best) { best = d; pub = f.b; } } }
+  if (coop) { coop.k = 'coop'; coop.c = PAL_HONEY; coop.r = 'gabled'; landmarks.push({ name: 'Co-op (arched-window stone building)', at: cen(coop.p).map(Math.round) }); }
+  if (pub) { pub.k = 'pub'; pub.c = 11; landmarks.push({ name: 'The Fleece (grey render pub)', at: cen(pub.p).map(Math.round) }); }
+  // a few deciduous street trees at the back of the pavement where there is no frontage
+  const streetTrees = [];
+  for (const r of roads) {
+    if (r.n !== 'High Street') continue;
+    let acc = 0;
+    for (let i = 0; i + 1 < r.p.length; i++) {
+      const a = r.p[i], b = r.p[i + 1], L = Math.hypot(b[0] - a[0], b[2] - a[2]);
+      acc += L;
+      if (acc < 22) continue;
+      acc = 0;
+      const tx = (b[0] - a[0]) / L, tz = (b[2] - a[2]) / L;
+      for (const side of [-1, 1]) {
+        const o = r._w / 2 + r._pave + 1.3, x = a[0] + tz * side * o, z = a[2] - tx * side * o;
+        let clear = true;
+        for (const ff of fronting) { const c = cen(ff.b.p); if (Math.hypot(c[0] - x, c[1] - z) < 9) { clear = false; break; } }
+        if (clear && hash2(x, z) < 0.55 && streetTrees.length < 10) { const h = 8 + hash2(z, x) * 5; streetTrees.push([x, hf.sample(x, z), z, h, h * 0.36]); }
+      }
+    }
+  }
+  for (const t of streetTrees) features.trees.push(t);
+  return { roads, tcIdx, crossings, paved, fronting: fronting.length, landmarks, streetTrees: streetTrees.length, pub };
 }

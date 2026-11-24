@@ -191,8 +191,9 @@ void terrainSurface(vec3 w) {
   vec3 lawn = mix(lin(0.27, 0.40, 0.12), lin(0.31, 0.44, 0.14), n2.g) * (0.95 + 0.08 * n4.b);
   lawn = mix(lawn, lin(0.22, 0.33, 0.10), smoothstep(0.55, 0.8, n3.r) * 0.35);
   vec3 resid = lawn;
-  vec3 hard = mix(lin(0.40, 0.39, 0.37), lin(0.30, 0.30, 0.29), n3.g) * (0.85 + 0.25 * n4.a);
-  hard = mix(hard, lin(0.22, 0.21, 0.19), smoothstep(0.65, 0.85, n2.r) * 0.5);
+  // tarmac / concrete hardstanding: smooth, low-contrast
+  vec3 hard = mix(lin(0.34, 0.335, 0.33), lin(0.30, 0.30, 0.295), n2.g) * (0.95 + 0.08 * n4.a);
+  hard = mix(hard, lin(0.27, 0.27, 0.265), smoothstep(0.7, 0.9, n2.r) * 0.3);
   float stripe = step(0.5, fract(w.x / 9.0 + n1.r * 0.05));
   vec3 mown = mix(lin(0.28, 0.41, 0.12), lin(0.33, 0.46, 0.15), stripe * 0.6 + n3.b * 0.3) * (0.95 + 0.08 * n4.b);
   vec3 scrub = mix(lin(0.34, 0.33, 0.17), lin(0.16, 0.19, 0.07), smoothstep(0.45, 0.6, n3.b)) * (0.85 + 0.3 * n4.a);

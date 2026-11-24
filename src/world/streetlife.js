@@ -252,10 +252,20 @@ function aboardGeometry() {
 function awningGeometry() {
   // unit width along local x (instance scale), slopes out along +z from the fascia
   const W = [1, 1, 1];
-  const top = new THREE.PlaneGeometry(1, 1.25); top.rotateX(-Math.PI / 2 + 0.42); top.translate(0, 2.68, 0.57);
-  const val = new THREE.PlaneGeometry(1, 0.22); val.translate(0, 2.33, 1.15);
-  const g1 = colored(top, ...W), g2 = colored(val, ...W);
-  return mergeGeometries([g1, g2]);
+  // sloped canopy from 3.0 m at the wall to 2.55 m at 1.0 m projection, plus a scalloped valance
+  const pos = [], N = 12;
+  const tri = (a, b, c) => pos.push(...a, ...b, ...c);
+  tri([-0.5, 3.0, 0], [0.5, 3.0, 0], [-0.5, 2.55, 1.0]); tri([0.5, 3.0, 0], [0.5, 2.55, 1.0], [-0.5, 2.55, 1.0]);
+  for (let k = 0; k < N; k++) {
+    const x0 = -0.5 + k / N, x1 = -0.5 + (k + 1) / N, xm = (x0 + x1) / 2;
+    tri([x0, 2.55, 1.0], [x0, 2.43, 1.0], [xm, 2.36, 1.0]); tri([x0, 2.55, 1.0], [xm, 2.36, 1.0], [x1, 2.55, 1.0]); tri([x1, 2.55, 1.0], [xm, 2.36, 1.0], [x1, 2.43, 1.0]);
+  }
+  for (const sx of [-0.5, 0.5]) tri([sx, 3.0, 0], [sx, 2.55, 1.0], [sx, 2.45, 1.0]);
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.computeVertexNormals();
+  // stripes: alternate panel shading via vertex colour
+  const n = pos.length / 3, c = new Float32Array(n * 3).fill(1);
+  g.setAttribute('color', new THREE.BufferAttribute(c, 3));
+  return g;
 }
 function shelterGeometry() {
   const R = [0.62, 0.05, 0.05], G = [0.12, 0.14, 0.15], S = [0.25, 0.25, 0.27];
@@ -278,13 +288,47 @@ function clockGeometry() {
   return mergeGeometries(parts);
 }
 
+function projSignGeometry() {
+  const D = [0.05, 0.05, 0.05];
+  const parts = [box(0.04, 0.04, 0.75, 0, 3.95, 0.38, D), box(0.03, 0.5, 0.03, 0, 3.75, 0.05, D)];
+  const board = new THREE.BoxGeometry(0.05, 0.6, 0.6); board.translate(0, 3.6, 0.45); parts.push(colored(board, 1, 1, 1));
+  const plq = new THREE.BoxGeometry(0.06, 0.32, 0.36); plq.translate(0, 3.6, 0.45); parts.push(colored(plq, 2.6, 2.5, 2.2));
+  return mergeGeometries(parts);
+}
+function coursedWallGeometry() {
+  // 1 m section: dressed sandstone wall 0.75 m high, 0.32 thick, flat projecting coping (local z = along road)
+  const S = [0.66, 0.56, 0.41];
+  const body = new THREE.BoxGeometry(0.32, 0.8, 1.0); body.translate(0, 0.4, 0);
+  const cop = new THREE.BoxGeometry(0.42, 0.1, 1.0); cop.translate(0, 0.85, 0);
+  return mergeGeometries([colored(body, ...S), colored(cop, S[0] * 1.08, S[1] * 1.08, S[2] * 1.08)]);
+}
+function pillarGeometry() {
+  const S = [0.66, 0.56, 0.41];
+  const b = new THREE.BoxGeometry(0.5, 1.15, 0.5); b.translate(0, 0.575, 0);
+  const cap = new THREE.ConeGeometry(0.4, 0.28, 4); cap.rotateY(Math.PI / 4); cap.translate(0, 1.29, 0);
+  const slab = new THREE.BoxGeometry(0.58, 0.08, 0.58); slab.translate(0, 1.19, 0);
+  return mergeGeometries([colored(b, ...S), colored(slab, S[0] * 1.1, S[1] * 1.1, S[2] * 1.1), colored(cap, S[0] * 1.05, S[1] * 1.05, S[2] * 1.05)]);
+}
+function railingGeometry() {
+  const K = [0.025, 0.025, 0.028];
+  const parts = [box(0.03, 0.03, 1.0, 0, 1.55, 0, K), box(0.03, 0.03, 1.0, 0, 1.0, 0, K)];
+  for (let k = 0; k < 8; k++) { const zz = -0.44 + k * 0.125; parts.push(box(0.018, 0.72, 0.018, 0, 1.26, zz, K)); const sp = new THREE.ConeGeometry(0.025, 0.07, 4); sp.translate(0, 1.65, zz); parts.push(colored(sp, ...K)); }
+  return mergeGeometries(parts);
+}
+function pubBoardGeometry() {
+  const b = new THREE.BoxGeometry(1, 0.75, 0.05); b.translate(0, 0, 0.03);
+  const p = new THREE.BoxGeometry(0.3, 0.42, 0.06); p.translate(0, 0, 0.035);
+  return mergeGeometries([colored(b, 0.02, 0.02, 0.022), colored(p, 2.4, 2.35, 2.2)]);
+}
+
 const CAR_COLS = [[0.85, 0.85, 0.84], [0.55, 0.56, 0.58], [0.05, 0.05, 0.06], [0.08, 0.15, 0.35], [0.5, 0.06, 0.05], [0.3, 0.3, 0.32], [0.12, 0.25, 0.16], [0.62, 0.6, 0.55]];
 
 // ------------------------------------------------------------------ main
-export function createStreetLife(features, hf, lc, roadIdx, bIdx, routeIdx, giveWays, cfg, tc = null, shopUnits = []) {
+export function createStreetLife(features, hf, lc, roadIdx, bIdx, routeIdx, giveWays, cfg, tc = null, shopUnits = [], pubFronts = []) {
   const tmp = { seg: null, d: 0, t: 0, y: 0 };
   const rnd = mulberry32(99);
   const walls = [], hedges = [], lamps = [], cars = [], signs = [];
+  const psigns = [], stoneWalls = [], pillars = [], railings = [], pubBoards = [];
   const baskets = [], beacons = [], bollards = [], rails = [], aboards = [], awnings = [];
   const push = (arr, x, y, z, yaw, sx, sy, sz, c) => arr.push(x, y, z, yaw, sx, sy, sz, c[0], c[1], c[2]);
   const routeClear = (x, z, m) => !routeIdx.query(x, z, m, null, tmp);
@@ -391,14 +435,53 @@ export function createStreetLife(features, hf, lc, roadIdx, bIdx, routeIdx, give
     for (const su of shopUnits) {
       const h = hash2(su.x * 0.37, su.z * 0.53), h2 = hash2(su.z, su.x);
       const yaw = Math.atan2(su.nx, su.nz); // local +z = outward
-      if (h < 0.38) {
-        const cols = [[0.02, 0.06, 0.035], [0.11, 0.015, 0.02], [0.015, 0.02, 0.07], [0.02, 0.02, 0.022]];
-        push(awnings, su.x + su.nx * 0.02, hf.sample(su.x + su.nx * 1, su.z + su.nz * 1) * 0 + su.y, su.z + su.nz * 0.02, yaw, Math.max(1.5, su.w - 0.9), 1, 1, cols[Math.floor(h2 * 4)]);
+      const fq = roadIdx.query(su.x + su.nx * 2.5, su.z + su.nz * 2.5, 2, null, tmp);
+      const groundY = Math.max(su.y, fq ? fq.y + 0.18 : su.y);
+      su.groundY = groundY;
+      if (h < 0.24) {
+        const cols = [[0.03, 0.1, 0.06], [0.2, 0.03, 0.04], [0.03, 0.05, 0.16], [0.05, 0.05, 0.055]];
+        push(awnings, su.x + su.nx * 0.03, groundY, su.z + su.nz * 0.03, yaw, Math.max(1.5, su.w - 1.0), 1, 1, cols[Math.floor(h2 * 4)]);
+      } else if (h > 0.8) {
+        // small projecting hanging sign on a bracket at first-floor level
+        const sx = su.x + su.tx * su.w * 0.42, sz = su.z + su.tz * su.w * 0.42;
+        push(psigns, sx, groundY, sz, yaw, 1, 1, 1, [[0.05, 0.06, 0.16], [0.3, 0.05, 0.08], [0.07, 0.22, 0.14], [0.04, 0.04, 0.045]][Math.floor(h2 * 4)]);
       }
       if (h2 < 0.16) {
         const ax = su.x + su.nx * 1.1 + su.tx * (h - 0.5) * su.w * 0.6, az = su.z + su.nz * 1.1 + su.tz * (h - 0.5) * su.w * 0.6;
         const q = roadIdx.query(ax, az, 0, null, tmp);
         push(aboards, ax, q ? q.y + 0.18 : hf.sample(ax, az), az, yaw + 0.3 * (h - 0.5), 1, 1, 1, h > 0.5 ? [0.1, 0.1, 0.12] : [0.12, 0.25, 0.15]);
+      }
+    }
+    // the pub: black sign board across the frontage + hanging baskets on wall brackets
+    for (const pf of pubFronts) {
+      const yaw = Math.atan2(pf.nx, pf.nz);
+      const fq = roadIdx.query(pf.x + pf.nx * 2.5, pf.z + pf.nz * 2.5, 2, null, tmp);
+      const gy = Math.max(pf.y, fq ? fq.y + 0.18 : pf.y);
+      push(pubBoards, pf.x + pf.nx * 0.04, gy + 2.6, pf.z + pf.nz * 0.04, yaw, Math.min(pf.w * 0.7, 6), 1, 1, [1, 1, 1]);
+      for (const f of [-0.42, 0.42]) push(baskets, pf.x + pf.tx * pf.w * f - pf.nx * 0.3, gy - 1.05, pf.z + pf.tz * pf.w * f - pf.nz * 0.3, yaw, 1, 1, 1, [1, 1, 1]);
+    }
+    // residential stretches of the centre streets: low dressed-sandstone boundary walls, gate pillars, some railings
+    for (const r of tc.roads) {
+      const hw = r._w / 2, pw = r._pave || 2;
+      for (const side of [-1, 1]) {
+        let run = 0, prevOk = false, runRail = false;
+        walk(r.p, 1.0, (x, y, z, tx, tz, s) => {
+          const nx = tz * side, nz = -tx * side, o = hw + pw + 0.2;
+          const px = x + nx * o, pz = z + nz * o;
+          let set = false;
+          for (const d of [3, 5, 7, 10]) { const b = bIdx.find(px + nx * d, pz + nz * d); if (b) { set = true; break; } }
+          const ok = set && !bIdx.find(px + nx * 2.2, pz + nz * 2.2) && !bIdx.find(px, pz, 0.3) && !roadIdx.query(px, pz, 0.8, (q) => q.ref !== r, tmp)
+            && hash2(Math.floor(s / 9) + side * 0.3, r.p[0][0]) > 0.12;
+          const gy = Math.max(hf.sample(px, pz), y + 0.18) - 0.05;
+          const yaw = Math.atan2(tx, tz);
+          if (ok) {
+            if (!prevOk) { runRail = hash2(px * 0.1, pz * 0.1) < 0.4; push(pillars, px, gy, pz, yaw, 1, 1, 1, [1, 1, 1]); run = 0; }
+            push(stoneWalls, px, gy, pz, yaw, 1, 1, 1.02, [1, 1, 1]);
+            if (runRail) push(railings, px, gy, pz, yaw, 1, 1, 1, [1, 1, 1]);
+            if (++run % 9 === 0) push(pillars, px, gy, pz, yaw, 1, 1, 1, [1, 1, 1]);
+          } else if (prevOk) push(pillars, px - tx * 1.0, gy, pz - tz * 1.0, yaw, 1, 1, 1, [1, 1, 1]);
+          prevOk = ok;
+        });
       }
     }
     // bracket clock on a honey-stone building
@@ -449,6 +532,25 @@ export function createStreetLife(features, hf, lc, roadIdx, bIdx, routeIdx, give
         }`,
     },
   });
+  let _bsm = null;
+  function boundaryStoneMat() {
+    if (_bsm) return _bsm;
+    _bsm = patchMaterial(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 }), {
+      key: 'bstone', fragmentPars: OCC_GLSL + 'uniform sampler2D uNoise; vec3 lin3(vec3 c) { return pow(c, vec3(2.2)); }',
+      fragment: { ...OCC_FRAG, color_fragment: `$
+        {
+          vec3 w = vAerialWorld;
+          float row = floor(w.y / 0.22);
+          float ux = (w.x * 0.7 + w.z * 0.71) / 0.45 + fract(row * 0.37) * 3.0;
+          vec2 f = vec2(fract(ux), fract(w.y / 0.22)); vec2 fw = fwidth(vec2(ux, w.y / 0.22));
+          float j = max(1.0 - smoothstep(0.0, 0.04 + fw.x, min(f.x, 1.0 - f.x)), 1.0 - smoothstep(0.0, 0.06 + fw.y, min(f.y, 1.0 - f.y)));
+          float h = fract(sin(floor(ux) * 12.9898 + row * 78.233) * 43758.5453);
+          vec4 n = texture2D(uNoise, (w.xz + w.y) / 2.1);
+          diffuseColor.rgb = lin3(diffuseColor.rgb) * (0.82 + 0.25 * h) * mix(1.0, 0.65, j) * (0.85 + 0.25 * n.g) * mix(1.0, 0.6, smoothstep(0.6, 0.85, n.r));
+        }` },
+    });
+    return _bsm;
+  }
   const unitBox = new THREE.BoxGeometry(1, 1, 1); unitBox.translate(0, 0.5, 0);
   const hedgeGeo = new THREE.BoxGeometry(1, 1, 1, 1, 2, 2); hedgeGeo.translate(0, 0.5, 0);
   {
@@ -477,7 +579,12 @@ export function createStreetLife(features, hf, lc, roadIdx, bIdx, routeIdx, give
     mk(bollardGeometry(), propMat, bollards, 40, R * 0.5, true);
     mk(railGeometry(), propMat, rails, 60, R * 0.5, true);
     mk(aboardGeometry(), propMat, aboards, 60, R * 0.4, true);
-    mk(awningGeometry(), patchMaterial(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, side: THREE.DoubleSide }), { key: 'awning' }), awnings, 120, R * 0.6, true);
+    mk(awningGeometry(), patchMaterial(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, side: THREE.DoubleSide }), { key: 'awning', fragmentPars: OCC_GLSL, fragment: OCC_FRAG }), awnings, 120, R * 0.6, true);
+    mk(projSignGeometry(), propMat, psigns, 80, R * 0.5, true);
+    mk(coursedWallGeometry(), boundaryStoneMat(), stoneWalls, 1500, R * 0.6, true);
+    mk(pillarGeometry(), boundaryStoneMat(), pillars, 400, R * 0.6, true);
+    mk(railingGeometry(), propMat, railings, 800, R * 0.4, false);
+    mk(pubBoardGeometry(), propMat, pubBoards, 10, R * 0.6, false);
     const one = (geo, o) => { if (!o) return; const m = new THREE.Mesh(geo, propMat); m.position.set(o.x, o.y, o.z); m.rotation.y = o.yaw; m.castShadow = true; m.receiveShadow = true; group.add(m); };
     one(shelterGeometry(), shelter);
     one(clockGeometry(), clock);

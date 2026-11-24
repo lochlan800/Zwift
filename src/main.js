@@ -7,7 +7,7 @@ import { U, makeNoiseTexture } from './world/shared.js';
 import { createSky } from './world/sky.js';
 import { createTerrain, makeHeightTexture, makeNormalTexture, makeSplatTextures } from './world/terrain.js';
 import { annotateRoads, buildRoadIndex, conformTerrain, createRoads, roadInfo } from './world/roads.js';
-import { createBuildings, shopUnits } from './world/buildings.js';
+import { createBuildings, shopUnits, pubFronts } from './world/buildings.js';
 import { createTrees } from './world/trees.js';
 import { createWater, carveWater } from './world/water.js';
 import { createGrass } from './world/grass.js';
@@ -84,10 +84,26 @@ async function build() {
   const slicer = new Slicer(cfg.mobile ? 24 : 30);
   const data = await loadData(progress);
   const { meta, features } = data;
-  ui.attrib.textContent = meta.attribution || '';
+  ui.attrib.textContent = (meta.attribution || '') + ' Street-level reference: Mapillary contributors (CC BY-SA 4.0).';
   progress(0.1, 'Shaping terrain');
   await nextFrame();
   const hf = new HeightField(meta, data.height);
+  // drop duplicate / overlapping footprints (coplanar walls would z-fight)
+  {
+    const area = (p) => { let a = 0; for (let i = 0; i < p.length; i++) { const q = p[i], r = p[(i + 1) % p.length]; a += q[0] * r[1] - r[0] * q[1]; } return Math.abs(a / 2); };
+    const list = features.buildings.filter((b) => b.p && b.p.length >= 3).sort((a, b) => area(b.p) - area(a.p));
+    const acc = new PolygonIndex(24), keep = [];
+    let dropped = 0;
+    for (const b of list) {
+      const n = b.p.length; let cx = 0, cz = 0; for (const q of b.p) { cx += q[0] / n; cz += q[1] / n; }
+      let inside = acc.find(cx, cz) ? 1 : 0;
+      for (const q of b.p) if (acc.find(q[0] * 0.9 + cx * 0.1, q[1] * 0.9 + cz * 0.1)) inside++;
+      if (inside > n * 0.6) { dropped++; continue; }
+      acc.add(b.p, b); keep.push(b);
+    }
+    features.buildings = keep;
+    console.info('duplicate buildings dropped', dropped);
+  }
   annotateRoads(features, hf, data.landcover);
   const tc = markTownCentre(features, hf, data.landcover);
   console.info('town centre', tc.roads.length, 'roads,', tc.fronting, 'fronting buildings, paved', tc.paved, 'crossings', tc.crossings.map((c) => c.note).join('; '));
@@ -172,7 +188,8 @@ async function build() {
   const buildings = await createBuildings(features, slicer, (f) => progress(0.62 + f * 0.2, `Raising buildings ${Math.round(f * 100)}%`), tc.tcIdx);
   scene.add(buildings.group);
   world.buildings = buildings;
-  const street = createStreetLife(features, hf, data.landcover, roadIdx, bIdx, routeIdx, roads.giveWays, cfg, tc, shopUnits);
+  const street = createStreetLife(features, hf, data.landcover, roadIdx, bIdx, routeIdx, roads.giveWays, cfg, tc, shopUnits, pubFronts);
+  console.info('landmarks', JSON.stringify(tc.landmarks), 'street trees', tc.streetTrees, 'gap fills', buildings.fills);
   scene.add(street.group);
   world.street = street;
   console.info('street life', JSON.stringify(street.counts), 'hedgerows', hedgerows.walls.length, 'hedgerow trees', hedgerows.trees.length);
