@@ -105,13 +105,13 @@ void main() {
   // ---- cumulus layer: noise on a plane, lit from the sun side, blue-grey bellies
   if (d.y > 0.0) {
     float y = d.y;
-    vec2 p = d.xz / (y * 0.9 + 0.10);
-    p = p * 0.42 + uWind * uTime;
+    vec2 p = d.xz / (y * 0.9 + 0.24);
+    p = p * 0.62 + uWind * uTime;
     // billow warp
     p += 0.35 * vec2(vnoise(p * 1.6), vnoise(p * 1.6 + 7.3)) - 0.17;
     float n = fbm(p);
     float th = 1.0 - uCover;
-    float dens = smoothstep(th, th + 0.20, n);
+    float dens = smoothstep(th, th + 0.15, n);
     float fade = smoothstep(0.015, 0.20, y);        // dissolve into horizon haze
     float a = dens * fade;
     if (a > 0.003) {
@@ -125,7 +125,7 @@ void main() {
       lit = clamp(0.35 + 0.65 * smoothstep(th, th + 0.5, n), 0.0, 1.0);
 #endif
       float core = smoothstep(th + 0.05, th + 0.35, n);
-      vec3 shade = vec3(0.50, 0.62, 0.84);
+      vec3 shade = vec3(0.60, 0.70, 0.90);
       vec3 sunl = vec3(1.28, 1.20, 1.08);
       vec3 cc = mix(shade, sunl, lit * (0.55 + 0.45 * (1.0 - core * 0.5)));
       // silver rim toward the sun
@@ -150,10 +150,10 @@ function skyMaterial({ lut, cloudOct, cloudLit }) {
       uSunDisc: { value: 1 },
       uGround: { value: new THREE.Color(0.06, 0.07, 0.045) },
       uDesat: { value: 0 },
-      uZenith: { value: new THREE.Color(0.055, 0.20, 0.72) },
+      uZenith: { value: new THREE.Color(0.08, 0.25, 0.76) },
       uHorizon: { value: new THREE.Color(0.42, 0.66, 1.0) },
       uWind: { value: new THREE.Vector2(0.004, 0.0012) },
-      uCover: { value: 0.46 },
+      uCover: { value: 0.55 },
     },
     vertexShader: SKY_VS, fragmentShader: SKY_FS,
     side: lut ? THREE.FrontSide : THREE.BackSide,
@@ -219,7 +219,7 @@ export function createSky(renderer) {
     }
     const a = new THREE.Color(r / w, g / w, b / w);
     const l = a.r * 0.2126 + a.g * 0.7152 + a.b * 0.0722;
-    a.lerp(new THREE.Color(l, l, l), 0.25).lerp(new THREE.Color(0.30, 0.40, 0.22), 0.12).multiplyScalar(1.05);
+    a.lerp(new THREE.Color(l, l, l), 0.25).lerp(new THREE.Color(0.30, 0.40, 0.22), 0.12).multiplyScalar(1.5);
     U.uSkyAmb.value.copy(a);
   } catch (e) { /* not fatal */ }
 
@@ -227,7 +227,7 @@ export function createSky(renderer) {
   // faces pick up blue from above and warm green from below
   const pmrem = new THREE.PMREMGenerator(renderer);
   const envLut = lutRT.clone();
-  lu.uDesat.value = 0.30; lu.uGround.value.setRGB(0.24, 0.27, 0.15); lu.uScale.value = 1.25;
+  lu.uDesat.value = 0.30; lu.uGround.value.setRGB(0.24, 0.27, 0.15); lu.uScale.value = 2.3;
   renderer.setRenderTarget(envLut); renderer.render(sc, cam); renderer.setRenderTarget(null);
   const envRT = pmrem.fromEquirectangular(envLut.texture);
   pmrem.dispose();

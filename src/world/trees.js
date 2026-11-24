@@ -79,29 +79,27 @@ function leafCell(g, ox, oy, rnd, o) {
 }
 
 function needleCell(g, ox, oy, rnd) {
+  // soft, dense needle clump: a puffy disc of short radiating needles (dark underlayer -> lit tips)
   const S = CELL, cx = ox + S / 2, cy = oy + S * 0.5;
   g.lineCap = 'round';
-  const fr = 9;
-  const items = [];
-  for (let f = 0; f < fr; f++) {
-    const a = (f / fr) * Math.PI * 2 + rnd() * 0.5;
-    const len = 150 + rnd() * 75;
-    items.push({ a, len, k: rnd() });
+  const R = S * 0.5 * 0.86;
+  const pts = [];
+  for (let i = 0; i < 1500; i++) {
+    const a = rnd() * Math.PI * 2;
+    const lim = R * (0.82 + 0.18 * Math.sin(a * 4 + 0.7) * Math.sin(a * 7 + 2.0));
+    const rd = Math.pow(rnd(), 0.65);
+    pts.push({ x: Math.cos(a) * rd * lim, y: Math.sin(a) * rd * lim, rd, r: rnd() });
   }
-  for (const it of items) {
-    const dx = Math.cos(it.a), dy = Math.sin(it.a);
-    g.strokeStyle = '#3a2a1c'; g.lineWidth = 4;
-    g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx + dx * it.len, cy + dy * it.len); g.stroke();
-    const steps = 26;
-    for (let s = 1; s <= steps; s++) {
-      const t = s / steps, px = cx + dx * it.len * t, py = cy + dy * it.len * t;
-      const nl = (1.0 - t * 0.55) * 54 + 6;
-      for (const sd of [-1, 1]) {
-        const na = it.a + sd * (0.95 - t * 0.25) + (rnd() - 0.5) * 0.25;
-        const l = 24 + 18 * t + rnd() * 8 + it.k * 6;
-        g.strokeStyle = `hsl(${118 + rnd() * 24},${40 + rnd() * 10}%,${l}%)`; g.lineWidth = 5.2 - t * 1.6;
-        g.beginPath(); g.moveTo(px, py); g.lineTo(px + Math.cos(na) * nl, py + Math.sin(na) * nl); g.stroke();
-      }
+  for (const p of pts) p.k = (-p.y / R) * 0.5 + 0.5 + (p.r - 0.5) * 0.6;
+  pts.sort((p, q) => p.k - q.k);
+  for (let pass = 0; pass < 2; pass++) {
+    for (let i = pass; i < pts.length; i += pass ? 1 : 2) {
+      const p = pts[i];
+      const base = Math.atan2(p.y, p.x) + (rnd() - 0.5) * 1.6 + 1.2 * (rnd() < 0.5 ? 1 : -1) * 0.25;
+      const len = (pass ? 24 : 32) + rnd() * 16;
+      const l = pass ? 26 + (p.k - 0.3) * 24 + rnd() * 7 : 17 + rnd() * 6;
+      g.strokeStyle = `hsl(${112 + rnd() * 22},${pass ? 44 : 38}%,${l}%)`; g.lineWidth = pass ? 4.4 : 5.5;
+      g.beginPath(); g.moveTo(cx + p.x, cy + p.y); g.lineTo(cx + p.x + Math.cos(base) * len, cy + p.y + Math.sin(base) * len); g.stroke();
     }
   }
 }
@@ -535,7 +533,15 @@ export function createTrees(features, hf, opts) {
             float f0 = smoothstep(uD0 - 6.0, uD0 + 6.0, vIDist);
             float dn = ign(gl_FragCoord.xy);
             ${lod === 0 ? 'if (dn < f0) discard;' : 'if (dn >= f0 || dn < fFar) discard;'}
-            if (dn > occFade(vAerialWorld)) discard;
+            {
+              // wide screen-door fade for foliage close to the camera / between camera and rider
+              vec3 cv = vAerialWorld - cameraPosition;
+              float nf = smoothstep(3.0, 9.0, length(cv));
+              vec3 cr = uRiderPos + vec3(0.0, 1.0, 0.0) - cameraPosition;
+              float Lr = length(cr); vec3 dr = cr / max(Lr, 1e-3); float tr_ = dot(cv, dr);
+              if (tr_ > 0.0 && tr_ < Lr - 1.0) nf = min(nf, smoothstep(1.4, 3.4, length(cv - dr * tr_)));
+              if (dn > min(nf, occFade(vAerialWorld))) discard;
+            }
           }
           diffuseColor.rgb *= mix(vec3(1.0), vTint, vT.x);`,
         lights_fragment_begin: THREE.ShaderChunk.lights_fragment_begin.replace('getSunLightInfo( sunLight, directLight );', 'getSunLightInfo( sunLight, directLight ); directLight.color *= hbSun;'),
