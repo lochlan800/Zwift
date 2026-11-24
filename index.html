@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="theme-color" content="#0d1420" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <title>Horbury Ride</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='16' cy='44' r='12' fill='none' stroke='%23ffb347' stroke-width='5'/%3E%3Ccircle cx='48' cy='44' r='12' fill='none' stroke='%23ffb347' stroke-width='5'/%3E%3Cpath d='M16 44 L28 22 L44 22 L48 44 M28 22 L34 44' fill='none' stroke='%23fff' stroke-width='4'/%3E%3C/svg%3E" />
+</head>
+<body>
+  <canvas id="scene" aria-label="3D view of the ride"></canvas>
+
+  <section id="title" class="screen">
+    <div class="title-card">
+      <div class="kicker">Virtual ride · West Yorkshire</div>
+      <h1>Horbury <span>Ride</span></h1>
+      <p class="desc">Cycle a real road loop through Horbury, Wakefield, rebuilt in 3D from 1&nbsp;m LiDAR and open map data.</p>
+      <div class="loader" id="loader">
+        <div class="bar"><div class="fill" id="loadFill"></div></div>
+        <div class="loadtext" id="loadText">Preparing…</div>
+      </div>
+      <button id="rideBtn" class="ride-btn" disabled>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+        <span>Ride</span>
+      </button>
+      <div class="route-info" id="routeInfo"></div>
+    </div>
+    <footer class="attrib" id="attrib"></footer>
+  </section>
+
+  <section id="hud" class="hidden" aria-live="off">
+    <div class="hud-top">
+      <div class="metric big"><div class="v" id="hSpeed">0.0</div><div class="u">km/h</div></div>
+      <div class="metric"><div class="v" id="hPower">220</div><div class="u">W</div></div>
+      <div class="metric"><div class="v" id="hDist">0.00</div><div class="u">km</div></div>
+      <div class="metric"><div class="v" id="hGrad">0.0%</div><div class="u">grade</div></div>
+      <div class="metric"><div class="v" id="hElev">0</div><div class="u">m elev</div></div>
+      <div class="metric"><div class="v" id="hTime">0:00</div><div class="u">time</div></div>
+    </div>
+    <button id="pauseBtn" class="icon-btn" aria-label="Pause">
+      <svg viewBox="0 0 24 24"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>
+    </button>
+    <div class="profile"><canvas id="profile"></canvas><div class="routename" id="routeName"></div></div>
+  </section>
+
+  <section id="pause" class="screen hidden">
+    <div class="title-card small">
+      <h2>Paused</h2>
+      <div class="pause-stats" id="pauseStats"></div>
+      <button id="resumeBtn" class="ride-btn"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg><span>Resume</span></button>
+      <button id="exitBtn" class="ghost-btn">Exit to title</button>
+    </div>
+  </section>
+
+  <section id="glerror" class="screen hidden">
+    <div class="title-card small"><h2 id="glErrTitle">Graphics paused</h2><p class="desc" id="glErrText"></p>
+      <button id="reloadBtn" class="ride-btn"><span>Reload</span></button></div>
+  </section>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,164 @@
+import * as THREE from 'three';
+
+// Uniforms shared by every custom/patched material (same objects => one update).
+export const U = {
+  uTime: { value: 0 },
+  uSunDir: { value: new THREE.Vector3(0, 1, 0) },
+  uSunColor: { value: new THREE.Color(1, 1, 1) },
+  uSkyLUT: { value: null },
+  uFogDensity: { value: 0.00028 },
+  uFogFalloff: { value: 0.0045 },
+  uFogBase: { value: 20 },
+  uNoise: { value: null },
+  uWind: { value: new THREE.Vector2(0.8, 0.4) },
+  uShadowBake: { value: null },
+  uGridOrigin: { value: new THREE.Vector2() },
+  uGridSize: { value: new THREE.Vector2() },
+  uGridRes: { value: 4 },
+  uBakeFade: { value: new THREE.Vector2(180, 260) },
+  uSkyAmb: { value: new THREE.Color(0.5, 0.6, 0.8) },
+};
+
+// GLSL: aerial perspective / exponential height fog using a sky colour LUT
+// (equirect, rendered from the same Preetham sky as the background) so the
+// distant terrain dissolves exactly into the horizon colour.
+export const AERIAL_GLSL = /* glsl */`
+uniform sampler2D uSkyLUT;
+uniform vec3 uSunDir;
+uniform vec3 uSunColor;
+uniform float uFogDensity;
+uniform float uFogFalloff;
+uniform float uFogBase;
+vec3 skyLUT(vec3 d) {
+  d = normalize(vec3(d.x, max(d.y, 0.035), d.z));
+  return texture2D(uSkyLUT, equirectUv(d)).rgb;
+}
+float aerialAmount(vec3 wpos, out vec3 rd, out float dist) {
+  vec3 v = wpos - cameraPosition;
+  dist = length(v);
+  rd = v / max(dist, 1e-3);
+  float b = uFogFalloff;
+  float ry = rd.y;
+  ry = abs(ry) < 1e-4 ? 1e-4 : ry;
+  float f = uFogDensity * exp(-(cameraPosition.y - uFogBase) * b) * (1.0 - exp(-dist * ry * b)) / (ry * b);
+  return 1.0 - exp(-max(f, 0.0));
+}
+vec3 applyAerial(vec3 col, vec3 wpos) {
+  vec3 rd; float dist;
+  float t = aerialAmount(wpos, rd, dist);
+  vec3 fc = skyLUT(rd);
+  float s = max(dot(rd, uSunDir), 0.0);
+  fc += uSunColor * (pow(s, 10.0) * 0.06);
+  // slight blue extinction tint of mid-distance before full haze
+  col *= mix(vec3(1.0), vec3(0.86, 0.93, 1.06), clamp(t * 1.6, 0.0, 1.0));
+  return mix(col, fc, t);
+}
+`;
+
+// Shared grid helpers (terrain textures)
+export const GRID_GLSL = /* glsl */`
+uniform vec2 uGridOrigin;
+uniform vec2 uGridSize;
+uniform float uGridRes;
+uniform sampler2D uShadowBake;
+uniform vec2 uBakeFade;
+vec2 gridUV(vec2 xz) { return ((xz - uGridOrigin) / uGridRes + 0.5) / uGridSize; }
+// x: terrain self-shadow (always), y: objects shadow (only beyond realtime cascades)
+float bakedSun(vec3 wpos) {
+  vec2 s = texture2D(uShadowBake, gridUV(wpos.xz)).rg;
+  float d = distance(wpos, cameraPosition);
+  float far = smoothstep(uBakeFade.x, uBakeFade.y, d);
+  return s.r * mix(1.0, s.g, far);
+}
+`;
+
+const AERIAL_VARYING = 'varying vec3 vAerialWorld;\n';
+
+/**
+ * Patch a built-in (Standard/Lambert/Physical) material:
+ * - adds shared uniforms + aerial perspective fog replacing <fog_fragment>
+ * - opts.uniforms: extra uniforms
+ * - opts.vertexPars / fragmentPars: GLSL prepended after <common>
+ * - opts.vertex: { chunkName: replacementCode } (use '$' to refer to original include)
+ * - opts.fragment: same for fragment shader
+ */
+export function patchMaterial(mat, opts = {}) {
+  const key = opts.key || mat.type;
+  mat.customProgramCacheKey = () => 'hb-' + key;
+  mat.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, U, opts.uniforms || {});
+    let vs = shader.vertexShader, fs = shader.fragmentShader;
+    vs = vs.replace('#include <common>', '#include <common>\n' + AERIAL_VARYING + (opts.vertexPars || ''));
+    fs = fs.replace('#include <common>', '#include <common>\n' + AERIAL_VARYING + AERIAL_GLSL + (opts.fragmentPars || ''));
+    for (const [k, v] of Object.entries(opts.vertex || {})) {
+      const inc = `#include <${k}>`;
+      if (!vs.includes(inc)) console.warn('patch: missing vertex chunk', k);
+      vs = vs.replace(inc, v.replace('$', inc));
+    }
+    vs = vs.replace('#include <project_vertex>', `#include <project_vertex>
+      {
+        vec4 aw = vec4(transformed, 1.0);
+        #ifdef USE_INSTANCING
+          aw = instanceMatrix * aw;
+        #endif
+        vAerialWorld = (modelMatrix * aw).xyz;
+      }`);
+    for (const [k, v] of Object.entries(opts.fragment || {})) {
+      const inc = `#include <${k}>`;
+      if (!fs.includes(inc)) console.warn('patch: missing fragment chunk', k);
+      fs = fs.replace(inc, v.replace('$', inc));
+    }
+    fs = fs.replace('#include <fog_fragment>', 'gl_FragColor.rgb = applyAerial(gl_FragColor.rgb, vAerialWorld);');
+    shader.vertexShader = vs;
+    shader.fragmentShader = fs;
+    if (opts.onShader) opts.onShader(shader);
+  };
+  return mat;
+}
+
+// Tileable multi-octave value noise texture, RGBA8 256^2:
+// R = low freq fbm (period 4 cells), G = mid (8), B = high (32), A = very fine (64)
+export function makeNoiseTexture(size = 256) {
+  const data = new Uint8Array(size * size * 4);
+  const lattice = (p, seed) => {
+    const g = new Float32Array(p * p);
+    let s = seed;
+    for (let i = 0; i < g.length; i++) { s = (s * 1664525 + 1013904223) >>> 0; g[i] = s / 4294967296; }
+    return g;
+  };
+  const sampleNoise = (g, p, x, y) => {
+    const xi = Math.floor(x), yi = Math.floor(y);
+    let fx = x - xi, fy = y - yi;
+    fx = fx * fx * (3 - 2 * fx); fy = fy * fy * (3 - 2 * fy);
+    const x0 = ((xi % p) + p) % p, y0 = ((yi % p) + p) % p, x1 = (x0 + 1) % p, y1 = (y0 + 1) % p;
+    const a = g[y0 * p + x0], b = g[y0 * p + x1], c = g[y1 * p + x0], d = g[y1 * p + x1];
+    return a + (b - a) * fx + (c - a) * fy + (a - b - c + d) * fx * fy;
+  };
+  const fbm = (base, oct, seed) => {
+    const layers = [];
+    for (let o = 0; o < oct; o++) { const p = base << o; layers.push([lattice(p, seed + o * 977), p]); }
+    const out = new Float32Array(size * size);
+    for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+      let v = 0, a = 0.5, tot = 0;
+      for (const [g, p] of layers) { v += a * sampleNoise(g, p, x * p / size, y * p / size); tot += a; a *= 0.5; }
+      out[y * size + x] = v / tot;
+    }
+    // normalise contrast
+    let mn = 1, mx = 0;
+    for (const v of out) { mn = Math.min(mn, v); mx = Math.max(mx, v); }
+    for (let i = 0; i < out.length; i++) out[i] = (out[i] - mn) / (mx - mn);
+    return out;
+  };
+  const ch = [fbm(4, 5, 11), fbm(8, 4, 23), fbm(32, 3, 37), fbm(64, 2, 51)];
+  for (let i = 0; i < size * size; i++) for (let c = 0; c < 4; c++) data[i * 4 + c] = Math.round(ch[c][i] * 255);
+  const tex = new THREE.DataTexture(data, size, size, THREE.RGBAFormat, THREE.UnsignedByteType);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.magFilter = THREE.LinearFilter;
+  tex.minFilter = THREE.LinearMipmapLinearFilter;
+  tex.generateMipmaps = true;
+  tex.anisotropy = 4;
+  tex.needsUpdate = true;
+  return tex;
+}
+
+export const srgb = (r, g, b) => new THREE.Color().setRGB(r, g, b, THREE.SRGBColorSpace);

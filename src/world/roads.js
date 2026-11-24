@@ -1,0 +1,325 @@
+import * as THREE from 'three';
+import { SegmentIndex } from './heightfield.js';
+import { patchMaterial } from './shared.js';
+
+// type codes used by the road shader
+export const RT = { MAJOR: 0, MAJOR_DASH: 1, MINOR: 2, SERVICE: 3, TRACK: 4, FOOT: 5, PATH: 6, PAVE: 7, KERB: 8, BALLAST: 9, RAIL: 10, PARAPET: 11, CYCLE: 12 };
+
+const KIND = {
+  primary: { t: RT.MAJOR, w: 7.3, lift: 0.07, pave: true },
+  secondary: { t: RT.MAJOR, w: 7.0, lift: 0.07, pave: true },
+  tertiary: { t: RT.MAJOR_DASH, w: 6.5, lift: 0.065, pave: true },
+  unclassified: { t: RT.MAJOR_DASH, w: 5.5, lift: 0.06, pave: false },
+  residential: { t: RT.MINOR, w: 5.5, lift: 0.06, pave: true },
+  service: { t: RT.SERVICE, w: 3.5, lift: 0.055, pave: false },
+  track: { t: RT.TRACK, w: 3.0, lift: 0.04, pave: false },
+  footway: { t: RT.FOOT, w: 2.0, lift: 0.045, pave: false },
+  cycleway: { t: RT.CYCLE, w: 2.5, lift: 0.045, pave: false },
+  path: { t: RT.PATH, w: 1.6, lift: 0.035, pave: false },
+};
+const URBAN = new Set([3, 5, 10, 6, 8, 9]);
+
+export function roadInfo(r) { return KIND[r.k] || null; }
+export function roadWidth(r) { const K = KIND[r.k]; return Math.max(1.2, r.w || (K ? K.w : 4)); }
+
+function lcAt(hf, lc, x, z) {
+  const i = Math.round((x - hf.x0) / hf.res), j = Math.round((z - hf.z0) / hf.res);
+  if (i < 0 || j < 0 || i >= hf.cols || j >= hf.rows) return 0;
+  return lc[j * hf.cols + i];
+}
+
+// Decide pavements per road (urban + suitable kind)
+export function annotateRoads(features, hf, lc) {
+  for (const r of features.roads) {
+    const K = KIND[r.k];
+    r._w = roadWidth(r);
+    r._pave = 0;
+    if (!K || r.tu) continue;
+    if (K.pave) {
+      let urban = 0;
+      for (let i = 0; i < r.p.length; i += 3) if (URBAN.has(lcAt(hf, lc, r.p[i][0], r.p[i][2]))) urban++;
+      if (urban / Math.ceil(r.p.length / 3) > 0.4) r._pave = r.k === 'residential' ? 1.8 : 2.0;
+    }
+  }
+}
+
+export function buildRoadIndex(features) {
+  const idx = new SegmentIndex(24);
+  for (const r of features.roads) {
+    if (r.tu || !KIND[r.k]) continue;
+    const hw = r._w / 2 + (r._pave || 0);
+    for (let i = 0; i + 1 < r.p.length; i++) {
+      const a = r.p[i], b = r.p[i + 1];
+      idx.add(a[0], a[1], a[2], b[0], b[1], b[2], hw, r);
+    }
+  }
+  return idx;
+}
+
+// Carve/raise terrain so it sits just below every road (no poke-through).
+export function conformTerrain(hf, features) {
+  const { cols, rows, res } = hf;
+  const n = cols * rows;
+  const target = new Float32Array(n);
+  const weight = new Float32Array(n); // 0 = untouched, 1 = fully set to target
+  const consider = (ax, ay, az, bx, by, bz, core, blend) => {
+    const R = core + blend;
+    const i0 = Math.max(0, Math.floor((Math.min(ax, bx) - R - hf.x0) / res)), i1 = Math.min(cols - 1, Math.ceil((Math.max(ax, bx) + R - hf.x0) / res));
+    const j0 = Math.max(0, Math.floor((Math.min(az, bz) - R - hf.z0) / res)), j1 = Math.min(rows - 1, Math.ceil((Math.max(az, bz) + R - hf.z0) / res));
+    const dx = bx - ax, dz = bz - az, L2 = dx * dx + dz * dz;
+    for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+      const x = hf.x0 + i * res, z = hf.z0 + j * res;
+      let t = L2 > 0 ? ((x - ax) * dx + (z - az) * dz) / L2 : 0;
+      t = t < 0 ? 0 : t > 1 ? 1 : t;
+      const px = ax + dx * t - x, pz = az + dz * t - z;
+      const d = Math.sqrt(px * px + pz * pz);
+      if (d > R) continue;
+      let w = d <= core ? 1 : 1 - (d - core) / blend;
+      w = w * w * (3 - 2 * w);
+      const k = j * cols + i;
+      const y = ay + (by - ay) * t - 0.18;
+      if (w > weight[k] + 1e-4 || (Math.abs(w - weight[k]) < 1e-4 && y < target[k])) { weight[k] = w; target[k] = y; }
+    }
+  };
+  for (const r of features.roads) {
+    if (r.tu || r.br || !KIND[r.k]) continue;
+    const core = r._w / 2 + (r._pave || 0) + 1.2;
+    const blend = r._w > 4 ? 7 : 4;
+    for (let i = 0; i + 1 < r.p.length; i++) {
+      const a = r.p[i], b = r.p[i + 1];
+      consider(a[0], a[1], a[2], b[0], b[1], b[2], core, blend);
+    }
+  }
+  for (const r of features.rail || []) {
+    if (r.br || r.tu) continue;
+    for (let i = 0; i + 1 < r.p.length; i++) { const a = r.p[i], b = r.p[i + 1]; consider(a[0], a[1] - 0.15, a[2], b[0], b[1] - 0.15, b[2], 3.2, 5); }
+  }
+  const h = hf.h;
+  for (let k = 0; k < n; k++) if (weight[k] > 0) h[k] = h[k] + (target[k] - h[k]) * weight[k];
+}
+
+// ---------------------------------------------------------------------------------------------
+
+class RibbonBuilder {
+  constructor() { this.pos = []; this.nor = []; this.road = []; this.mark = []; this.idx = []; this.n = 0; }
+  vert(x, y, z, nx, ny, nz, u, v, hw, t, m) {
+    this.pos.push(x, y, z); this.nor.push(nx, ny, nz); this.road.push(u, v, hw, t); this.mark.push(m);
+    return this.n++;
+  }
+  quad(a, b, c, d) { this.idx.push(a, c, b, b, c, d); } // a,b along left edge... see usage
+  build() {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(this.pos, 3));
+    g.setAttribute('normal', new THREE.Float32BufferAttribute(this.nor, 3));
+    g.setAttribute('aRoad', new THREE.Float32BufferAttribute(this.road, 4));
+    g.setAttribute('aMark', new THREE.Float32BufferAttribute(this.mark, 1));
+    g.setIndex(this.n > 65535 ? new THREE.Uint32BufferAttribute(this.idx, 1) : new THREE.Uint16BufferAttribute(this.idx, 1));
+    g.computeBoundingSphere(); g.computeBoundingBox();
+    return g;
+  }
+}
+
+// per-point left-normal (miter averaged) and cumulative distance
+function frames(p) {
+  const n = p.length, L = new Float32Array(n), nx = new Float32Array(n), nz = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const a = p[Math.max(0, i - 1)], b = p[Math.min(n - 1, i + 1)];
+    let dx = b[0] - a[0], dz = b[2] - a[2];
+    const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
+    nx[i] = dz; nz[i] = -dx; // left of travel
+    if (i > 0) L[i] = L[i - 1] + Math.hypot(p[i][0] - p[i - 1][0], p[i][2] - p[i - 1][2]);
+  }
+  return { L, nx, nz };
+}
+
+/** Strip of constant offset range [o0,o1] (metres, +left) at height offset, flat-up normals */
+function strip(B, p, F, o0, o1, dy, type, hw, markFn, keepFn) {
+  let prev = null;
+  for (let i = 0; i < p.length; i++) {
+    const keep = keepFn ? keepFn(i) : true;
+    if (!keep) { prev = null; continue; }
+    const x = p[i][0], y = p[i][1] + dy, z = p[i][2];
+    const m = markFn ? markFn(i) : 1;
+    const a = B.vert(x + F.nx[i] * o0, y, z + F.nz[i] * o0, 0, 1, 0, F.L[i], o0, hw, type, m);
+    const b = B.vert(x + F.nx[i] * o1, y, z + F.nz[i] * o1, 0, 1, 0, F.L[i], o1, hw, type, m);
+    if (prev) {
+      // prev.a, prev.b, a, b; o1 > o0 means b is to the left
+      B.idx.push(prev[0], a, prev[1], prev[1], a, b);
+    }
+    prev = [a, b];
+  }
+}
+/** vertical wall along offset o from y0 to y1 facing direction sign (+1 = faces left) */
+function wall(B, p, F, o, y0, y1, face, type, hw, keepFn) {
+  let prev = null;
+  for (let i = 0; i < p.length; i++) {
+    if (keepFn && !keepFn(i)) { prev = null; continue; }
+    const x = p[i][0] + F.nx[i] * o, z = p[i][2] + F.nz[i] * o;
+    const nx = F.nx[i] * face, nz = F.nz[i] * face;
+    const a = B.vert(x, p[i][1] + y0, z, nx, 0, nz, F.L[i], y0, hw, type, 1);
+    const b = B.vert(x, p[i][1] + y1, z, nx, 0, nz, F.L[i], y1, hw, type, 1);
+    if (prev) {
+      if (face > 0) B.idx.push(prev[0], prev[1], a, a, prev[1], b);
+      else B.idx.push(prev[0], a, prev[1], prev[1], a, b);
+    }
+    prev = [a, b];
+  }
+}
+
+const ROAD_FRAG = /* glsl */`
+varying vec4 vRoad; varying float vMark;
+uniform sampler2D uNoise;
+vec3 rAlb; float rRough; float rBump;
+vec3 lin3(vec3 c) { return pow(c, vec3(2.2)); }
+float lineAA(float d, float w) { float fw = max(fwidth(d), 1e-4); return 1.0 - smoothstep(w - fw, w + fw, abs(d)); }
+void roadSurface(vec3 w) {
+  float u = vRoad.x, v = vRoad.y, hw = vRoad.z; int t = int(vRoad.w + 0.5);
+  vec4 n2 = texture2D(uNoise, w.xz / 23.0);
+  vec4 n3 = texture2D(uNoise, w.xz / 3.1);
+  vec4 n4 = texture2D(uNoise, w.xz / 0.53);
+  float dist = distance(w, cameraPosition);
+  vec3 asph = lin3(vec3(0.30, 0.30, 0.31)) * (0.78 + 0.34 * n4.a) * (0.85 + 0.25 * n3.g);
+  asph = mix(asph, lin3(vec3(0.22, 0.22, 0.23)), smoothstep(0.62, 0.7, n2.b) * 0.8); // repair patches
+  float track = exp(-pow((abs(v) - hw * 0.5) / (hw * 0.18), 2.0));
+  asph *= 1.0 - 0.10 * track;
+  asph *= mix(1.0, 0.82 + 0.25 * n3.b, smoothstep(hw - 0.6, hw, abs(v))); // edge grime
+  rAlb = asph; rRough = 0.82 - 0.1 * track; rBump = n4.a * 0.6 + n3.b * 0.4;
+  if (t <= 3) {
+    float paint = 0.0;
+    float m = vMark;
+    if (t <= 1) {
+      float dash = step(fract(u / 9.0), t == 0 ? 0.5 : 0.33);
+      paint = max(paint, lineAA(v, 0.06) * dash * m);
+    }
+    if (t == 0) paint = max(paint, lineAA(abs(v) - (hw - 0.35), 0.05) * m);
+    paint *= 0.75 + 0.25 * n4.b;
+    paint *= 1.0 - smoothstep(0.62, 0.75, n3.r) * 0.5; // worn
+    rAlb = mix(rAlb, vec3(0.72), paint);
+    rRough = mix(rRough, 0.55, paint);
+  } else if (t == ${RT.TRACK}) {
+    float ruts = exp(-pow((abs(v) - 0.8) / 0.35, 2.0));
+    vec3 grav = lin3(vec3(0.50, 0.45, 0.37)) * (0.75 + 0.4 * n4.a);
+    vec3 grassy = lin3(vec3(0.30, 0.36, 0.15)) * (0.8 + 0.3 * n3.g);
+    float gm = clamp(1.0 - ruts * 1.6 + (n3.r - 0.5), 0.0, 1.0) * smoothstep(0.2, 0.6, abs(v) / hw + 0.3 * (1.0 - ruts));
+    rAlb = mix(grav, grassy, gm * 0.8); rRough = 0.95; rBump = n4.a;
+  } else if (t == ${RT.FOOT} || t == ${RT.CYCLE}) {
+    rAlb = asph * (t == ${RT.CYCLE} ? vec3(1.35, 0.85, 0.8) : vec3(1.1));
+  } else if (t == ${RT.PATH}) {
+    rAlb = lin3(vec3(0.46, 0.39, 0.29)) * (0.75 + 0.4 * n4.a) * (0.85 + 0.3 * n3.g); rRough = 0.97; rBump = n4.a;
+  } else if (t == ${RT.PAVE}) {
+    // paving flags 0.6 x 0.9
+    vec2 fl = vec2(u / 0.9, (abs(v) - hw) / 0.6);
+    vec2 f = fract(fl); vec2 fw = fwidth(fl);
+    float joint = 1.0 - (1.0 - smoothstep(0.0, fw.x * 1.5 + 0.03, min(f.x, 1.0 - f.x))) * (1.0 - smoothstep(0.0, fw.y * 1.5 + 0.03, min(f.y, 1.0 - f.y)));
+    float jv = min(smoothstep(0.0, 0.04 + fw.x, min(f.x, 1.0 - f.x)), smoothstep(0.0, 0.04 + fw.y, min(f.y, 1.0 - f.y)));
+    jv = mix(jv, 1.0, clamp(max(fw.x, fw.y) * 2.0, 0.0, 1.0));
+    vec3 c = lin3(vec3(0.55, 0.54, 0.51)) * (0.85 + 0.2 * n4.a) * (0.9 + 0.15 * n2.g);
+    rAlb = c * (0.7 + 0.3 * jv); rRough = 0.85; rBump = jv * 0.5 + n4.a * 0.2;
+  } else if (t == ${RT.KERB}) {
+    rAlb = lin3(vec3(0.62, 0.61, 0.58)) * (0.8 + 0.3 * n4.a); rRough = 0.8;
+  } else if (t == ${RT.BALLAST}) {
+    float sl = step(0.62, fract(u / 0.65)) * step(abs(v), 1.3);
+    rAlb = mix(lin3(vec3(0.40, 0.37, 0.34)) * (0.6 + 0.6 * n4.a), lin3(vec3(0.26, 0.22, 0.18)), sl * (1.0 - smoothstep(30.0, 80.0, dist)));
+    rRough = 0.95; rBump = n4.a;
+  } else if (t == ${RT.RAIL}) {
+    rAlb = lin3(vec3(0.42, 0.36, 0.30)); rRough = 0.45;
+  } else if (t == ${RT.PARAPET}) {
+    vec2 st = vec2(u / 0.45, v / 0.25);
+    vec2 f = fract(st + vec2(step(1.0, mod(floor(st.y), 2.0)) * 0.5, 0.0));
+    float j = smoothstep(0.0, 0.08, min(min(f.x, 1.0 - f.x), min(f.y, 1.0 - f.y)) * 2.0);
+    rAlb = lin3(vec3(0.52, 0.46, 0.37)) * (0.75 + 0.3 * n3.g) * (0.75 + 0.25 * j); rRough = 0.9;
+  }
+}
+`;
+
+export async function createRoads(features, hf, lc, roadIdx, slicer) {
+  const B = new RibbonBuilder();
+  const tmp = { seg: null, d: 0, t: 0, y: 0 };
+  for (const r of features.roads) {
+    const K = KIND[r.k];
+    if (!K || r.tu || r.p.length < 2) continue;
+    const p = r.p, F = frames(p), hw = r._w / 2;
+    const lift = K.lift;
+    // markings/pavements suppressed where another road crosses
+    const other = (i, extra) => {
+      const q = roadIdx.query(p[i][0], p[i][2], extra, (s) => s.ref !== r && s.ref._w >= 2.5, tmp);
+      return q !== null;
+    };
+    const markFn = K.t <= 1 ? (i) => (other(i, 0.5) ? 0 : 1) : null;
+    strip(B, p, F, -hw, hw, lift, K.t, hw, markFn, null);
+    if (r._pave) {
+      const pw = r._pave;
+      for (const side of [-1, 1]) {
+        const keep = (i) => {
+          const x = p[i][0] + F.nx[i] * side * (hw + pw * 0.5), z = p[i][2] + F.nz[i] * side * (hw + pw * 0.5);
+          const q = roadIdx.query(x, z, -pw - 0.2, (s) => s.ref !== r, tmp);
+          return q === null;
+        };
+        const o0 = side > 0 ? hw : -hw - pw, o1 = side > 0 ? hw + pw : -hw;
+        strip(B, p, F, o0, o1, lift + 0.12, RT.PAVE, hw, null, keep);
+        wall(B, p, F, side * hw, lift - 0.02, lift + 0.12, -side, RT.KERB, hw, keep);
+      }
+    }
+    if (r.br) {
+      const ow = hw + (r._pave || 0.3);
+      for (const side of [-1, 1]) {
+        wall(B, p, F, side * ow, lift - 1.0, lift + 1.0, side, RT.PARAPET, hw, null);
+        wall(B, p, F, side * (ow - 0.3), lift, lift + 1.0, -side, RT.PARAPET, hw, null);
+        strip(B, p, F, side > 0 ? ow - 0.3 : -ow, side > 0 ? ow : -ow + 0.3, lift + 1.0, RT.PARAPET, hw, null, null);
+      }
+      // underside
+      const Bu = B; const pr = p.map((q) => [q[0], q[1] - 1.0, q[2]]);
+      const F2 = frames(pr);
+      let prev = null;
+      for (let i = 0; i < pr.length; i++) {
+        const x = pr[i][0], y = pr[i][1] + lift, z = pr[i][2];
+        const a = Bu.vert(x - F2.nx[i] * ow, y, z - F2.nz[i] * ow, 0, -1, 0, F2.L[i], 0, hw, RT.PARAPET, 1);
+        const b = Bu.vert(x + F2.nx[i] * ow, y, z + F2.nz[i] * ow, 0, -1, 0, F2.L[i], 1, hw, RT.PARAPET, 1);
+        if (prev) Bu.idx.push(prev[0], prev[1], a, prev[1], b, a);
+        prev = [a, b];
+      }
+    }
+    await slicer.tick();
+  }
+  for (const r of features.rail || []) {
+    if (r.tu || r.p.length < 2) continue;
+    const p = r.p, F = frames(p);
+    strip(B, p, F, -1.9, 1.9, 0.05, RT.BALLAST, 1.9, null, null);
+    for (const o of [-0.75, 0.72]) {
+      strip(B, p, F, o, o + 0.07, 0.22, RT.RAIL, 1, null, null);
+      wall(B, p, F, o, 0.05, 0.22, -1, RT.RAIL, 1, null);
+      wall(B, p, F, o + 0.07, 0.05, 0.22, 1, RT.RAIL, 1, null);
+    }
+    await slicer.tick();
+  }
+  const geo = B.build();
+  const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.85, metalness: 0, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, envMapIntensity: 0.8 });
+  patchMaterial(mat, {
+    key: 'roads',
+    vertexPars: 'attribute vec4 aRoad; attribute float aMark; varying vec4 vRoad; varying float vMark;',
+    vertex: { begin_vertex: '$\n vRoad = aRoad; vMark = aMark;' },
+    fragmentPars: ROAD_FRAG,
+    fragment: {
+      map_fragment: 'roadSurface(vAerialWorld); diffuseColor.rgb = rAlb;',
+      roughnessmap_fragment: 'float roughnessFactor = rRough;',
+      normal_fragment_begin: `$
+        {
+          vec3 dpdx = dFdx(vAerialWorld), dpdy = dFdy(vAerialWorld);
+          vec3 Nw = normalize((vec4(normal, 0.0) * viewMatrix).xyz);
+          float bx = dFdx(rBump), by = dFdy(rBump);
+          vec3 r1 = cross(dpdy, Nw), r2 = cross(Nw, dpdx);
+          float det = dot(dpdx, r1);
+          vec3 grad = sign(det) * (bx * r1 + by * r2);
+          float fade = 1.0 - smoothstep(20.0, 90.0, distance(vAerialWorld, cameraPosition));
+          Nw = normalize(abs(det) * Nw - grad * 0.05 * fade);
+          normal = normalize((viewMatrix * vec4(Nw, 0.0)).xyz);
+        }`,
+    },
+    uniforms: {},
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.receiveShadow = true;
+  mesh.castShadow = false;
+  mesh.name = 'roads';
+  return { mesh, geometry: geo };
+}
