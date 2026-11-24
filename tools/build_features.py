@@ -123,12 +123,50 @@ def ma_smooth(y, n, closed=False):
     if len(y) < 2 or n < 2: return y
     return ndi.uniform_filter1d(y, size=n, mode="wrap" if closed else "reflect")
 
+
+BRIDGE_UNION = None
+def bridge_union():
+    global BRIDGE_UNION
+    if BRIDGE_UNION is None:
+        gs = []
+        for r in load("infrastructure"):
+            if r["subtype"] == "bridge":
+                g = to_local(wkb.loads(r["geometry"]))
+                gs.append(g.buffer(3.0) if g.geom_type != "Polygon" else g.buffer(1.0))
+        BRIDGE_UNION = shapely.union_all(gs) if gs else Polygon()
+        shapely.prepare(BRIDGE_UNION)
+    return BRIDGE_UNION
+
+def detect_bridge(pts, raw, spacing, closed):
+    """Points on a bridge deck / culvert: Overture bridge geometry, or a DSM-over-DTM run (nDSM>2.5 m) under which the
+    DTM dips >1 m below the line joining the run ends (deck removed by the DTM filter)."""
+    n = len(raw); flags = np.zeros(n, bool)
+    flags |= shapely.contains_xy(bridge_union(), pts[:, 0], pts[:, 1])
+    nd = LID.sample(LID.ndsm, pts[:, 0], pts[:, 1]) > 2.5
+    k = int(math.ceil(6.0 / spacing))
+    cand = ndi.binary_dilation(nd, iterations=k, border_value=0)
+    lab, nl = ndi.label(cand)
+    for i in range(1, nl + 1):
+        idx = np.nonzero(lab == i)[0]
+        a, b = idx[0], idx[-1]
+        if a == 0 or b == n - 1: 
+            if not closed: continue
+        if b - a < 2: continue
+        ya, yb = raw[max(a - 1, 0)], raw[min(b + 1, n - 1)]
+        line = np.interp(idx, [a - 1, b + 1], [ya, yb])
+        if (line - raw[idx]).max() > 1.0:
+            flags[idx] = True
+    return flags
+
 def profile(pts, spacing, flags=None, window=15.0, closed=False):
     """pts (N,2) -> y with smoothing; flagged points (bridge/tunnel) are interpolated between ends."""
     x, z = pts[:, 0], pts[:, 1]
     y = ground(x, z).astype(float)
     if LID is None or not LID.ok: return y
     raw = y.copy()
+    auto = detect_bridge(pts, raw, spacing, closed)
+    if auto.any():
+        flags = auto if flags is None else (flags | auto)
     if flags is not None and flags.any() and not flags.all():
         idx = np.arange(len(y))
         good = ~flags
