@@ -176,11 +176,11 @@ void roadSurface(vec3 w) {
   float u = vRoad.x, v = vRoad.y, hw = vRoad.z; int t = int(vRoad.w + 0.5);
   vec4 n2 = texture2D(uNoise, w.xz / 23.0);
   vec4 n3 = texture2D(uNoise, w.xz / 3.1);
-  vec4 n4 = texture2D(uNoise, w.xz / 0.53);
+  vec4 n4 = texture2D(uNoise, w.xz / 1.9);
   float dist = distance(w, cameraPosition);
   vec3 asph = lin3(vec3(0.30, 0.30, 0.31)) * (0.78 + 0.34 * n4.a) * (0.85 + 0.25 * n3.g);
   asph = mix(asph, lin3(vec3(0.22, 0.22, 0.23)), smoothstep(0.62, 0.7, n2.b) * 0.8); // repair patches
-  float track = exp(-pow((abs(v) - hw * 0.5) / (hw * 0.18), 2.0));
+  float tq = (abs(v) - hw * 0.5) / (hw * 0.18); float track = exp(-tq * tq);
   asph *= 1.0 - 0.10 * track;
   asph *= mix(1.0, 0.82 + 0.25 * n3.b, smoothstep(hw - 0.6, hw, abs(v))); // edge grime
   rAlb = asph; rRough = 0.82 - 0.1 * track; rBump = n4.a * 0.6 + n3.b * 0.4;
@@ -197,7 +197,7 @@ void roadSurface(vec3 w) {
     rAlb = mix(rAlb, vec3(0.72), paint);
     rRough = mix(rRough, 0.55, paint);
   } else if (t == ${RT.TRACK}) {
-    float ruts = exp(-pow((abs(v) - 0.8) / 0.35, 2.0));
+    float rq = (abs(v) - 0.8) / 0.35; float ruts = exp(-rq * rq);
     vec3 grav = lin3(vec3(0.50, 0.45, 0.37)) * (0.75 + 0.4 * n4.a);
     vec3 grassy = lin3(vec3(0.30, 0.36, 0.15)) * (0.8 + 0.3 * n3.g);
     float gm = clamp(1.0 - ruts * 1.6 + (n3.r - 0.5), 0.0, 1.0) * smoothstep(0.2, 0.6, abs(v) / hw + 0.3 * (1.0 - ruts));
@@ -311,7 +311,7 @@ export async function createRoads(features, hf, lc, roadIdx, slicer) {
           float det = dot(dpdx, r1);
           vec3 grad = sign(det) * (bx * r1 + by * r2);
           float fade = 1.0 - smoothstep(20.0, 90.0, distance(vAerialWorld, cameraPosition));
-          Nw = normalize(abs(det) * Nw - grad * 0.05 * fade);
+          Nw = normalize(abs(det) * Nw - grad * 0.015 * fade);
           normal = normalize((viewMatrix * vec4(Nw, 0.0)).xyz);
         }`,
     },

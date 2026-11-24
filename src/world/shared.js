@@ -6,7 +6,7 @@ export const U = {
   uSunDir: { value: new THREE.Vector3(0, 1, 0) },
   uSunColor: { value: new THREE.Color(1, 1, 1) },
   uSkyLUT: { value: null },
-  uFogDensity: { value: 0.00028 },
+  uFogDensity: { value: 0.00013 },
   uFogFalloff: { value: 0.0045 },
   uFogBase: { value: 20 },
   uNoise: { value: null },

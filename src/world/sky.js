@@ -5,7 +5,7 @@ import { U } from './shared.js';
 // Late-afternoon UK light: sun low in the WSW.
 export const SUN_AZIMUTH_DEG = 244; // clockwise from north
 export const SUN_ELEVATION_DEG = 15;
-const SKY_SCALE = 7.0; // brings Preetham output into our lighting units
+const SKY_SCALE = 4.0; // brings Preetham output into our lighting units
 
 const PARAMS = { turbidity: 3.2, rayleigh: 1.35, mieCoefficient: 0.0045, mieDirectionalG: 0.83 };
 

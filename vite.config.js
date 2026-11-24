@@ -18,11 +18,11 @@ function gz64Plugin() {
       if (!id.endsWith('?gz64')) return null;
       const bare = id.slice(0, -5);
       const r = await this.resolve(bare, importer, { skipSelf: true });
-      return r ? '\0gz64:' + r.id : null;
+      return r ? '\0gz64:' + r.id + '.gz64' : null;
     },
     load(id) {
       if (!id.startsWith('\0gz64:')) return null;
-      const file = id.slice(6);
+      const file = id.slice(6, -5);
       this.addWatchFile(file);
       const gz = gzipSync(readFileSync(file), { level: 9 });
       return `export default ${JSON.stringify(gz.toString('base64'))};`;

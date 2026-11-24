@@ -165,7 +165,7 @@ void terrainSurface(vec3 w) {
   vec3 grass = mix(lin(0.25, 0.33, 0.12), lin(0.36, 0.43, 0.17), n2.g);
   grass = mix(grass, lin(0.46, 0.45, 0.24), smoothstep(0.55, 0.9, n1.r) * 0.55);
   grass = mix(grass, lin(0.20, 0.29, 0.10), smoothstep(0.6, 0.9, n3.b) * 0.5);
-  grass *= 0.82 + 0.36 * n4.b;
+  grass *= 0.9 + 0.2 * n4.b;
   float grassB = 0.35 * n4.a + 0.25 * n3.b;
 
   // farmland fields (voronoi parcels with crop rows)
@@ -218,7 +218,7 @@ void terrainSurface(vec3 w) {
   float det = dot(dpdx, r1);
   vec3 grad = sign(det) * (bx * r1 + by * r2);
   float fade = 1.0 - smoothstep(60.0, 220.0, distance(w, cameraPosition));
-  tNw = normalize(abs(det) * N - grad * 0.12 * fade);
+  tNw = normalize(abs(det) * N - grad * 0.04 * fade);
   tAlb = alb;
   tRough = rough;
   hbSun = bakedSun(w);
