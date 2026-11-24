@@ -1,0 +1,14 @@
+{
+  "E0": 429500,
+  "N0": 418400,
+  "Emin": 426500,
+  "Emax": 432500,
+  "Nmin": 416000,
+  "Nmax": 420800,
+  "res": 4,
+  "cols": 1501,
+  "rows": 1201,
+  "hMin": 21.0,
+  "hScale": 0.01,
+  "attribution": "Elevation: Environment Agency LiDAR Composite DTM/DSM 1m © Environment Agency copyright and/or database right 2026. Open Government Licence v3.0. Map data: © OpenStreetMap contributors (ODbL) via Overture Maps Foundation."
+}

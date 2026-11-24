@@ -7,7 +7,7 @@ export const SUN_AZIMUTH_DEG = 244; // clockwise from north
 export const SUN_ELEVATION_DEG = 15;
 const SKY_SCALE = 4.0; // brings Preetham output into our lighting units
 
-const PARAMS = { turbidity: 3.2, rayleigh: 1.35, mieCoefficient: 0.0045, mieDirectionalG: 0.83 };
+const PARAMS = { turbidity: 2.4, rayleigh: 1.2, mieCoefficient: 0.0028, mieDirectionalG: 0.82 };
 
 function skyMaterial(lut) {
   const S = Sky.SkyShader;
@@ -24,6 +24,8 @@ function skyMaterial(lut) {
   fs = fs.replace('uniform float time;', 'uniform float time;\nuniform float skyScale;\nuniform vec3 groundColor;')
     .replace('gl_FragColor = vec4( texColor, 1.0 );',
       `texColor *= skyScale;
+       if (any(isnan(texColor)) || any(isinf(texColor))) texColor = vec3(0.4, 0.5, 0.7);
+       texColor = clamp(texColor, 0.0, 60.0);
        ${lut ? 'texColor = mix(texColor, groundColor, smoothstep(0.0, -0.25, direction.y));' : ''}
        gl_FragColor = vec4( texColor, 1.0 );`);
   if (vs === S.vertexShader && lut) console.warn('sky LUT patch failed');

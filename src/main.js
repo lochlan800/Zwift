@@ -6,7 +6,7 @@ import { HeightField, PolygonIndex, Slicer, nextFrame } from './world/heightfiel
 import { U, makeNoiseTexture } from './world/shared.js';
 import { createSky } from './world/sky.js';
 import { createTerrain, makeHeightTexture, makeNormalTexture, makeSplatTextures } from './world/terrain.js';
-import { annotateRoads, buildRoadIndex, conformTerrain, createRoads } from './world/roads.js';
+import { annotateRoads, buildRoadIndex, conformTerrain, createRoads, roadInfo } from './world/roads.js';
 import { createBuildings } from './world/buildings.js';
 import { createTrees } from './world/trees.js';
 import { createWater, carveWater } from './world/water.js';
@@ -74,7 +74,7 @@ resize();
 
 // ---------------------------------------------------------------- world
 const world = {};
-const state = { mode: 'loading', s: 0, dist: 0, time: 0, speed: 0, grade: 0, elev: 0, lean: 0, heading: 0, groundY: 0 };
+const state = { mode: 'loading', s: 0, dist: 0, time: 0, speed: 0, grade: 0, elev: 0, lean: 0, heading: 0, groundY: 0, off: 1.2 };
 
 async function build() {
   const slicer = new Slicer(cfg.mobile ? 24 : 30);
@@ -132,7 +132,7 @@ async function build() {
 
   progress(0.55, 'Laying roads');
   await nextFrame();
-  const roads = await createRoads(features, hf, data.landcover, roadIdx, slicer);
+  const roads = await createRoads(features, hf, data.landcover, roadIdx, slicer, bIdx);
   scene.add(roads.mesh);
 
   progress(0.62, 'Raising buildings');
@@ -193,14 +193,18 @@ function placeRider(dt, speed) {
   const dx = A.x - B.x, dz = A.z - B.z;
   const heading = Math.atan2(dx, dz);
   const l = Math.hypot(dx, dz) || 1;
-  // UK: keep left of the centreline
-  const off = 1.7;
+  // UK: keep left of the centreline (offset scaled to the carriageway width)
   const lx = dz / l, lz = -dx / l;
+  const rq = roadIdx.query(P.x, P.z, 1.0, null, tmpQ);
+  const roadW = rq ? rq.seg.ref._w : 6;
+  const wantOff = roadW >= 4.5 ? Math.min(1.4, roadW * 0.5 - 1.0) : Math.max(0, roadW * 0.5 - 0.9);
+  state.off = dt > 0 ? state.off + (wantOff - state.off) * Math.min(1, dt * 1.5) : wantOff;
+  const off = state.off;
   P.x += lx * off; P.z += lz * off;
   // ground: road surface under the wheels if available
   let gy = P.y;
   const q = roadIdx.query(P.x, P.z, 0.5, null, tmpQ);
-  if (q && Math.abs(q.y - P.y) < 2.5) gy = q.y + 0.07;
+  if (q && Math.abs(q.y - P.y) < 2.5) gy = q.y + (roadInfo(q.seg.ref)?.lift ?? 0.06);
   else gy = Math.max(P.y + 0.05, hf.sample(P.x, P.z) + 0.05);
   state.groundY = dt > 0 ? state.groundY + (gy - state.groundY) * Math.min(1, dt * 10) : gy;
   // lean from yaw rate
@@ -231,6 +235,17 @@ function startRide() {
   world.chase.initialized = false;
 }
 ui.ride.addEventListener('click', startRide);
+function setCamMode(mode) {
+  world.chase.setMode(mode);
+  $('camLabel').textContent = mode ? 'Drone' : 'Chase';
+  $('camBtn').classList.toggle('drone', !!mode);
+  // ranges suited to a high viewpoint
+  world.sun.shadow.camera.far = mode ? cfg.shadowFar * 2.2 : cfg.shadowFar;
+  U.uBakeFade.value.set(world.sun.shadow.camera.far * 0.55, world.sun.shadow.camera.far * 0.95);
+  world.trees.setNearRadius(mode ? Math.max(cfg.treeNear, 260) : cfg.treeNear);
+  world.terrain.setLodScale(mode ? cfg.lod * 1.3 : cfg.lod);
+}
+$('camBtn').addEventListener('click', () => setCamMode(world.chase.mode ? 0 : 1));
 $('pauseBtn').addEventListener('click', () => {
   if (state.mode !== 'ride') return;
   state.mode = 'paused';
@@ -245,6 +260,7 @@ $('exitBtn').addEventListener('click', () => {
 });
 document.addEventListener('keydown', (e) => {
   if ((e.key === 'Enter' || e.key === ' ') && state.mode === 'title' && !ui.ride.disabled) startRide();
+  if ((e.key === 'c' || e.key === 'v') && state.mode === 'ride') $('camBtn').click();
   if (e.key === 'Escape' || e.key === 'p') { if (state.mode === 'ride') $('pauseBtn').click(); else if (state.mode === 'paused') $('resumeBtn').click(); }
 });
 document.addEventListener('visibilitychange', () => { if (document.hidden && state.mode === 'ride') $('pauseBtn').click(); });
@@ -299,7 +315,7 @@ canvas.addEventListener('webglcontextrestored', () => {
 }, false);
 
 // testing hooks
-window.__hb = { state, world, camera, renderer, setS(s) { state.s = s; placeRider(0, 0); world.chase.initialized = false; }, cfg };
+window.__hb = { state, world, camera, renderer, setCamMode, setS(s) { state.s = s; placeRider(0, 0); world.chase.initialized = false; }, cfg };
 
 requestAnimationFrame(frame);
 build().catch((e) => { console.error(e); fatal('Could not build the world', String(e && e.message || e)); });

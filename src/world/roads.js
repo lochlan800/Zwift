@@ -232,7 +232,7 @@ void roadSurface(vec3 w) {
 }
 `;
 
-export async function createRoads(features, hf, lc, roadIdx, slicer) {
+export async function createRoads(features, hf, lc, roadIdx, slicer, bIdx = null) {
   const B = new RibbonBuilder();
   const tmp = { seg: null, d: 0, t: 0, y: 0 };
   for (const r of features.roads) {
@@ -247,13 +247,25 @@ export async function createRoads(features, hf, lc, roadIdx, slicer) {
     };
     const markFn = K.t <= 1 ? (i) => (other(i, 0.5) ? 0 : 1) : null;
     strip(B, p, F, -hw, hw, lift, K.t, hw, markFn, null);
+    // round caps at both ends: fill junction corners / dead ends seamlessly
+    for (const e of [0, p.length - 1]) {
+      const c = p[e], seg = 14, y = c[1] + lift - 0.004;
+      const ci = B.vert(c[0], y, c[2], 0, 1, 0, F.L[e], 0, hw, K.t, 0);
+      const ring = [];
+      for (let k = 0; k <= seg; k++) {
+        const a = (k / seg) * Math.PI * 2;
+        ring.push(B.vert(c[0] + Math.cos(a) * hw, y, c[2] + Math.sin(a) * hw, 0, 1, 0, F.L[e], hw, hw, K.t, 0));
+      }
+      // cos/sin in (x,z): increasing angle is clockwise seen from above -> (ci, k+1, k) faces up
+      for (let k = 0; k < seg; k++) B.idx.push(ci, ring[k + 1], ring[k]);
+    }
     if (r._pave) {
       const pw = r._pave;
       for (const side of [-1, 1]) {
         const keep = (i) => {
           const x = p[i][0] + F.nx[i] * side * (hw + pw * 0.5), z = p[i][2] + F.nz[i] * side * (hw + pw * 0.5);
           const q = roadIdx.query(x, z, -pw - 0.2, (s) => s.ref !== r, tmp);
-          return q === null;
+          return q === null && !(bIdx && bIdx.find(x, z));
         };
         const o0 = side > 0 ? hw : -hw - pw, o1 = side > 0 ? hw + pw : -hw;
         strip(B, p, F, o0, o1, lift + 0.12, RT.PAVE, hw, null, keep);

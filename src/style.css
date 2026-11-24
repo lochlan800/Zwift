@@ -78,3 +78,13 @@ h2 { margin: 0 0 12px; font-size: 28px; }
   .profile { height: 48px; left: 25%; right: 25%; }
   .attrib { font-size: 9px; padding-bottom: calc(4px + var(--sab)); }
 }
+
+.cam-btn { pointer-events: auto; position: absolute; right: calc(10px + var(--sar)); bottom: calc(96px + var(--sab)); height: 52px; min-width: 52px;
+  padding: 0 16px 0 12px; display: flex; align-items: center; gap: 8px; border-radius: 16px; border: 1px solid var(--glass-b); background: var(--glass);
+  color: #fff; font-weight: 700; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; cursor: pointer;
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); transition: transform .12s ease, background .2s; }
+.cam-btn:active { transform: scale(.95); }
+.cam-btn svg { width: 22px; height: 22px; fill: var(--accent2); }
+.cam-btn.drone { background: rgba(255, 158, 61, 0.28); }
+@media (max-width: 560px) { .cam-btn { bottom: calc(80px + var(--sab)); } }
+@media (max-height: 480px) and (orientation: landscape) { .cam-btn { bottom: calc(10px + var(--sab)); } }

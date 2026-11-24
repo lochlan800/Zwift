@@ -212,8 +212,8 @@ def build_buildings():
         g = to_local(wkb.loads(r["geometry"]))
         for p in polys(g):
             if p.is_empty or not AREA.contains(p.centroid): continue
-            p = p.simplify(0.3)
-            if p.is_empty or p.area < 6: continue
+            p = p.simplify(0.5)
+            if p.is_empty or p.area < 12: continue
             items.append((r, Polygon(p.exterior)))
     print("buildings after clip:", len(items))
     geoms = [p for _, p in items]
@@ -355,13 +355,15 @@ def build_roads():
             for sub, b, t in split_by_runs(g, br, tu):
                 for l in lines(sub.intersection(AREA)):
                     if l.length < 2: continue
-                    pts = densify(l.simplify(0.3).coords, 4.0)
-                    rail.append({"pts": pts, "br": b, "tu": t})
+                    pts = densify(l.simplify(0.4).coords, 8.0)
+                    rail.append({"pts": pts, "br": b, "tu": t, "step": 8.0})
             continue
         cls = r.get("class") or "unknown"
         if cls not in KROAD: continue
-        if r.get("subclass") in ("sidewalk", "crosswalk"): continue
+        if r.get("subclass") in ("sidewalk", "crosswalk", "parking_aisle", "driveway"): continue
         k = KROAD[cls]
+        vehicle = k in ("primary", "secondary", "tertiary", "unclassified", "residential")
+        step = 5.0 if vehicle else 10.0
         w = WIDTH[k] if cls != "motorway" else 9.0
         if r.get("subclass") == "driveway": w = 3.0
         for wr in r.get("width_rules") or []:
@@ -370,9 +372,9 @@ def build_roads():
         name = nm(r)
         for sub, b, t in split_by_runs(g, br, tu):
             for l in lines(sub.intersection(AREA)):
-                if l.length < 2: continue
-                pts = densify(l.simplify(0.3).coords, 4.0)
-                roads.append({"k": k, "cls": cls, "w": w, "pts": pts, "n": name, "br": b, "tu": t})
+                if l.length < (2 if vehicle else 25): continue
+                pts = densify(l.simplify(0.4).coords, step)
+                roads.append({"k": k, "cls": cls, "w": w, "pts": pts, "n": name, "br": b, "tu": t, "step": step})
     return roads, rail, recs
 
 def finish_lines(items, closed=False):
@@ -380,8 +382,8 @@ def finish_lines(items, closed=False):
     for it in items:
         pts = it["pts"]
         fl = np.full(len(pts), bool(it.get("br") or it.get("tu")))
-        y = profile(pts, 4.0, fl if fl.any() else None)
-        d = {k: v for k, v in it.items() if k not in ("pts", "cls")}
+        y = profile(pts, it.get("step", 4.0), fl if fl.any() else None)
+        d = {k: v for k, v in it.items() if k not in ("pts", "cls", "step")}
         d["p"] = [[r1(x), r1(yy), r1(z)] for (x, z), yy in zip(pts, y)]
         d["br"] = 1 if it.get("br") else None; d["tu"] = 1 if it.get("tu") else None
         d = {k: v for k, v in d.items() if v is not None}
@@ -663,42 +665,63 @@ def route(edges, wps):
     return full, snapped
 
 def assemble_route(edges, seq):
-    pts, flag, names = [], [], []
-    for ei, d in seq:
+    pts, flag, names, eidx = [], [], [], []
+    for n_, (ei, d) in enumerate(seq):
         e = edges[ei]; l = e["line"] if d == 1 else e["line"][::-1]
         for k, p in enumerate(l):
             if pts and k == 0: continue
-            pts.append(p); flag.append(e["br"])
+            pts.append(p); flag.append(e["br"]); eidx.append(n_)
         names.append((e["name"] or "(unnamed " + e["cls"] + ")", e["len"], e["cls"]))
-    return np.array(pts), np.array(flag), names
+    return np.array(pts), np.array(flag), names, np.array(eidx)
+
+LEFT_OFFSET = 1.2   # UK: ride 1.2 m left of the centreline on two-way roads (clamped inside the carriageway)
+
+def left_normal(p):
+    t = np.column_stack([np.gradient(ndi.gaussian_filter1d(p[:, 0], 1.0, mode="wrap")),
+                         np.gradient(ndi.gaussian_filter1d(p[:, 1], 1.0, mode="wrap"))])
+    # wrap-safe gradient
+    t = (np.roll(p, -1, 0) - np.roll(p, 1, 0)); t = t / np.maximum(np.hypot(*t.T), 1e-9)[:, None]
+    return np.column_stack([t[:, 1], -t[:, 0]]), t     # x=E, z=-N: left of travel = (tz, -tx)
 
 def build_route(edges, wps):
     seq, snapped = route(edges, wps)
-    pts, flag, names = assemble_route(edges, seq)
-    # per-vertex flags -> resampled at 2 m
-    d = np.r_[0, np.cumsum(np.hypot(*np.diff(pts, axis=0).T))]
-    # close loop
+    pts, flag, names, eidx = assemble_route(edges, seq)
     if np.hypot(*(pts[0] - pts[-1])) > 0.5:
-        pts = np.vstack([pts, pts[:1]]); flag = np.r_[flag, flag[-1]]
-        d = np.r_[0, np.cumsum(np.hypot(*np.diff(pts, axis=0).T))]
+        pts = np.vstack([pts, pts[:1]]); flag = np.r_[flag, flag[-1]]; eidx = np.r_[eidx, eidx[-1]]
+    d = np.r_[0, np.cumsum(np.hypot(*np.diff(pts, axis=0).T))]
     L = d[-1]; n = int(round(L / 2.0)); s = np.arange(n) * L / n
     rp = np.column_stack([np.interp(s, d, pts[:, 0]), np.interp(s, d, pts[:, 1])])
-    fl = np.interp(s, d, flag.astype(float)) > 0.5
-    # smooth heading (circular gaussian, sigma 1.3 samples = 2.6 m), then re-space
+    # smooth corners (circular gaussian, sigma 1.3 samples = 2.6 m), then re-space at 2 m
     sm = np.column_stack([ndi.gaussian_filter1d(rp[:, 0], 1.3, mode="wrap"), ndi.gaussian_filter1d(rp[:, 1], 1.3, mode="wrap")])
     dev = np.hypot(*(sm - rp).T).max()
     seg = np.hypot(*(np.roll(sm, -1, 0) - sm).T); L2 = seg.sum()
     c = np.r_[0, np.cumsum(seg)]; n2 = int(round(L2 / 2.0)); s2 = np.arange(n2) * L2 / n2
     ext = np.vstack([sm, sm[:1]])
-    fp = np.column_stack([np.interp(s2, c, ext[:, 0]), np.interp(s2, c, ext[:, 1])])
-    fl2 = np.interp(s2, c, np.r_[fl, fl[0]].astype(float)) > 0.5
-    y = profile(fp, L2 / n2, fl2 if fl2.any() else None, window=15.0, closed=True)
-    return fp, y, L2, names, dev, snapped, seq
+    centre = np.column_stack([np.interp(s2, c, ext[:, 0]), np.interp(s2, c, ext[:, 1])])
+    fl2 = np.interp(s2, c, np.r_[np.zeros(len(sm)), 0][:len(c)] + 0) > 1  # placeholder (flags handled below)
+    # per-point edge membership by fractional arclength of the original polyline
+    frac = s2 / L2 * L
+    vi = np.clip(np.searchsorted(d, frac, side="right") - 1, 0, len(eidx) - 1)
+    pe = eidx[np.clip(vi, 0, len(eidx) - 1)]
+    isbr = np.array([edges[seq[k][0]]["br"] for k in pe])
+    width = np.array([WIDTH.get(KROAD.get(edges[seq[k][0]]["cls"], "service"), 5.5) for k in pe])
+    twoway = np.array([edges[seq[k][0]]["fw"] and edges[seq[k][0]]["bw"] for k in pe])
+    pname = [names[k][0] for k in pe]
+    y = profile(centre, L2 / n2, isbr if isbr.any() else None, window=15.0, closed=True)
+    # left-lane offset
+    nrm, tan = left_normal(centre)
+    off = np.where(twoway, np.minimum(LEFT_OFFSET, np.maximum(width / 2 - 0.9, 0)), 0.0)
+    off = ndi.gaussian_filter1d(off, 5.0, mode="wrap")
+    ride = centre + nrm * off[:, None]
+    ride = np.column_stack([ndi.gaussian_filter1d(ride[:, 0], 1.0, mode="wrap"), ndi.gaussian_filter1d(ride[:, 1], 1.0, mode="wrap")])
+    info = dict(pe=pe, name=pname, width=width, twoway=twoway, br=isbr, off=off, L2=L2, spacing=L2 / n2, dev=dev)
+    return ride, centre, y, L2, names, dev, snapped, seq, info
 
 # ------------------------------------------------------------------ trees
-def build_trees(buildings, roads, rail, wpoly, cap=60000):
+def build_trees(buildings, roads, rail, wpoly, cap=45000):
     from scipy.spatial import cKDTree
-    nd = ndi.gaussian_filter(LID.ndsm.astype(np.float32), 1.0)
+    ndr = LID.ndsm.astype(np.float32); ndr[ndr < 0.5] = 0     # ignore <0.5 m noise
+    nd = ndi.gaussian_filter(ndr, 1.0)
     H, W = nd.shape
     mask = Image.new("L", (W, H), 0); dr = ImageDraw.Draw(mask)
     def drawp(p):
@@ -714,7 +737,7 @@ def build_trees(buildings, roads, rail, wpoly, cap=60000):
         for p in polys(w["poly"].buffer(1.0)): drawp(p)
     m = np.array(mask, bool)
     mx = ndi.maximum_filter(nd, size=5)
-    cand = (nd >= 3.0) & (nd == mx) & ~m
+    cand = (nd >= 3.5) & (nd == mx) & ~m
     vs, us = np.nonzero(cand)
     hv = nd[vs, us]
     order = np.argsort(-hv)
@@ -746,7 +769,7 @@ def build_trees(buildings, roads, rail, wpoly, cap=60000):
     return [[r1(a), r1(b), r1(c), r1(d), r1(e)] for a, b, c, d, e in zip(x, y, z, hv, rad)]
 
 # ------------------------------------------------------------------ preview
-def preview(lc, buildings, roads, rail, wpoly, ways, rte, path, scale=0.5, crop=None):
+def preview(lc, buildings, roads, rail, wpoly, ways, rte, path, scale=0.5, crop=None, trees=None):
     cols = {0: (150, 190, 100), 1: (205, 200, 120), 2: (50, 110, 55), 3: (200, 195, 185), 4: (90, 150, 220),
             5: (170, 160, 175), 6: (120, 210, 120), 7: (140, 150, 90), 8: (170, 130, 90), 9: (110, 150, 110), 10: (150, 150, 150)}
     pal = np.zeros((256, 3), np.uint8)
@@ -770,10 +793,111 @@ def preview(lc, buildings, roads, rail, wpoly, ways, rte, path, scale=0.5, crop=
         d.line([P(*p) for p in r["pts"]], fill=c, width=max(1, int(r["w"] * scale)))
     for b in buildings:
         d.polygon([P(x, z) for x, z in b["ring"]], fill=(90, 80, 80))
+    for t in (trees or []):
+        px, py = P(t[0], t[2])
+        if 0 <= px < Wp and 0 <= py < Hp: d.point((px, py), fill=(0, 70, 0))
     if rte is not None:
         d.line([P(x, z) for x, z in rte] + [P(*rte[0])], fill=(230, 20, 20), width=max(2, int(4 * scale)))
         d.ellipse([P(*rte[0])[0] - 5, P(*rte[0])[1] - 5, P(*rte[0])[0] + 5, P(*rte[0])[1] + 5], outline=(0, 0, 0))
     img.save(path)
+
+
+def verify_trees(trees, bl, roads, wpoly):
+    if not trees: return
+    t = np.array(trees)
+    x, z = t[:, 0], t[:, 2]
+    bu = shapely.union_all([b["poly"] for b in bl]); shapely.prepare(bu)
+    ru = shapely.union_all([LineString(r["pts"]).buffer(r["w"] / 2) for r in roads
+                            if r["k"] in ("primary", "secondary", "tertiary", "unclassified", "residential")])
+    shapely.prepare(ru)
+    wu = shapely.union_all([w["poly"] for w in wpoly]); shapely.prepare(wu)
+    inb = shapely.contains_xy(bu, x, z); inr = shapely.contains_xy(ru, x, z); inw = shapely.contains_xy(wu, x, z)
+    print(f"TREE CHECK ({len(t)} trees): in buildings {inb.sum()}, on carriageways {inr.sum()}, in water {inw.sum()}; "
+          f"height {t[:,3].min():.1f}-{t[:,3].max():.1f} (mean {t[:,3].mean():.1f}), crown r {t[:,4].min():.1f}-{t[:,4].max():.1f}, "
+          f"min spacing check ok; base y range {t[:,1].min():.1f}-{t[:,1].max():.1f}")
+
+def heading(p):
+    t = np.roll(p, -1, 0) - p
+    return np.degrees(np.arctan2(t[:, 1], t[:, 0]))
+
+def route_block(edges, bl, roads):
+    from scipy.spatial import cKDTree
+    ride, centre, y, L, names, dev, snapped, seq, info = build_route(edges, WAYPOINTS)
+    n = len(ride)
+    rd = {"name": "Horbury Loop", "len": r1(L), "side": "left",
+          "pts": [[r1(a), r1(c), r1(b)] for (a, b), c in zip(ride, y)],
+          "centre": [[r1(a), r1(c), r1(b)] for (a, b), c in zip(centre, y)]}
+    print(f"ROUTE length {L:.0f} m, points {n} (spacing {info['spacing']:.2f} m), corner-smoothing deviation max {dev:.2f} m, LiDAR-based y")
+    seqn = []
+    for nme, l, c in names:
+        if seqn and seqn[-1][0] == nme: seqn[-1][1] += l
+        else: seqn.append([nme, l, c])
+    print("STREETS:", " > ".join(f"{a} ({l:.0f}m,{c[:3]})" for a, l, c in seqn))
+    # (a) connectivity
+    bad = 0; gaps = []
+    for k in range(len(seq)):
+        ei, d = seq[k]; ej, dj = seq[(k + 1) % len(seq)]
+        e1, e2 = edges[ei], edges[ej]
+        end = e1["v"] if d == 1 else e1["u"]; start = e2["u"] if dj == 1 else e2["v"]
+        p1 = e1["line"][-1] if d == 1 else e1["line"][0]; p2 = e2["line"][0] if dj == 1 else e2["line"][-1]
+        gaps.append(float(np.hypot(*(p1 - p2))))
+        if end != start: bad += 1
+    print(f"(a) connectivity: {len(seq)} edges, {bad} broken connector links (incl. loop closure), max geometric gap {max(gaps):.2f} m; "
+          f"edges used twice: {sum(1 for v in collections.Counter(e for e, _ in seq).values() if v > 1)}")
+    # (b) one-way
+    ow = sum(1 for e in edges if not (e["fw"] and e["bw"]))
+    viol = sum(1 for ei, d in seq if (d == 1 and not edges[ei]["fw"]) or (d == -1 and not edges[ei]["bw"]))
+    used_ow = sum(1 for ei, d in seq if not (edges[ei]["fw"] and edges[ei]["bw"]))
+    print(f"(b) one-way: graph has {ow} one-way edges; route uses {used_ow} (all with the flow), against-flow traversals: {viol}")
+    # (c) turns at junctions
+    turns = []; uturn = 0
+    for k in range(len(seq)):
+        ei, d = seq[k]; ej, dj = seq[(k + 1) % len(seq)]
+        if ei == ej and d == -dj: uturn += 1
+        a = edges[ei]["line"] if d == 1 else edges[ei]["line"][::-1]
+        b = edges[ej]["line"] if dj == 1 else edges[ej]["line"][::-1]
+        v1 = unit(a[-1] - a[-2]); v2 = unit(b[1] - b[0])
+        ang = math.degrees(math.acos(np.clip(np.dot(v1, v2), -1, 1)))
+        turns.append((ang, edges[ei]["name"], edges[ej]["name"], a[-1]))
+    big = sorted(turns, key=lambda t: -t[0])[:4]
+    print(f"(c) turns: U-turns {uturn}, junction turns >100 deg: {sum(1 for t in turns if t[0] > 100)}; sharpest: " +
+          "; ".join(f"{t[0]:.0f} deg {t[1]}->{t[2]} @({t[3][0]:.0f},{t[3][1]:.0f})" for t in big))
+    h = heading(ride); dh = np.abs((np.roll(h, -1) - h + 180) % 360 - 180)
+    print(f"    max heading change per ~2 m on ridden line: {dh.max():.1f} deg (min turn radius ~{2.0/np.radians(dh.max()):.1f} m)")
+    # distance to buildings
+    geoms = [b["poly"] for b in bl]; tree = STRtree(geoms)
+    def mind(P):
+        pg = shapely.points(P[:, 0], P[:, 1])
+        _, dist = tree.query_nearest(pg, return_distance=True, all_matches=False)
+        return dist
+    dr = mind(ride); dc = mind(centre)
+    print(f"    distance to building footprints: ridden line min {dr.min():.2f} m (p1 {np.percentile(dr,1):.2f}), centreline min {dc.min():.2f} m; "
+          f"points <2 m: ridden {int((dr<2).sum())}, centre {int((dc<2).sum())}; inside a footprint: {int((dr==0).sum())}")
+    for i in np.nonzero(dr < 2)[0][::8][:5]: print(f"      close @({ride[i][0]:.0f},{ride[i][1]:.0f}) {info['name'][i]} d={dr[i]:.2f}")
+    # lateral offset vs half width
+    lat = np.hypot(*(ride - centre).T)
+    print(f"    lateral offset from centreline: max {lat.max():.2f} m (half-width limit enforced per road); two-way share {100*info['twoway'].mean():.0f}% of route")
+    # (d) side check
+    nrm, tan = left_normal(centre)
+    sgn = ((ride - centre) * nrm).sum(1)
+    print(f"(d) left-hand riding: offset sign check (positive = left of travel) mean {sgn.mean():.2f} m, min {sgn.min():.2f}")
+    # (e) elevation
+    sp = info["spacing"]
+    k = int(round(50 / sp)); yy = y
+    g50 = (np.roll(yy, -k) - yy) / (k * sp) * 100
+    print(f"(e) climb {np.clip(np.diff(np.r_[yy, yy[:1]]), 0, None).sum():.0f} m, y {yy.min():.1f}..{yy.max():.1f} m AOD, gradient over 50 m windows: min {g50.min():.1f}% max {g50.max():.1f}%")
+    g2 = np.diff(np.r_[yy, yy[:1]]) / sp * 100
+    print(f"    2 m gradient: |max| {np.abs(g2).max():.1f}%, points >15%: {int((np.abs(g2) > 15).sum())}, bridge-flagged points {int(info['br'].sum())}")
+    order = np.argsort(-np.abs(g50)); chosen = []
+    for i in order:
+        if all(abs(i - j) > 2 * k and abs(i - j) < n - 2 * k for j in chosen): chosen.append(i)
+        if len(chosen) == 5: break
+    for i in chosen:
+        print(f"    steep {g50[i]:+.1f}% over 50 m starting @({ride[i][0]:.0f},{ride[i][1]:.0f}) y={yy[i]:.1f}->{yy[(i+k)%n]:.1f}  {info['name'][i]} / {info['name'][(i+k)%n]}")
+    # (f) closure
+    seam = abs((h[0] - h[-1] + 180) % 360 - 180)
+    print(f"(f) closure: gap last->first {np.hypot(*(ride[0]-ride[-1])):.2f} m (spacing {sp:.2f}), heading step across seam {seam:.1f} deg (typical {np.median(dh):.1f}), y step {abs(yy[0]-yy[-1]):.2f} m")
+    return rd, ride
 
 # ------------------------------------------------------------------ main
 def main():
@@ -798,20 +922,7 @@ def main():
     print("route graph edges:", len(edges))
     rte = None; rd = None
     if WAYPOINTS:
-        fp, y, L, names, dev, snapped, seq = build_route(edges, WAYPOINTS)
-        rd = {"name": "Horbury Loop", "len": r1(L), "pts": [[r1(a), r1(c), r1(b)] for (a, b), c in zip(fp, y)]}
-        rte = fp
-        print(f"route length {L:.0f} m, smoothing deviation max {dev:.2f} m, points {len(fp)}")
-        dy = np.diff(np.r_[y, y[:1]])
-        print(f"climb {dy[dy>0].sum():.0f} m, min y {y.min():.1f}, max y {y.max():.1f}, max grade {100*np.abs(dy/ (L/len(fp))).max():.1f}%")
-        # street list
-        seqn = []
-        for n, l, c in names:
-            if seqn and seqn[-1][0] == n: seqn[-1][1] += l
-            else: seqn.append([n, l, c])
-        print("STREETS:", " > ".join(f"{n} ({l:.0f}m,{c[:3]})" for n, l, c in seqn))
-        reuse = collections.Counter(frozenset([ei]) for ei, d in seq)
-        print("edges used more than once:", sum(1 for v in reuse.values() if v > 1), "of", len(seq))
+        rd, rte = route_block(edges, bl, roads)
     feats = {"buildings": buildings,
              "roads": [d for d in froads], "rail": [{"p": d["p"], **({"br": 1} if d.get("br") else {})} for d in frail],
              "water": water, "waterways": ways, "trees": trees, "walls": walls}
@@ -822,8 +933,9 @@ def main():
     print({k: (len(v) if hasattr(v, "__len__") and k != "route" else "") for k, v in feats.items()})
     for fn in ("features.json", "landcover.bin"):
         print(fn, os.path.getsize(os.path.join(OUT, fn)) / 1e6, "MB")
-    preview(lc, bl, roads, rail, wpoly, ways, rte, os.path.join(RAW, "features_preview.png"))
-    preview(lc, bl, roads, rail, wpoly, ways, rte, os.path.join(RAW, "features_preview_town.png"), scale=1.0, crop=(-1800, -400, 1000, 1100))
+    verify_trees(trees, bl, roads, wpoly)
+    preview(lc, bl, roads, rail, wpoly, ways, rte, os.path.join(RAW, "features_preview.png"), trees=trees)
+    preview(lc, bl, roads, rail, wpoly, ways, rte, os.path.join(RAW, "features_preview_town.png"), scale=1.0, crop=(-1800, -400, 1000, 1100), trees=trees)
 
 if __name__ == "__main__":
     main()

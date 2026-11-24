@@ -12,7 +12,15 @@ export class ChaseCamera {
     this.dist = 6.2; this.height = 2.3; this.curDist = 6.2;
     this.initialized = false;
     this.orbit = 0;
+    // drone mode
+    this.mode = 0; this.blend = 0; // 0 = chase, 1 = drone
+    this.dPos = new THREE.Vector3(); this.dVel = new THREE.Vector3();
+    this.dLook = new THREE.Vector3(); this.dLookVel = new THREE.Vector3();
+    this.cPos = new THREE.Vector3(); this.cLook = new THREE.Vector3();
+    this.dDesired = new THREE.Vector3(); this.dTarget = new THREE.Vector3();
+    this.droneHeight = 150; this.droneBack = 105;
   }
+  setMode(m) { this.mode = m; }
   _spring(p, v, target, omega, dt) {
     // critically damped spring (semi-implicit)
     const k = omega * omega, c = 2 * omega;
@@ -48,14 +56,35 @@ export class ChaseCamera {
     route.at(s + 14 + speed * 0.6, this.target);
     this.target.y = this.target.y * 0.35 + (riderPos.y + 1.1) * 0.65;
     this.target.lerp(this.tmp2.copy(riderPos).setY(riderPos.y + 1.2), 0.45);
+    // drone: high, ~55 deg down, behind along the route heading, looking ahead
+    route.at(s - 60, this.dDesired);
+    this.tmp.subVectors(riderPos, this.dDesired); this.tmp.y = 0;
+    if (this.tmp.lengthSq() < 1) this.tmp.copy(this.fwd);
+    this.tmp.normalize();
+    this.dDesired.set(riderPos.x - this.tmp.x * this.droneBack, riderPos.y + this.droneHeight, riderPos.z - this.tmp.z * this.droneBack);
+    route.at(s + 45, this.dTarget);
+    this.dTarget.lerp(riderPos, 0.5);
     if (!this.initialized) {
-      this.pos.copy(this.desired); this.look.copy(this.target); this.vel.set(0, 0, 0); this.lookVel.set(0, 0, 0); this.initialized = true;
+      this.pos.copy(this.desired); this.look.copy(this.target); this.vel.set(0, 0, 0); this.lookVel.set(0, 0, 0);
+      this.dPos.copy(this.dDesired); this.dLook.copy(this.dTarget); this.dVel.set(0, 0, 0); this.dLookVel.set(0, 0, 0);
+      this.blend = this.mode; this.initialized = true;
     }
     this._spring(this.pos, this.vel, this.desired, 3.2, dt);
     this._spring(this.look, this.lookVel, this.target, 4.5, dt);
+    this._spring(this.dPos, this.dVel, this.dDesired, 1.2, dt);
+    this._spring(this.dLook, this.dLookVel, this.dTarget, 2.0, dt);
     this._ground(this.pos);
-    this.cam.position.copy(this.pos);
-    this.cam.lookAt(this.look);
+    // animated transition (ease in/out over ~1.6 s)
+    this.blend += Math.sign(this.mode - this.blend) * Math.min(Math.abs(this.mode - this.blend), dt / 1.6);
+    const b = this.blend * this.blend * (3 - 2 * this.blend);
+    if (b <= 0.0001) { this.cam.position.copy(this.pos); this.cam.lookAt(this.look); return; }
+    // arc up: lift mid-transition so the path clears roofs
+    this.cPos.lerpVectors(this.pos, this.dPos, b);
+    this.cPos.y += Math.sin(b * Math.PI) * 25;
+    this.cLook.lerpVectors(this.look, this.dLook, b);
+    this._ground(this.cPos);
+    this.cam.position.copy(this.cPos);
+    this.cam.lookAt(this.cLook);
   }
   _ground(p) {
     const g = this.hf.sample(p.x, p.z) + 1.1;

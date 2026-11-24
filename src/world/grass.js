@@ -11,13 +11,13 @@ function clumpGeometry(blades) {
   let v = 0;
   for (let b = 0; b < blades; b++) {
     const a = (b / blades) * Math.PI * 2 + b * 1.7;
-    const r = 0.05 + ((b * 37) % 11) / 11 * 0.3;
+    const r = 0.05 + ((b * 37) % 11) / 11 * 0.45;
     const bx = Math.cos(a) * r, bz = Math.sin(a) * r;
     const facing = a + 1.3 + b;
     const fx = Math.cos(facing), fz = Math.sin(facing);
     const w = 0.018, h = 0.3 + ((b * 13) % 7) / 7 * 0.28;
     const lean = 0.06 + ((b * 7) % 5) / 5 * 0.1;
-    const segs = 3;
+    const segs = 2;
     for (let s = 0; s <= segs; s++) {
       const t = s / segs;
       const ww = w * (1 - t * 0.9);
@@ -40,9 +40,9 @@ export function createGrass(hf, lc, roadIdx, bIdx, cfg) {
   const R = cfg.grassRadius;
   const n = Math.ceil(R / CELL);
   const M = 2 * n + 1;
-  const K = Math.round(70 * cfg.grass);
+  const K = Math.round(100 * cfg.grass);
   const total = M * M * K;
-  const geo = clumpGeometry(cfg.tier === 'low' ? 7 : 12);
+  const geo = clumpGeometry(cfg.tier === 'low' ? 6 : 9);
   const inst = new Float32Array(total * 4);
   const attr = new THREE.InstancedBufferAttribute(inst, 4);
   attr.setUsage(THREE.DynamicDrawUsage);
@@ -78,7 +78,7 @@ export function createGrass(hf, lc, roadIdx, bIdx, cfg) {
         vec3 grass = mix(lin(0.25, 0.33, 0.12), lin(0.36, 0.43, 0.17), n2.g);
         grass = mix(grass, lin(0.46, 0.45, 0.24), smoothstep(0.55, 0.9, n1.r) * 0.55);
         grass = mix(grass, lin(0.20, 0.29, 0.10), smoothstep(0.6, 0.9, n3.b) * 0.5);
-        vCol = grass * (0.85 + 0.3 * fract(ph * 7.13));
+        vCol = grass * (0.9 + 0.2 * fract(ph * 7.13));
         vSun = texture2D(uShadowBake, gridUV(aI.xz)).r * texture2D(uShadowBake, gridUV(aI.xz)).g;
         vN = normalize(vec3(cs * 0.3, 1.0, sn * 0.3));
         gl_Position = projectionMatrix * viewMatrix * vec4(w, 1.0);
@@ -90,7 +90,7 @@ export function createGrass(hf, lc, roadIdx, bIdx, cfg) {
       ${AERIAL_GLSL}
       varying vec3 vWorld; varying vec3 vCol; varying float vT; varying float vSun; varying vec3 vN;
       void main() {
-        vec3 alb = vCol * mix(0.55, 1.25, vT);
+        vec3 alb = vCol * mix(0.8, 1.2, vT);
         vec3 vd = normalize(vWorld - cameraPosition);
         float ndl = max(dot(vN, uSunDir), 0.0) * 0.7 + 0.3;
         float tr = pow(max(dot(vd, uSunDir), 0.0), 4.0) * vT * 1.2;
