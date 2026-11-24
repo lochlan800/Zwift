@@ -377,7 +377,20 @@ void buildingSurface(vec3 w, vec3 Nw) {
       // fascia band with "lettering" stripes (no real text)
       float fas = boxAA(vec2(lu, hgt), vec2(pw, 2.95), vec2(uw - pw, 3.45), fw);
       float txtZone = boxAA(vec2(lu, hgt), vec2(uw * 0.25, 3.08), vec2(uw * 0.75, 3.32), fw);
-      float glyph = step(0.35, fract(lu / 0.16)) * step(0.22, hb(floor(lu / 0.16) + unit * 13.0)) * step(0.1, fract(lu / 1.1 + uh));
+      // pseudo-lettering: each 0.13 m cell gets a random set of stems and bars (no real text)
+      float gc = floor(lu / 0.13), gp = fract(lu / 0.13), gy = (hgt - 3.1) / 0.2;
+      float gb = hb(gc * 1.7 + unit * 13.0 + seed);
+      float gb2 = hb(gc * 3.1 + unit * 7.0 + 1.0);
+      vec2 gfw = vec2(fwidth(lu / 0.13), fwidth(gy));
+      float th = 0.09 + gfw.x;
+      float stemL = step(gp, 0.2 + gfw.x) * step(0.05, gp);
+      float stemR = step(0.55, gp) * step(gp, 0.72 + gfw.x) * step(0.4, gb);
+      float barT = step(0.8, gy) * step(gp, 0.72) * step(0.5, gb2);
+      float barM = step(abs(gy - 0.5), th + 0.03) * step(gp, 0.72) * step(gb, 0.7);
+      float barB = step(gy, 0.2) * step(gp, 0.72) * step(0.3, gb2);
+      float word = step(0.16, fract(gc / 7.0 + uh));
+      float glyph = clamp(stemL + stemR + barT + barM + barB, 0.0, 1.0) * word * step(0.0, gy) * step(gy, 1.0);
+      glyph = mix(glyph, 0.35 * word, smoothstep(0.3, 0.7, gfw.x));
       vec3 fcol = mix(fasc, letter, txtZone * glyph * (1.0 - smoothstep(60.0, 160.0, dist)) * 0.9);
       // door at one side, display window across the rest
       bool doorLeft = uh2 < 0.5;
@@ -402,9 +415,9 @@ void buildingSurface(vec3 w, vec3 Nw) {
       // cornice above fascia
       sc = mix(sc, pil * 0.9, boxAA(vec2(lu, hgt), vec2(0.0, 3.45), vec2(uw, 3.55), fw));
       col = mix(sc, col, 0.0);
-      bRough = mix(0.6, 0.06, win * (shutter ? 0.0 : 1.0));
+      bRough = mix(0.6, 0.16, win * (shutter ? 0.0 : 1.0));
       bMetal = 0.0; bBump = 0.0;
-      bAO = mix(1.0, 0.7, doorM);
+      bAO = mix(1.0, 0.7, doorM) * mix(1.0, 0.4, win);
     }
     if ((surf == 0 || (shop && hgt > 3.6)) && L > 1.8 && hgt < eave - 0.25 && hgt > 0.0) {
       float hOff = shop ? 3.6 : 0.0;
@@ -448,7 +461,8 @@ void buildingSurface(vec3 w, vec3 Nw) {
         else {
           col = mix(col, glassCol * (1.0 - 0.6 * clamp(reveal, 0.0, 1.0)), glass * fade);
           col = mix(col, frameCol, mull * fade);
-          bRough = mix(bRough, 0.08, glass * fade * (1.0 - mull));
+          bRough = mix(bRough, 0.18, glass * fade * (1.0 - mull));
+          bAO *= mix(1.0, 0.55, glass * fade);
           bMetal = mix(bMetal, 0.0, glass * fade);
         }
         bBump = mix(bBump, 0.0, frame);

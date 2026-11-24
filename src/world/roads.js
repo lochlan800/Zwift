@@ -239,8 +239,8 @@ void roadSurface(vec3 w) {
       float gwl = (1.0 - smoothstep(0.0, 0.03, abs(ax - 2.5) - 0.1)) * step(fract(v / 0.9), 0.55) * step(abs(v), hw - 0.15);
       float zz = 0.0;
       if (ax > 3.0 && ax < 17.0) {
-        float tri = abs(fract(ax / 2.0) - 0.5) * 2.0;
-        zz = max(lineAA(abs(v) - (hw - 0.45 + 0.25 * tri), 0.05), lineAA(v - 0.25 * (tri - 0.5) * 2.0, 0.05));
+        float tri = abs(fract(ax / 1.6) - 0.5) * 2.0;
+        zz = max(lineAA(abs(v) - (hw - 0.55 + 0.4 * tri), 0.05), lineAA(v - 0.4 * (tri - 0.5) * 2.0, 0.05));
       }
       paint = max(paint, max(bars, max(gwl, zz)));
     }

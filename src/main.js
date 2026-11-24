@@ -7,13 +7,14 @@ import { U, makeNoiseTexture } from './world/shared.js';
 import { createSky } from './world/sky.js';
 import { createTerrain, makeHeightTexture, makeNormalTexture, makeSplatTextures } from './world/terrain.js';
 import { annotateRoads, buildRoadIndex, conformTerrain, createRoads, roadInfo } from './world/roads.js';
-import { createBuildings } from './world/buildings.js';
+import { createBuildings, shopUnits } from './world/buildings.js';
 import { createTrees } from './world/trees.js';
 import { createWater, carveWater } from './world/water.js';
 import { createGrass } from './world/grass.js';
 import { createWalls } from './world/walls.js';
 import { bakeShadows } from './world/shadowbake.js';
 import { generateHedgerows, createStreetLife } from './world/streetlife.js';
+import { markTownCentre } from './world/towncentre.js';
 import { SegmentIndex, distanceCull } from './world/heightfield.js';
 import { createRider } from './ride/rider.js';
 import { Route, Physics } from './ride/route.js';
@@ -88,6 +89,8 @@ async function build() {
   await nextFrame();
   const hf = new HeightField(meta, data.height);
   annotateRoads(features, hf, data.landcover);
+  const tc = markTownCentre(features, hf, data.landcover);
+  console.info('town centre', tc.roads.length, 'roads,', tc.fronting, 'fronting buildings, paved', tc.paved, 'crossings', tc.crossings.map((c) => c.note).join('; '));
   const roadIdx = buildRoadIndex(features);
   conformTerrain(hf, features);
   carveWater(hf, features);
@@ -163,15 +166,16 @@ async function build() {
   await nextFrame();
   const roads = await createRoads(features, hf, data.landcover, roadIdx, slicer, bIdx);
   scene.add(roads.mesh);
-  const street = createStreetLife(features, hf, data.landcover, roadIdx, bIdx, routeIdx, roads.giveWays, cfg);
+
+
+  progress(0.62, 'Raising buildings');
+  const buildings = await createBuildings(features, slicer, (f) => progress(0.62 + f * 0.2, `Raising buildings ${Math.round(f * 100)}%`), tc.tcIdx);
+  scene.add(buildings.group);
+  world.buildings = buildings;
+  const street = createStreetLife(features, hf, data.landcover, roadIdx, bIdx, routeIdx, roads.giveWays, cfg, tc, shopUnits);
   scene.add(street.group);
   world.street = street;
   console.info('street life', JSON.stringify(street.counts), 'hedgerows', hedgerows.walls.length, 'hedgerow trees', hedgerows.trees.length);
-
-  progress(0.62, 'Raising buildings');
-  const buildings = await createBuildings(features, slicer, (f) => progress(0.62 + f * 0.2, `Raising buildings ${Math.round(f * 100)}%`));
-  scene.add(buildings.group);
-  world.buildings = buildings;
 
   progress(0.83, 'Planting trees');
   await nextFrame();

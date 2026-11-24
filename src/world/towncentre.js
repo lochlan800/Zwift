@@ -74,8 +74,8 @@ export function markTownCentre(features, hf, lc) {
   const schoolLane = features.roads.find((r) => r.n === 'School Lane');
   const r1 = schoolLane ? roads.find((r) => r.n === 'High Street' && Math.hypot(r.p[0][0] - schoolLane.p[0][0], r.p[0][2] - schoolLane.p[0][2]) < 1 && r.p.length > 10) : null;
   if (r1) crossings.push({ road: r1, u: 16, kind: 'zebra', note: 'High Street at School Lane junction' });
-  const r2 = byNameStart('High Street', -182.1, 123.2) || roads.filter((r) => r.n === 'High Street').sort((a, c) => c.p.length - a.p.length)[0];
-  if (r2 && r2 !== r1) crossings.push({ road: r2, u: 58, kind: 'zebra', note: 'mid High Street' });
+  const r2 = byNameStart('High Street', 93.5, 217.2) || roads.filter((r) => r.n === 'High Street').sort((a, c) => c.p.length - a.p.length)[0];
+  if (r2 && r2 !== r1) crossings.push({ road: r2, u: 55, kind: 'zebra', note: 'mid High Street (east, by Cluntergate)' });
   for (const c of crossings) { c.road._cross = c.u; }
   return { roads, tcIdx, crossings, paved, fronting: fronting.length };
 }

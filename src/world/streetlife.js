@@ -224,7 +224,7 @@ function basketGeometry() {
   const chain = new THREE.CylinderGeometry(0.01, 0.01, 0.45, 4); chain.translate(0, 3.72, 0.55);
   const bowl = new THREE.SphereGeometry(0.3, 10, 6, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2); bowl.translate(0, 3.5, 0.55);
   const flowers = new THREE.IcosahedronGeometry(0.42, 2); flowers.scale(1, 0.8, 1); flowers.translate(0, 3.42, 0.55);
-  const fn = flowers.toNonIndexed ? flowers.toNonIndexed() : flowers;
+  const fn = flowers.index ? flowers.toNonIndexed() : flowers;
   const n = fn.attributes.position.count, c = new Float32Array(n * 3);
   const pal = [[0.85, 0.18, 0.5], [0.55, 0.15, 0.6], [0.8, 0.08, 0.12], [0.95, 0.5, 0.75], [0.12, 0.3, 0.08], [0.15, 0.35, 0.1]];
   for (let i = 0; i < n; i += 3) { const p = pal[Math.floor(Math.abs(Math.sin(i * 12.9898) * 43758.5) % 1 * pal.length)]; for (let k = 0; k < 3; k++) { c[(i + k) * 3] = p[0]; c[(i + k) * 3 + 1] = p[1]; c[(i + k) * 3 + 2] = p[2]; } }
@@ -255,8 +255,7 @@ function awningGeometry() {
   const top = new THREE.PlaneGeometry(1, 1.25); top.rotateX(-Math.PI / 2 + 0.42); top.translate(0, 2.68, 0.57);
   const val = new THREE.PlaneGeometry(1, 0.22); val.translate(0, 2.33, 1.15);
   const g1 = colored(top, ...W), g2 = colored(val, ...W);
-  const g3 = colored(top.clone().rotateY(Math.PI).translate(0, 0, 1.14), ...W);
-  return mergeGeometries([g1, g2, g3]);
+  return mergeGeometries([g1, g2]);
 }
 function shelterGeometry() {
   const R = [0.62, 0.05, 0.05], G = [0.12, 0.14, 0.15], S = [0.25, 0.25, 0.27];
@@ -393,7 +392,7 @@ export function createStreetLife(features, hf, lc, roadIdx, bIdx, routeIdx, give
       const h = hash2(su.x * 0.37, su.z * 0.53), h2 = hash2(su.z, su.x);
       const yaw = Math.atan2(su.nx, su.nz); // local +z = outward
       if (h < 0.38) {
-        const cols = [[0.07, 0.2, 0.12], [0.3, 0.05, 0.07], [0.06, 0.08, 0.22], [0.08, 0.08, 0.09]];
+        const cols = [[0.02, 0.06, 0.035], [0.11, 0.015, 0.02], [0.015, 0.02, 0.07], [0.02, 0.02, 0.022]];
         push(awnings, su.x + su.nx * 0.02, hf.sample(su.x + su.nx * 1, su.z + su.nz * 1) * 0 + su.y, su.z + su.nz * 0.02, yaw, Math.max(1.5, su.w - 0.9), 1, 1, cols[Math.floor(h2 * 4)]);
       }
       if (h2 < 0.16) {
@@ -478,7 +477,7 @@ export function createStreetLife(features, hf, lc, roadIdx, bIdx, routeIdx, give
     mk(bollardGeometry(), propMat, bollards, 40, R * 0.5, true);
     mk(railGeometry(), propMat, rails, 60, R * 0.5, true);
     mk(aboardGeometry(), propMat, aboards, 60, R * 0.4, true);
-    mk(awningGeometry(), propMat, awnings, 120, R * 0.6, true);
+    mk(awningGeometry(), patchMaterial(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, side: THREE.DoubleSide }), { key: 'awning' }), awnings, 120, R * 0.6, true);
     const one = (geo, o) => { if (!o) return; const m = new THREE.Mesh(geo, propMat); m.position.set(o.x, o.y, o.z); m.rotation.y = o.yaw; m.castShadow = true; m.receiveShadow = true; group.add(m); };
     one(shelterGeometry(), shelter);
     one(clockGeometry(), clock);
