@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { SegmentIndex, splitByCell } from './heightfield.js';
-import { patchMaterial, GRID_GLSL } from './shared.js';
+import { patchMaterial, GRID_GLSL, WET_GLSL } from './shared.js';
 
 // type codes used by the road shader
 export const RT = { MAJOR: 0, MAJOR_DASH: 1, MINOR: 2, SERVICE: 3, TRACK: 4, FOOT: 5, PATH: 6, PAVE: 7, KERB: 8, BALLAST: 9, RAIL: 10, PARAPET: 11, CYCLE: 12, TOWN: 13 };
@@ -482,10 +482,11 @@ export async function createRoads(features, hf, lc, roadIdx, slicer, bIdx = null
     vertexPars: 'attribute vec4 aRoad; attribute vec4 aMark; varying vec4 vRoad; varying float vMark; varying vec3 vGw;',
     vertex: { begin_vertex: '$\n vRoad = aRoad; vMark = aMark.x; vGw = aMark.yzw;' },
     // shadow hook (sky/lighting): long-range baked sun shadow (terrain + buildings + trees) beyond the realtime cascades
-    fragmentPars: GRID_GLSL + '\nfloat hbSun;\n' + ROAD_FRAG,
+    fragmentPars: GRID_GLSL + '\nfloat hbSun;\nvec3 hbNw;\n' + ROAD_FRAG + WET_GLSL, // WEATHER: wet GLSL appended
     fragment: {
       lights_fragment_begin: THREE.ShaderChunk.lights_fragment_begin.replace('getSunLightInfo( sunLight, directLight );', 'getSunLightInfo( sunLight, directLight ); directLight.color *= hbSun;'),
-      map_fragment: 'hbSun = bakedSun(vAerialWorld); roadSurface(vAerialWorld); diffuseColor.rgb = rAlb;',
+      // WEATHER: wetness (darker, glossy, puddles in gutters/dips).
+      map_fragment: 'hbSun = bakedSun(vAerialWorld); roadSurface(vAerialWorld); hbApplyWet(vAerialWorld, rAlb, rRough, rBump, smoothstep(0.55, 1.0, abs(vRoad.y) / max(vRoad.z, 0.5)), 1.0, 1.0); diffuseColor.rgb = rAlb;',
       roughnessmap_fragment: 'float roughnessFactor = rRough;',
       normal_fragment_begin: `$
         {
@@ -497,8 +498,11 @@ export async function createRoads(features, hf, lc, roadIdx, slicer, bIdx = null
           vec3 grad = sign(det) * (bx * r1 + by * r2);
           float fade = 1.0 - smoothstep(20.0, 90.0, distance(vAerialWorld, cameraPosition));
           Nw = normalize(abs(det) * Nw - grad * 0.015 * fade);
+          Nw = hbWetNormal(Nw); // WEATHER: puddle ripples
           normal = normalize((viewMatrix * vec4(Nw, 0.0)).xyz);
+          hbNw = Nw;
         }`,
+      emissivemap_fragment: '$\n totalEmissiveRadiance += hbWetRefl(vAerialWorld, hbNw); // WEATHER: sky reflection in wet road / puddles',
     },
     uniforms: {},
   });

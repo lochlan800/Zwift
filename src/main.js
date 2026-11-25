@@ -17,6 +17,9 @@ import { generateHedgerows, createStreetLife } from './world/streetlife.js';
 import { markTownCentre, markQuarryHill, quarryTrees, quarryPub, markStorrs, storrsTrees, storrsVerge, classifyAges } from './world/towncentre.js';
 import { SegmentIndex, distanceCull } from './world/heightfield.js';
 import { createRider } from './ride/rider.js';
+import { createAudio } from './audio/audio.js'; // [audio hook] procedural sound, see src/audio
+import { createTraffic } from './world/traffic.js'; // street life (traffic / people / birds): sky-lighting agent hook
+
 import { Route, Physics } from './ride/route.js';
 import { ChaseCamera } from './ride/camera.js';
 import { Hud, fmtTime } from './ui/hud.js';
@@ -223,9 +226,11 @@ async function build() {
   progress(0.94, 'Fitting the bike');
   const route = new Route(features.route);
   world.route = route;
+  try { world.traffic = createTraffic(scene, features, hf, cfg, { tc }); } catch (e) { console.error('traffic failed', e); }
   const rider = createRider();
   scene.add(rider.root);
   world.rider = rider;
+  world.audio = createAudio(); // [audio hook]
   world.chase = new ChaseCamera(camera, hf, bIdx, route);
   world.physics = new Physics();
   world.hud = new Hud(route, features.route.name || 'Horbury Loop');
@@ -299,6 +304,7 @@ function startRide() {
   state.s = 0; state.dist = 0; state.time = 0;
   world.physics.v = 2.5;
   world.chase.initialized = false;
+  world.audio?.start(); // [audio hook] first user gesture: create/resume AudioContext
 }
 ui.ride.addEventListener('click', startRide);
 function setCamMode(mode) {
@@ -319,8 +325,9 @@ $('pauseBtn').addEventListener('click', () => {
   $('pauseStats').innerHTML = `<div>Distance<b>${(state.dist / 1000).toFixed(2)} km</b></div><div>Time<b>${fmtTime(state.time)}</b></div>`
     + `<div>Avg speed<b>${(state.time > 0 ? state.dist / state.time * 3.6 : 0).toFixed(1)} km/h</b></div><div>Power<b>220 W</b></div>`;
   ui.pause.classList.remove('hidden');
+  world.audio?.pause(); // [audio hook]
 });
-$('resumeBtn').addEventListener('click', () => { ui.pause.classList.add('hidden'); state.mode = 'ride'; });
+$('resumeBtn').addEventListener('click', () => { ui.pause.classList.add('hidden'); state.mode = 'ride'; world.audio?.resume(); }); // [audio hook]
 $('exitBtn').addEventListener('click', () => {
   ui.pause.classList.add('hidden'); ui.hud.classList.add('hidden'); ui.title.classList.remove('hidden');
   state.mode = 'title'; state.s = 0; placeRider(0, 0);
@@ -351,6 +358,7 @@ function frame(now) {
     state.time += dt;
     state.elev = route.smoothY(state.s);
     const lean = placeRider(dt, v);
+    world.audio?.update(dt, v, state.grade, rider.root.position.x, rider.root.position.z); // [audio hook]
     rider.update(dt, v, lean, Math.min(98, 62 + v * 2.6));
     chase.update(dt, rider.root.position, state.s, v);
     world.hud.update(dt, { speed: v, power: physics.P, dist: state.dist, grade: state.grade, elev: state.elev, time: state.time, s: state.s });
@@ -363,6 +371,7 @@ function frame(now) {
     rider.update(dt, 0, state.lean, 0);
   }
   camera.updateMatrixWorld();
+  if (world.traffic) world.traffic.update(dt, camera.position, rider.root.position, state.heading, state.speed, state.mode === 'paused');
   world.terrain.update(camera);
   world.trees.update(camera.position);
   world.street.update(camera.position);

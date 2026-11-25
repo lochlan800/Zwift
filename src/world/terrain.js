@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { U, GRID_GLSL, patchMaterial } from './shared.js';
+import { U, GRID_GLSL, patchMaterial, WET_GLSL } from './shared.js';
 
 const CHUNK = 128; // cells per chunk side (512 m)
 
@@ -241,7 +241,7 @@ export function createTerrain(hf, textures) {
     'getSunLightInfo( sunLight, directLight );', 'getSunLightInfo( sunLight, directLight ); directLight.color *= hbSun;');
   patchMaterial(mat, {
     key: 'terrain', uniforms,
-    vertexPars: TERRAIN_VERT_PARS, fragmentPars: TERRAIN_FRAG_PARS,
+    vertexPars: TERRAIN_VERT_PARS, fragmentPars: TERRAIN_FRAG_PARS + WET_GLSL, // WEATHER: wet GLSL appended
     vertex: {
       beginnormal_vertex: /* glsl */`
         vec4 tw0 = modelMatrix * vec4(position.x, 0.0, position.z, 1.0);
@@ -254,7 +254,9 @@ export function createTerrain(hf, textures) {
       begin_vertex: /* glsl */`vec3 transformed = vec3(tLocal.x, tH + position.y * uSkirt, tLocal.y);`,
     },
     fragment: {
-      map_fragment: 'terrainSurface(vAerialWorld); diffuseColor.rgb = tAlb;',
+      // WEATHER: wet ground (darker, sheen); puddles only on hard/paved ground (low base roughness)
+      map_fragment: 'terrainSurface(vAerialWorld); float hbDummy = 0.0; hbApplyWet(vAerialWorld, tAlb, tRough, hbDummy, 0.0, 0.65, smoothstep(0.90, 0.82, tRough)); diffuseColor.rgb = tAlb;',
+      emissivemap_fragment: '$\n totalEmissiveRadiance += hbWetRefl(vAerialWorld, tNw);',
       roughnessmap_fragment: 'float roughnessFactor = tRough;',
       normal_fragment_begin: `$
         normal = normalize((viewMatrix * vec4(tNw, 0.0)).xyz); nonPerturbedNormal = normal;`,

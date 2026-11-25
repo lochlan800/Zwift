@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { U } from './shared.js';
 import { detectTier } from '../render/quality.js';
+import { WX_SKY_UNIFORMS, WX_SKY_GLSL, WX_SKY_UNIFORM_OBJECTS } from './weathersky.js'; // WEATHER: overcast/storm overlay
 
 // Bright, clean, sunny afternoon: sun fairly high in the WSW, deep-blue sky with soft cumulus.
 export const SUN_AZIMUTH_DEG = 244; // clockwise from north
@@ -88,6 +89,7 @@ varying vec3 vDir;
 ${SKY_COMMON}
 uniform vec2 uWind;
 uniform float uCover;
+${WX_SKY_UNIFORMS}${WX_SKY_GLSL}
 
 void main() {
   vec3 d = normalize(vDir);
@@ -101,7 +103,7 @@ void main() {
   float mu = dot(d, uSun);
 
   // sun disc (HDR, drives bloom + light shafts) with a soft limb
-  col += vec3(1.0, 0.93, 0.80) * 45.0 * smoothstep(0.99972, 0.99986, mu) * uSunDisc;
+  col += vec3(1.0, 0.93, 0.80) * 45.0 * smoothstep(0.99972, 0.99986, mu) * uSunDisc * uSunVis; // WEATHER: uSunVis
 
   // ---- cumulus layer: noise on a plane, lit from the sun side/top, blue-grey bellies, hard-ish bold edges
   if (d.y > 0.0) {
@@ -141,6 +143,7 @@ void main() {
     col = mix(col, vec3(1.35, 1.35, 1.40) * uScale, ci * 0.42 * smoothstep(0.14, 0.45, y) * (1.0 - dens * fade));
 #endif
   }
+  col = wxSky(d, col); // WEATHER: overcast sheet, grey grade, lightning flash
 #endif
   gl_FragColor = vec4(min(col, vec3(60.0)), 1.0);
 }`;
@@ -161,6 +164,7 @@ function skyMaterial({ lut, cloudOct, cloudLit }) {
       uHorizon: { value: new THREE.Color(0.36, 0.62, 0.96) },
       uWind: { value: new THREE.Vector2(0.008, 0.0025) },
       uCover: { value: 0.50 },
+      ...WX_SKY_UNIFORM_OBJECTS, // WEATHER: shared weather uniforms
     },
     vertexShader: SKY_VS, fragmentShader: SKY_FS,
     side: lut ? THREE.FrontSide : THREE.BackSide,

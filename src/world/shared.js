@@ -19,6 +19,19 @@ export const U = {
   uSkyAmb: { value: new THREE.Color(0.5, 0.6, 0.8) },
   uSunI: { value: 8.5 },
   uRiderPos: { value: new THREE.Vector3(0, -1e5, 0) },
+  // ---- WEATHER (written only by world/weather.js; everyone else just reads) ----
+  uWxTime: { value: 0 },                              // weather clock (frozen while paused)
+  uWet: { value: 0 },                                 // 0..1 surface wetness (puddles grow with it)
+  uRain: { value: 0 },                                // 0..1 rain intensity (drives ripples)
+  uStorm: { value: 0 },                               // 0..1 storminess
+  uCloudCover: { value: 0.3 },                        // 0..1 cumulus cover (informational; sky reads its own)
+  uLightning: { value: 0 },                           // 0..1 flash envelope (with flicker)
+  uLightDir: { value: new THREE.Vector3(0, 0.5, 1) }, // direction of the current strike
+  uGrey: { value: 0 },                                // 0 clear .. 1 overcast: sky/fog flatten to uGreyCol
+  uGreyCol: { value: new THREE.Color(0.5, 0.55, 0.62) },
+  uOver: { value: 0 },                                // overcast cloud sheet coverage
+  uOverDark: { value: 0 },                            // 0 pale grey .. 1 charcoal
+  uSunVis: { value: 1 },                              // sun disc / glare visibility
 };
 
 // GLSL: aerial perspective / exponential height fog using a sky colour LUT
@@ -31,9 +44,16 @@ uniform vec3 uSunColor;
 uniform float uFogDensity;
 uniform float uFogFalloff;
 uniform float uFogBase;
+uniform float uGrey;      // WEATHER: overcast flattening of sky/fog colour
+uniform vec3 uGreyCol;
+uniform float uLightning;
 vec3 skyLUT(vec3 d) {
   d = normalize(vec3(d.x, max(d.y, 0.07), d.z));
-  return texture2D(uSkyLUT, equirectUv(d)).rgb * vec3(0.97, 0.99, 1.05);
+  vec3 c = texture2D(uSkyLUT, equirectUv(d)).rgb * vec3(0.97, 0.99, 1.05);
+  // WEATHER: overcast/storm haze colour (identical grade in the sky dome so the horizon seam vanishes)
+  c = mix(c, uGreyCol * (1.12 + 0.3 * (1.0 - d.y)), uGrey);
+  c += vec3(0.55, 0.65, 1.0) * uLightning * 0.45 * (0.3 + uGrey);
+  return c;
 }
 float aerialAmount(vec3 wpos, out vec3 rd, out float dist) {
   vec3 v = wpos - cameraPosition;
@@ -181,3 +201,66 @@ export function makeNoiseTexture(size = 256) {
 }
 
 export const srgb = (r, g, b) => new THREE.Color().setRGB(r, g, b, THREE.SRGBColorSpace);
+
+// ---------------------------------------------------------------------------------------------
+// WEATHER: wet-surface GLSL (roads / pavements / terrain). Append AFTER the host material's own
+// fragment pars (it needs `uniform sampler2D uNoise;` and AERIAL_GLSL's skyLUT()). Usage:
+//   after computing albedo/roughness/bump:   hbApplyWet(w, alb, rough, bump, edge01, porosity, puddleAmount);
+//   normal_fragment_begin (world normal Nw): Nw = hbWetNormal(Nw);
+//   emissivemap_fragment:                     totalEmissiveRadiance += hbWetRefl(w, Nw);
+// All of it is a no-op while uWet == 0.
+// ---------------------------------------------------------------------------------------------
+export const WET_GLSL = /* glsl */`
+uniform float uWet;
+uniform float uRain;
+uniform float uWxTime;
+float hbPud = 0.0; float hbWetAmt = 0.0; vec2 hbRip = vec2(0.0);
+float hbHash(vec2 p) { vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
+vec2 hbRingLayer(vec2 p, float cs, float seed) {
+  vec2 q = p / cs; vec2 id = floor(q); vec2 f = fract(q) - 0.5;
+  float h1 = hbHash(id + seed), h2 = hbHash(id * 1.7 + seed + 3.1);
+  float t = uWxTime * (0.8 + 0.6 * h2) + h1;
+  float cyc = floor(t), ph = t - cyc;
+  float act = step(hbHash(id + cyc * 7.3 + seed), uRain);
+  vec2 off = (vec2(hbHash(id + cyc + 1.7), hbHash(id + cyc + 5.3)) - 0.5) * 0.3;
+  vec2 d = (f - off) * cs; float r = length(d);
+  float x = r - ph * cs * 0.34;
+  float amp = (1.0 - ph) * (1.0 - ph) * act;
+  float g = cos(x * 60.0) * exp(-x * x * 700.0) * amp * 0.5;
+  return d / max(r, 1e-3) * g;
+}
+float hbPuddle(vec3 w, float edge) {
+  float a = texture2D(uNoise, w.xz / 37.0).r;
+  float b = texture2D(uNoise, w.xz / 11.0).g;
+  float c = texture2D(uNoise, w.xz / 3.3).b;
+  float n = a * 0.5 + b * 0.38 + c * 0.12 + edge * 0.10;
+  float thr = mix(1.2, 0.585, smoothstep(0.25, 0.95, uWet));
+  return smoothstep(thr, thr + 0.035, n);
+}
+void hbApplyWet(vec3 w, inout vec3 alb, inout float rough, inout float bump, float edge, float por, float pudAmt) {
+  hbPud = 0.0; hbWetAmt = 0.0; hbRip = vec2(0.0);
+  if (uWet < 0.005) return;
+  float d = uWet * por;
+  float near = 1.0 - smoothstep(25.0, 110.0, distance(w, cameraPosition));
+  hbPud = hbPuddle(w, edge) * pudAmt * smoothstep(0.3, 0.8, uWet);
+  hbWetAmt = d * (1.0 - hbPud);
+  alb *= mix(1.0, 0.56, d);
+  rough = mix(rough, 0.2, d * 0.8);
+  alb = mix(alb, alb * 0.62, hbPud);
+  rough = mix(rough, 0.03, hbPud);
+  bump *= 1.0 - 0.85 * hbPud;
+  if (uRain > 0.01 && near > 0.0) {
+    vec2 g = hbRingLayer(w.xz, 0.5, 1.0) + hbRingLayer(w.xz + 7.7, 0.85, 5.0);
+    hbRip = g * near * (hbPud + 0.25 * hbWetAmt);
+  }
+}
+vec3 hbWetNormal(vec3 Nw) { return normalize(Nw + vec3(hbRip.x, 0.0, hbRip.y) + vec3(0.0, 0.0, 0.0)); }
+vec3 hbWetRefl(vec3 w, vec3 Nw) {
+  if (uWet < 0.005) return vec3(0.0);
+  vec3 rd = normalize(w - cameraPosition);
+  float c = clamp(dot(-rd, Nw), 0.0, 1.0);
+  float f = pow(1.0 - c, 4.0);
+  vec3 sky = skyLUT(reflect(rd, Nw));
+  return sky * (hbPud * (0.30 + 0.65 * f) + hbWetAmt * 0.55 * f);
+}
+`;

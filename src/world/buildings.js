@@ -644,6 +644,11 @@ void buildingSurface(vec3 w, vec3 Nw) {
       float frame = boxAA(vec2(u, hgt), vec2(m - 0.07, 0.73), vec2(L - m + 0.07, 2.52), fw);
       float tr = (1.0 - smoothstep(0.025, 0.025 + fw.y, abs(hgt - 2.0))) * glass;
       float ml = L > 1.0 ? (1.0 - smoothstep(0.025, 0.025 + fw.x, abs(u - L * 0.5))) * glass : 0.0;
+      if (old) {
+        // sash glazing bars on Victorian bays
+        float hy = abs(fract((hgt - 0.8) / 0.41 + 0.5) - 0.5) * 0.41;
+        ml = max(ml, (1.0 - smoothstep(0.018, 0.018 + fw.y, hy)) * glass * step(hgt, 2.0));
+      }
       float sill = boxAA(vec2(u, hgt), vec2(-0.1, 0.6), vec2(L + 0.1, 0.73), fw);
       float head = boxAA(vec2(u, hgt), vec2(-0.1, 2.52), vec2(L + 0.1, 2.95), fw);
       vec3 white = lin3(vec3(0.86, 0.86, 0.84));
