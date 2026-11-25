@@ -349,14 +349,24 @@ function planterGeometry() {
 }
 
 function bushGeometry() {
-  const g = new THREE.IcosahedronGeometry(0.55, 1);
-  const p = g.attributes.position;
-  for (let i = 0; i < p.count; i++) {
-    const x = p.getX(i), y = p.getY(i), z = p.getZ(i), k = 1 + 0.22 * Math.sin(x * 9.1 + y * 5.3) * Math.cos(z * 7.7 - y * 3.1);
-    p.setXYZ(i, x * k, Math.max(-0.1, y * k) + 0.45, z * k);
-  }
-  g.computeVertexNormals();
-  return colored(g, 1, 1, 1);
+  // irregular cluster of three leafy lumps, smooth normals
+  const lumps = [[0, 0.5, 0, 0.6], [0.45, 0.38, 0.2, 0.42], [-0.35, 0.36, -0.25, 0.45]];
+  const gs = lumps.map(([x, y, z, r], k) => {
+    const g = new THREE.IcosahedronGeometry(r, 1);
+    const p = g.attributes.position;
+    for (let i = 0; i < p.count; i++) {
+      const a = p.getX(i), b = p.getY(i), c = p.getZ(i);
+      const n = 1 + 0.12 * Math.sin(a * 13.1 + k + b * 7.3) * Math.cos(c * 11.7 - b * 5.1) + 0.06 * Math.sin(a * 31.0 + c * 27.0);
+      p.setXYZ(i, a * n + x, Math.max(-0.05, b * n * 0.85 + y), c * n + z);
+    }
+    // soft spherical normals (leafy volume, no facets)
+    const nr = new Float32Array(p.count * 3);
+    for (let i = 0; i < p.count; i++) { const v = new THREE.Vector3(p.getX(i) - x, (p.getY(i) - y) * 1.2, p.getZ(i) - z).normalize(); nr[i * 3] = v.x; nr[i * 3 + 1] = v.y; nr[i * 3 + 2] = v.z; }
+    g.setAttribute('normal', new THREE.BufferAttribute(nr, 3));
+    g.deleteAttribute('uv');
+    return g;
+  });
+  return colored(mergeGeometries(gs), 1, 1, 1);
 }
 function pylonGeometry() {
   const G = [0.42, 0.44, 0.46];
@@ -457,7 +467,7 @@ export function createStreetLife(features, hf, lc, roadIdx, bIdx, routeIdx, give
   }
   // --- parked cars on residential streets (terraces mostly), clear of the riding line and junctions
   for (const r of features.roads) {
-    if (r.tu || r.br || !(r.k === 'residential' || ((r.k === 'tertiary' || r.k === 'unclassified') && r._pave)) || r._w < 5) continue;
+    if (r._storrs || r.tu || r.br || !(r.k === 'residential' || ((r.k === 'tertiary' || r.k === 'unclassified') && r._pave)) || r._w < 5) continue;
     const hw = r._w / 2;
     for (const side of [-1, 1]) {
       walk(r.p, 6.4, (x, y, z, tx, tz, s) => {
@@ -639,7 +649,7 @@ export function createStreetLife(features, hf, lc, roadIdx, bIdx, routeIdx, give
           const o = hw + 2.2 + row * 2.6 + h * 1.5;
           const px = x + nx * o + tx * (h - 0.5) * 1.5, pz = z + nz * o + tz * (h - 0.5) * 1.5;
           if (roadIdx.query(px, pz, 0.8, null, tmp) || bIdx.find(px, pz, 1)) continue;
-          const sc = 1.1 + h * 1.4 + row * 0.5;
+          const sc = 1.3 + h * 1.6 + row * 0.6;
           push(scrub, px, hf.sample(px, pz) - 0.2, pz, h * 6.28, sc * (0.9 + h * 0.4), sc * (0.75 + hash2(z, x) * 0.6), sc, [0.85 + h * 0.3, 0.9 + hash2(x, z) * 0.25, 0.75 + h * 0.2]);
         }
       });
@@ -714,7 +724,9 @@ export function createStreetLife(features, hf, lc, roadIdx, bIdx, routeIdx, give
           vec3 w = vAerialWorld;
           vec4 n = texture2D(uNoise, (w.xz + w.y * 0.7) / 0.6);
           vec4 m = texture2D(uNoise, (w.xz - w.y) / 2.3);
-          diffuseColor.rgb *= mix(vec3(0.05, 0.11, 0.03), vec3(0.13, 0.22, 0.06), n.a) * (0.7 + 0.5 * m.g);
+          float l1 = texture2D(uNoise, (w.xz + w.y * 0.9) / 0.23).a, l2 = texture2D(uNoise, (w.zx - w.y * 1.1) / 0.11).b;
+          float cav = smoothstep(0.3, 0.65, l1 * 0.6 + l2 * 0.4);
+          diffuseColor.rgb *= mix(vec3(0.06, 0.13, 0.03), vec3(0.16, 0.27, 0.07), n.a) * (0.75 + 0.45 * m.g) * mix(0.35, 1.15, cav);
         }`,
     },
   });

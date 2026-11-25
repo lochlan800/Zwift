@@ -72,15 +72,11 @@ function clumpGeometry(nb, nt, ns) {
     const t = blade(1, 0.04 + rnd() * 0.08, a, 1.05 + rnd() * 0.25, 0.15 + rnd() * 0.2, 0.007, rnd(), 0.12);
     head(2, t[0], t[1] * 0.98, t[2], rnd() * 6, 0.2, 0.012, rnd());
   }
-  // a wildflower: thin stem + small diamond head
+  // a wildflower: thin stem + small crossed kite head
   {
     const a = rnd() * 6.28;
     const t = blade(3, 0.1, a, 0.8 + rnd() * 0.3, 0.1, 0.006, 0.5, 0.1);
-    const b = v, x = t[0], y = t[1], z = t[2], r = 0.045;
-    pos.push(x - r, y, z, x, y, z + r, x + r, y, z, x, y, z - r, x, y + 0.03, z);
-    uv.push(0, 1, 0, 1, 0, 1, 0, 1, 0.5, 1); for (let k = 0; k < 5; k++) kd.push(4, rnd());
-    idx.push(b, b + 1, b + 4, b + 1, b + 2, b + 4, b + 2, b + 3, b + 4, b + 3, b, b + 4);
-    v += 5;
+    head(4, t[0], t[1], t[2], rnd() * 6, 0.07, 0.035, rnd());
   }
   const g = new THREE.InstancedBufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));

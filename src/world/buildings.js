@@ -410,10 +410,10 @@ vec3 brickCol(int c) {
   if (c == 1) return lin3(vec3(0.66, 0.33, 0.19));
   if (c == 2) return lin3(vec3(0.50, 0.21, 0.13));
   if (c == 3) return lin3(vec3(0.70, 0.42, 0.25));
-  if (c == 4) return lin3(vec3(0.70, 0.56, 0.36));   // warm buff gritstone
-  if (c == 5) return lin3(vec3(0.55, 0.45, 0.32));   // darker weathered stone
+  if (c == 4) return lin3(vec3(0.68, 0.58, 0.42));   // warm buff gritstone
+  if (c == 5) return lin3(vec3(0.58, 0.50, 0.38));   // darker weathered stone
   if (c == 8) return lin3(vec3(0.66, 0.24, 0.14));   // bright Victorian red brick
-  if (c == 9) return lin3(vec3(0.78, 0.62, 0.40));   // honey Yorkshire sandstone
+  if (c == 9) return lin3(vec3(0.74, 0.63, 0.46));   // honey Yorkshire sandstone
   if (c == 10) return lin3(vec3(0.86, 0.82, 0.72));  // cream render
   if (c == 11) return lin3(vec3(0.55, 0.58, 0.60));  // painted grey render (pub)
   if (c == 6) return lin3(vec3(0.84, 0.78, 0.66));
@@ -653,7 +653,7 @@ void buildingSurface(vec3 w, vec3 Nw) {
         float wh = hb(bay * 1.9 + fl * 7.0 + seed);
         float wy = (lp2.y - lo.y) / max(hi.y - lo.y, 0.1), wxr = (lp2.x - lo.x) / max(hi.x - lo.x, 0.1);
         // glass: sky reflection grows at grazing angles, interior darkness otherwise
-        vec3 refl = skyLUT(reflect(-vv, Nw)) * 0.35;
+        vec3 refl = skyLUT(reflect(-vv, Nw)) * 0.22;
         float fres = 0.12 + 0.6 * pow(1.0 - ndv, 3.0);
         vec3 inner = lin3(vec3(0.05, 0.055, 0.065));
         if (wh < 0.35) inner = mix(inner, lin3(vec3(0.75, 0.75, 0.72)), smoothstep(0.6, 0.5, wy) * 0.85);            // net curtain
@@ -773,6 +773,11 @@ export async function createBuildings(features, slicer, onProgress, tcIdx = null
         for (const pb of [B.P, B.Q]) { const d = Math.hypot(pa[0] - pb[0], pa[1] - pb[1]); if (d > 0.25 && d < bd) { bd = d; best = { B, pb }; } }
       }
       if (!best || best.B.b._filled === A.b) continue;
+      {
+        // skip if the gap is already covered by a building (would z-fight with its wall)
+        const mx = (pa[0] + best.pb[0]) / 2, mz = (pa[1] + best.pb[1]) / 2;
+        if (bIdx && (bIdx.find(mx - A.nx * 0.3, mz - A.nz * 0.3) || bIdx.find(mx + A.nx * 0.05, mz + A.nz * 0.05))) continue;
+      }
       A.b._filled = best.B.b;
       const G = A.G, pb = best.pb;
       const ex = pb[0] - pa[0], ez = pb[1] - pa[1];
