@@ -91,7 +91,7 @@ export function createGrass(hf, lc, roadIdx, bIdx, cfg) {
   const R = cfg.grassRadius;
   const n = Math.ceil(R / CELL);
   const M = 2 * n + 1;
-  const K = Math.round(120 * cfg.grass);
+  const K = Math.round(105 * cfg.grass);
   const total = M * M * K;
   const low = cfg.tier === 'low';
   const geo = clumpGeometry(low ? 8 : 12, low ? 3 : 4, low ? 1 : 2);

@@ -257,7 +257,7 @@ function buildModel(sp, lod, tierName) {
   const hiDetail = tierName !== 'low';
   const t = sp === 5
     ? (lod === 0 ? { tiers: hiDetail ? 11 : 8, ring: 10 } : { tiers: 8, ring: 6 })
-    : (lod === 0 ? { cards: hiDetail ? 360 : 230 } : { cards: hiDetail ? 120 : 80 });
+    : (lod === 0 ? { cards: hiDetail ? 290 : 200 } : { cards: hiDetail ? 120 : 80 });
   return sp === 5 ? buildConifer(sp, lod, t) : buildDeciduous(sp, lod, t);
 }
 
