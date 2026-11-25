@@ -14,7 +14,7 @@ import { createGrass } from './world/grass.js';
 import { createWalls } from './world/walls.js';
 import { bakeShadows } from './world/shadowbake.js';
 import { generateHedgerows, createStreetLife } from './world/streetlife.js';
-import { markTownCentre, markQuarryHill, quarryTrees, quarryPub, markStorrs, storrsTrees, storrsVerge } from './world/towncentre.js';
+import { markTownCentre, markQuarryHill, quarryTrees, quarryPub, markStorrs, storrsTrees, storrsVerge, classifyAges } from './world/towncentre.js';
 import { SegmentIndex, distanceCull } from './world/heightfield.js';
 import { createRider } from './ride/rider.js';
 import { Route, Physics } from './ride/route.js';
@@ -119,6 +119,7 @@ async function build() {
   const hedgerows = generateHedgerows(features, hf, data.landcover, roadIdx, bIdx);
   for (const w of hedgerows.walls) features.walls.push(w);
   for (const t of hedgerows.trees) features.trees.push(t);
+  console.info('ages', JSON.stringify(classifyAges(features, bIdx)));
   const qTrees = quarryTrees(qh, hf, bIdx); for (const t of qTrees) features.trees.push(t);
   for (const t of storrsTrees(st, hf, bIdx)) features.trees.push(t);
   const qPub = quarryPub(qh, features, tc.tcIdx);

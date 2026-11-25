@@ -231,3 +231,53 @@ export function storrsVerge(st, hf, lc) {
   }
   return n;
 }
+
+// ---------------------------------------------------------------- building age / historic character
+// Deterministic: old core (≈700 m around High Street) and terraces -> Victorian/older stone & brick;
+// big detached boxes far from the core -> 20th century brick (a minority roughcast).
+export function classifyAges(features, bIdx) {
+  const area = (p) => { let a = 0; for (let i = 0; i < p.length; i++) { const q = p[i], r = p[(i + 1) % p.length]; a += q[0] * r[1] - r[0] * q[1]; } return Math.abs(a / 2); };
+  const stats = { old: 0, modern: 0, render: 0, mills: 0, churches: 0 };
+  const mills = [];
+  for (const b of features.buildings) {
+    if (!b.p || b.p.length < 3) continue;
+    const n = b.p.length; let cx = 0, cz = 0, x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9;
+    for (const q of b.p) { cx += q[0] / n; cz += q[1] / n; x0 = Math.min(x0, q[0]); x1 = Math.max(x1, q[0]); z0 = Math.min(z0, q[1]); z1 = Math.max(z1, q[1]); }
+    const A = area(b.p), dCore = Math.hypot(cx + 100, cz - 150);
+    const ext = Math.max(x1 - x0, z1 - z0), wid = Math.max(1, A / Math.max(ext, 1)), aspect = ext / wid;
+    const h = hash2(cx * 0.31, cz * 0.47), h2 = hash2(cz * 0.13, cx * 0.71);
+    let old = dCore < 700 || b.k === 'terrace' || (aspect > 2.4 && A > 70 && A < 600 && b.k !== 'industrial') || (dCore < 1200 && h < 0.5);
+    if (b.k === 'church') {
+      old = true; b.c = h < 0.6 ? 9 : 5; stats.churches++;
+      if (b.r === 'flat' && A < 1200) { b.r = 'gabled'; b.e = Math.max(5, Math.min(b.h * 0.65, b.h - 2.5)); }
+    }
+    if ((b.k === 'industrial' || b.k === 'other' || b.k === 'commercial') && A > 700 && A < 9000 && aspect > 1.7 && (b.h || 0) >= 8.5 && dCore < 2200) {
+      b.k = 'mill'; old = true; b.c = h < 0.55 ? 5 : (h < 0.8 ? 8 : 4); mills.push({ b, A }); stats.mills++;
+    }
+    b._old = old;
+    if (b._tc) { stats.old++; continue; }
+    const c = b.c | 0;
+    if (old) {
+      stats.old++;
+      // older buildings: stone or brick, very little render
+      if (c === 6 || c === 7) b.c = h2 < 0.45 ? 4 : h2 < 0.65 ? 5 : h2 < 0.8 ? 9 : (h2 < 0.92 ? 8 : 6);
+      if (b.c === 6) stats.render++;
+    } else {
+      stats.modern++;
+      if (c === 6 || c === 7) { if (h2 < 0.55) { stats.render++; } else b.c = [0, 1, 2, 3][Math.floor(h2 * 4) % 4]; }
+      else if (c === 4 || c === 5) { if (h2 < 0.5) b.c = 1 + Math.floor(h2 * 6) % 3; }
+    }
+  }
+  mills.sort((a, b) => b.A - a.A);
+  for (const m of mills.slice(0, 2)) m.b._millChimney = true;
+  // St Peter's (Georgian church on Church Street): tower + spire
+  let best = null, bd = 1e9;
+  for (const b of features.buildings) {
+    if (b.k !== 'church') continue;
+    const n = b.p.length; let cx = 0, cz = 0; for (const q of b.p) { cx += q[0] / n; cz += q[1] / n; }
+    const d = Math.hypot(cx - 19, cz - 26);
+    if (d < bd) { bd = d; best = b; }
+  }
+  if (best && bd < 120) { best._spire = true; best.c = 9; stats.stPeters = true; }
+  return stats;
+}

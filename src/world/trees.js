@@ -22,11 +22,11 @@ const BAKE_ELEV = 12 * Math.PI / 180;
 // ------------------------------------------------------------------ species table
 // colours are linear multipliers (vertex colours)
 const SPECIES = [
-  /* 0 oak      */ { cell: 0, leaf: [1.00, 1.00, 0.84], bark: [0.15, 0.105, 0.07], birch: 0, cy: 0.60, ry: 0.36, trunkTop: 0.42, trunkR: 0.050, lobes: 6, s0: 0.23, s1: 0.38 },
-  /* 1 sycamore */ { cell: 1, leaf: [0.86, 1.02, 0.86], bark: [0.18, 0.135, 0.10], birch: 0, cy: 0.62, ry: 0.35, trunkTop: 0.44, trunkR: 0.042, lobes: 5, s0: 0.22, s1: 0.37 },
-  /* 2 ash      */ { cell: 2, leaf: [1.08, 1.12, 0.80], bark: [0.18, 0.145, 0.105], birch: 0, cy: 0.64, ry: 0.38, trunkTop: 0.44, trunkR: 0.040, lobes: 5, s0: 0.21, s1: 0.36 },
-  /* 3 birch    */ { cell: 2, leaf: [1.18, 1.18, 0.78], bark: [1.00, 1.00, 0.96], birch: 1, cy: 0.64, ry: 0.36, trunkTop: 0.50, trunkR: 0.030, lobes: 4, s0: 0.20, s1: 0.34 },
-  /* 4 beech    */ { cell: 1, leaf: [0.94, 0.98, 0.78], bark: [0.25, 0.21, 0.17], birch: 0, cy: 0.58, ry: 0.38, trunkTop: 0.36, trunkR: 0.052, lobes: 6, s0: 0.23, s1: 0.39 },
+  /* 0 oak      */ { cell: 0, leaf: [1.00, 1.00, 0.84], bark: [0.15, 0.105, 0.07], birch: 0, cy: 0.60, ry: 0.36, trunkTop: 0.42, trunkR: 0.050, lobes: 8, s0: 0.27, s1: 0.44 },
+  /* 1 sycamore */ { cell: 1, leaf: [0.86, 1.02, 0.86], bark: [0.18, 0.135, 0.10], birch: 0, cy: 0.62, ry: 0.35, trunkTop: 0.44, trunkR: 0.042, lobes: 7, s0: 0.26, s1: 0.43 },
+  /* 2 ash      */ { cell: 2, leaf: [1.08, 1.12, 0.80], bark: [0.18, 0.145, 0.105], birch: 0, cy: 0.64, ry: 0.38, trunkTop: 0.44, trunkR: 0.040, lobes: 7, s0: 0.25, s1: 0.42 },
+  /* 3 birch    */ { cell: 2, leaf: [1.18, 1.18, 0.78], bark: [1.00, 1.00, 0.96], birch: 1, cy: 0.64, ry: 0.36, trunkTop: 0.50, trunkR: 0.030, lobes: 6, s0: 0.24, s1: 0.40 },
+  /* 4 beech    */ { cell: 1, leaf: [0.94, 0.98, 0.78], bark: [0.25, 0.21, 0.17], birch: 0, cy: 0.58, ry: 0.38, trunkTop: 0.36, trunkR: 0.052, lobes: 8, s0: 0.27, s1: 0.45 },
   /* 5 conifer  */ { cell: 3, leaf: [0.38, 0.50, 0.30], bark: [0.16, 0.085, 0.05], birch: 0, cy: 0.5, ry: 0.5, trunkTop: 0.95, trunkR: 0.036, lobes: 0, s0: 0.3, s1: 0.4 },
 ];
 
@@ -169,12 +169,12 @@ function buildDeciduous(sp, lod, tier) {
   // crown = several big overlapping lobes (ellipsoids) -> bumpy, clumpy, painterly silhouette
   const nLobe = S.lobes;
   const lobes = [];
-  lobes.push({ x: 0, y: cy + ry * 0.18, z: 0, rx: 0.62, ry: ry * 0.78, rz: 0.62 });
+  lobes.push({ x: 0, y: cy + ry * 0.18, z: 0, rx: 0.7, ry: ry * 0.85, rz: 0.7 });
   const a0 = rnd() * 6.28;
   for (let i = 0; i < nLobe - 1; i++) {
     const a = a0 + (i / (nLobe - 1)) * Math.PI * 2 + (rnd() - 0.5) * 0.5;
-    const d = 0.50 + rnd() * 0.12;
-    const lr = 0.50 + rnd() * 0.08;
+    const d = 0.54 + rnd() * 0.14;
+    const lr = 0.52 + rnd() * 0.1;
     const high = (i % 2 === 0) ? 0.1 : -0.18;
     lobes.push({ x: Math.cos(a) * d, y: cy + ry * (high + (rnd() - 0.5) * 0.25), z: Math.sin(a) * d, rx: lr, ry: ry * (0.66 + rnd() * 0.12), rz: lr });
   }
@@ -188,7 +188,7 @@ function buildDeciduous(sp, lod, tier) {
     segs.push([mid.x, mid.y, mid.z, L.x * 0.85, L.y, L.z * 0.85, lr * 0.7, lr * 0.35, hi ? 5 : 4, 0]);
   }
   // opaque dark cores so the crown never shows sky through it
-  for (const L of lobes) blobs.push({ c: V(L.x, L.y, L.z), rx: L.rx * 0.68, ry: L.ry * 0.68, rz: L.rz * 0.68, detail: hi ? 1 : 0 });
+  for (const L of lobes) blobs.push({ c: V(L.x, L.y, L.z), rx: L.rx * 0.8, ry: L.ry * 0.8, rz: L.rz * 0.8, detail: hi ? 1 : 0 });
   const inside = (p, k, skip) => { let n = 0; for (let i = 0; i < lobes.length; i++) { if (i === skip) continue; const L = lobes[i]; const q = ((p.x - L.x) / L.rx) ** 2 + ((p.y - L.y) / L.ry) ** 2 + ((p.z - L.z) / L.rz) ** 2; if (q < k * k) n++; } return n; };
   const size = hi ? S.s0 : S.s1;
   const per = Math.round(tier.cards / nLobe);
@@ -257,7 +257,7 @@ function buildModel(sp, lod, tierName) {
   const hiDetail = tierName !== 'low';
   const t = sp === 5
     ? (lod === 0 ? { tiers: hiDetail ? 11 : 8, ring: 10 } : { tiers: 8, ring: 6 })
-    : (lod === 0 ? { cards: hiDetail ? 290 : 200 } : { cards: hiDetail ? 120 : 80 });
+    : (lod === 0 ? { cards: hiDetail ? 420 : 280 } : { cards: hiDetail ? 150 : 100 });
   return sp === 5 ? buildConifer(sp, lod, t) : buildDeciduous(sp, lod, t);
 }
 
@@ -488,22 +488,68 @@ const WIND_VERT = /* glsl */`
 `;
 
 // ------------------------------------------------------------------ main
+function buildRoadTest(features, margin) {
+  const RC = 32, rg = new Map(), segs = [];
+  for (const r of features.roads || []) {
+    if (r.tu || r.k === 'footway' || r.k === 'path' || r.k === 'steps' || r.k === 'cycleway' || r.k === 'track') continue;
+    const hw = (r.w || 6) / 2 + margin;
+    for (let k = 0; k + 1 < r.p.length; k++) {
+      const a = r.p[k], b = r.p[k + 1];
+      const si = segs.length; segs.push(a[0], a[2], b[0], b[2], hw);
+      const x0 = Math.floor((Math.min(a[0], b[0]) - hw) / RC), x1 = Math.floor((Math.max(a[0], b[0]) + hw) / RC);
+      const z0 = Math.floor((Math.min(a[2], b[2]) - hw) / RC), z1 = Math.floor((Math.max(a[2], b[2]) + hw) / RC);
+      for (let cz = z0; cz <= z1; cz++) for (let cx = x0; cx <= x1; cx++) { const key = cx * 100003 + cz; let l = rg.get(key); if (!l) rg.set(key, l = []); l.push(si); }
+    }
+  }
+  return (x, z) => {
+    const l = rg.get(Math.floor(x / RC) * 100003 + Math.floor(z / RC));
+    if (!l) return false;
+    for (let q = 0; q < l.length; q++) {
+      const o = l[q], ax = segs[o], az = segs[o + 1], bx = segs[o + 2], bz = segs[o + 3];
+      const dx = bx - ax, dz = bz - az, L2 = dx * dx + dz * dz;
+      let t = L2 > 0 ? ((x - ax) * dx + (z - az) * dz) / L2 : 0; t = t < 0 ? 0 : t > 1 ? 1 : t;
+      if (Math.hypot(ax + dx * t - x, az + dz * t - z) < segs[o + 4]) return true;
+    }
+    return false;
+  };
+}
+
 export function createTrees(features, hf, opts) {
-  const trees = features.trees;
-  const N = trees.length;
-  const tx = new Float32Array(N), ty = new Float32Array(N), tz = new Float32Array(N), th = new Float32Array(N), tr = new Float32Array(N);
-  const tsp = new Uint8Array(N);
-  const ttint = new Float32Array(N * 3);
-  const tlift = new Float32Array(N);
   const noise2 = (x, z, s) => {
     const gx = Math.floor(x / s), gz = Math.floor(z / s);
     let fx = x / s - gx, fz = z / s - gz; fx = fx * fx * (3 - 2 * fx); fz = fz * fz * (3 - 2 * fz);
     const a = hash2(gx, gz), b = hash2(gx + 1, gz), c = hash2(gx, gz + 1), d = hash2(gx + 1, gz + 1);
     return a + (b - a) * fx + (c - a) * fz + (a - b - c + d) * fx * fz;
   };
+  const nearRoad = buildRoadTest(features, 7);
+  // denser woodland: understorey / filler trees tucked between existing trees in woodland patches
+  const trees = features.trees.slice();
+  {
+    const baseN = trees.length;
+    for (let i = 0; i < baseN; i++) {
+      const [x, , z, h, r] = trees[i];
+      if (h < 6) continue;
+      const patch = noise2(x, z, 150);
+      const pr = patch > 0.6 ? 0.9 : patch > 0.5 ? 0.45 : 0.1;
+      if (hash2(x * 2.1, z * 1.3) >= pr) continue;
+      const cnt = patch > 0.6 ? 2 : 1;
+      for (let q = 0; q < cnt; q++) {
+        const ang = hash2(x * 3.3 + q, z * 1.7) * Math.PI * 2, dd = Math.max(r, 1.5) * (0.8 + 0.9 * hash2(z * 0.7, x * 1.9 + q));
+        const ex = x + Math.cos(ang) * dd, ez = z + Math.sin(ang) * dd;
+        if (nearRoad(ex, ez)) continue;
+        const f = 0.42 + 0.3 * hash2(ex * 1.1, ez * 0.9);
+        trees.push([ex, hf.sample(ex, ez), ez, h * f, Math.max(1.4, r * (0.7 + 0.5 * f))]);
+      }
+    }
+  }
+  const N = trees.length;
+  const tx = new Float32Array(N), ty = new Float32Array(N), tz = new Float32Array(N), th = new Float32Array(N), tr = new Float32Array(N);
+  const tsp = new Uint8Array(N);
+  const ttint = new Float32Array(N * 3);
+  const tlift = new Float32Array(N);
   for (let i = 0; i < N; i++) {
     const [x, y, z, h, r] = trees[i];
-    tx[i] = x; ty[i] = y; tz[i] = z; th[i] = Math.max(2.5, h); tr[i] = Math.max(0.8, Math.min(r, h * 0.7));
+    tx[i] = x; ty[i] = y; tz[i] = z; th[i] = Math.max(2.5, h); tr[i] = Math.min(h * 0.75, Math.max(1.3, r * 1.12 + 0.45));
     const hs = hash2(x, z), hu = hash2(z * 1.9 + 3, x * 0.7);
     const patch = noise2(x, z, 150);
     const conBias = patch > 0.64 ? 0.55 : patch > 0.54 ? 0.22 : 0.05;
@@ -532,32 +578,8 @@ export function createTrees(features, hf, opts) {
     ttint[i * 3] = r0; ttint[i * 3 + 1] = g0; ttint[i * 3 + 2] = b0;
   }
   // roadside trees get a clear stem (~4 m under the canopy) like real street trees
-  {
-    const RC = 32, rg = new Map();
-    const segs = [];
-    for (const r of features.roads || []) {
-      if (r.tu || r.k === 'footway' || r.k === 'path' || r.k === 'steps' || r.k === 'cycleway' || r.k === 'track') continue;
-      const hw = (r.w || 6) / 2 + 7;
-      for (let k = 0; k + 1 < r.p.length; k++) {
-        const a = r.p[k], b = r.p[k + 1];
-        const si = segs.length; segs.push(a[0], a[2], b[0], b[2], hw);
-        const x0 = Math.floor((Math.min(a[0], b[0]) - hw) / RC), x1 = Math.floor((Math.max(a[0], b[0]) + hw) / RC);
-        const z0 = Math.floor((Math.min(a[2], b[2]) - hw) / RC), z1 = Math.floor((Math.max(a[2], b[2]) + hw) / RC);
-        for (let cz = z0; cz <= z1; cz++) for (let cx = x0; cx <= x1; cx++) { const key = cx * 100003 + cz; let l = rg.get(key); if (!l) rg.set(key, l = []); l.push(si); }
-      }
-    }
-    for (let i = 0; i < N; i++) {
-      const l = rg.get(Math.floor(tx[i] / RC) * 100003 + Math.floor(tz[i] / RC));
-      if (!l) continue;
-      let near = false;
-      for (let q = 0; q < l.length && !near; q++) {
-        const o = l[q], ax = segs[o], az = segs[o + 1], bx = segs[o + 2], bz = segs[o + 3];
-        const dx = bx - ax, dz = bz - az, L2 = dx * dx + dz * dz;
-        let t = L2 > 0 ? ((tx[i] - ax) * dx + (tz[i] - az) * dz) / L2 : 0; t = t < 0 ? 0 : t > 1 ? 1 : t;
-        if (Math.hypot(ax + dx * t - tx[i], az + dz * t - tz[i]) < segs[o + 4]) near = true;
-      }
-      if (near && tsp[i] !== 5) tlift[i] = Math.min(0.3, Math.max(0, (4.2 - 0.28 * th[i]) / th[i]));
-    }
+  for (let i = 0; i < N; i++) {
+    if (tsp[i] !== 5 && nearRoad(tx[i], tz[i])) tlift[i] = Math.min(0.3, Math.max(0, (4.2 - 0.28 * th[i]) / th[i]));
   }
   // spatial grid
   const CELLW = 64;

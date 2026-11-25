@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { patchMaterial, GRID_GLSL } from './shared.js';
 import { mulberry32 } from './heightfield.js';
 
-const KINDS = ['house', 'terrace', 'residential', 'commercial', 'retail', 'industrial', 'church', 'school', 'garage', 'shed', 'other', 'coop', 'pub'];
+const KINDS = ['house', 'terrace', 'residential', 'commercial', 'retail', 'industrial', 'church', 'school', 'garage', 'shed', 'other', 'coop', 'pub', 'mill'];
 export const frontEnds = []; // front-edge endpoints of town-centre buildings (for gap filling)
 export const pubFronts = [];
 // shop units found while building facades (used to place awnings, A-boards, the clock)
@@ -148,6 +148,7 @@ function addBuilding(G, b, rnd, tcIdx, roadIdx, bIdx) {
     : roof === 'hipped' ? (u, v) => E + s * Math.min(O.hw - Math.abs(v), O.hl - Math.abs(u))
       : () => H;
   const c = Math.min(15, b.c | 0);
+  const cA = c + (b._old ? 16 : 0);
   const seed = (rnd() * 255) | 0;
   const bottom = base - 1.5;
   const eaveAbs = base + E;
@@ -210,22 +211,22 @@ function addBuilding(G, b, rnd, tcIdx, roadIdx, bIdx) {
             const fx = Bq[0] - A[0], fz = Bq[1] - A[1], fl = Math.hypot(fx, fz);
             let fnx = fz / fl, fnz = -fx / fl;
             if (fnx * nx + fnz * nz < 0) { fnx = -fnx; fnz = -fnz; }
-            const a0 = G.v(A[0], yb, A[1], fnx, 0, fnz, 0, fl, base, base + 3.2, c, kind, S_BAY, seed);
-            const a1 = G.v(Bq[0], yb, Bq[1], fnx, 0, fnz, fl, fl, base, base + 3.2, c, kind, S_BAY, seed);
-            const b0 = G.v(A[0], yt, A[1], fnx, 0, fnz, 0, fl, base, base + 3.2, c, kind, S_BAY, seed);
-            const b1 = G.v(Bq[0], yt, Bq[1], fnx, 0, fnz, fl, fl, base, base + 3.2, c, kind, S_BAY, seed);
+            const a0 = G.v(A[0], yb, A[1], fnx, 0, fnz, 0, fl, base, base + 3.2, cA, kind, S_BAY, seed);
+            const a1 = G.v(Bq[0], yb, Bq[1], fnx, 0, fnz, fl, fl, base, base + 3.2, cA, kind, S_BAY, seed);
+            const b0 = G.v(A[0], yt, A[1], fnx, 0, fnz, 0, fl, base, base + 3.2, cA, kind, S_BAY, seed);
+            const b1 = G.v(Bq[0], yt, Bq[1], fnx, 0, fnz, fl, fl, base, base + 3.2, cA, kind, S_BAY, seed);
             if (fx * fnz - fz * fnx > 0) G.idx.push(a0, a1, b0, b0, a1, b1); else G.idx.push(a0, b0, a1, a1, b0, b1);
             acc += fl;
           }
           // small slate lid sloping back to the wall
-          const lid = pts.map((q, i) => G.v(q[0], yt + (i === 0 || i === 3 ? 0.45 : 0), q[1], nx * 0.5, 0.87, nz * 0.5, 0, 0, base, base + 3.2, c, kind, S_ROOF, seed));
+          const lid = pts.map((q, i) => G.v(q[0], yt + (i === 0 || i === 3 ? 0.45 : 0), q[1], nx * 0.5, 0.87, nz * 0.5, 0, 0, base, base + 3.2, cA, kind, S_ROOF, seed));
           const ny = (pts[1][1] - pts[0][1]) * (pts[2][0] - pts[0][0]) - (pts[1][0] - pts[0][0]) * (pts[2][1] - pts[0][1]);
           if (ny > 0) G.idx.push(lid[0], lid[1], lid[2], lid[0], lid[2], lid[3]); else G.idx.push(lid[0], lid[2], lid[1], lid[0], lid[3], lid[2]);
         }
       }
     }
     if (b._tc && tcIdx) {
-      if (shopEdge) frontEnds.push({ b, P, Q, nx, nz, base, E, c, kind, seed, G });
+      if (shopEdge) frontEnds.push({ b, P, Q, nx, nz, base, E, cA, kind, seed, G });
       if (shopEdge && (b.k === 'coop' || b.k === 'pub')) {
         if (b.k === 'pub') pubFronts.push({ x: (P[0] + Q[0]) / 2, z: (P[1] + Q[1]) / 2, y: base, nx, nz, tx: ex / len, tz: ez / len, w: len, E, qinn: !!b._qinn });
         shopEdge = false;
@@ -246,13 +247,13 @@ function addBuilding(G, b, rnd, tcIdx, roadIdx, bIdx) {
       const y0 = base + roofH(uv0[0], uv0[1]), y1 = base + roofH(uv1[0], uv1[1]);
       const sw = shopEdge ? S_SHOP : S_WALL;
       G.ao = aoAt(x0, z0);
-      const a0 = G.v(x0, bottom, z0, nx, 0, nz, t0 * len, len, base, eaveAbs, c, kind, sw, seed);
+      const a0 = G.v(x0, bottom, z0, nx, 0, nz, t0 * len, len, base, eaveAbs, cA, kind, sw, seed);
       G.ao = aoAt(x1, z1);
-      const a1 = G.v(x1, bottom, z1, nx, 0, nz, t1 * len, len, base, eaveAbs, c, kind, sw, seed);
+      const a1 = G.v(x1, bottom, z1, nx, 0, nz, t1 * len, len, base, eaveAbs, cA, kind, sw, seed);
       G.ao = aoAt(x0, z0);
-      const b0 = G.v(x0, y0, z0, nx, 0, nz, t0 * len, len, base, eaveAbs, c, kind, sw, seed);
+      const b0 = G.v(x0, y0, z0, nx, 0, nz, t0 * len, len, base, eaveAbs, cA, kind, sw, seed);
       G.ao = aoAt(x1, z1);
-      const b1 = G.v(x1, y1, z1, nx, 0, nz, t1 * len, len, base, eaveAbs, c, kind, sw, seed);
+      const b1 = G.v(x1, y1, z1, nx, 0, nz, t1 * len, len, base, eaveAbs, cA, kind, sw, seed);
       G.ao = 1;
       // (a1-a0)x(b0-a0) = (-ez, 0, ex)*h : front-facing when it agrees with the outward normal
       if (ex * nz - ez * nx > 0) G.idx.push(a0, a1, b0, b0, a1, b1); else G.idx.push(a0, b0, a1, a1, b0, b1);
@@ -269,12 +270,12 @@ function addBuilding(G, b, rnd, tcIdx, roadIdx, bIdx) {
     const tris = triangulate(pl);
     const ids = pl.map((q) => {
       const [x, z] = toXZ(q[0], q[1]);
-      return G.v(x, base + hfun(q[0], q[1]), z, nrm[0], nrm[1], nrm[2], q[0], q[1], base, eaveAbs, c, kind, surf, seed);
+      return G.v(x, base + hfun(q[0], q[1]), z, nrm[0], nrm[1], nrm[2], q[0], q[1], base, eaveAbs, cA, kind, surf, seed);
     });
     // underside (soffit) only where the roof overhangs: cheap full duplicate, slightly lowered
     const sid = false && OH && surf === S_ROOF ? pl.map((q) => {
       const [x, z] = toXZ(q[0], q[1]);
-      return G.v(x, base + hfun(q[0], q[1]) - 0.06, z, -nrm[0], -nrm[1], -nrm[2], q[0], q[1], base, eaveAbs, c, kind, 4, seed);
+      return G.v(x, base + hfun(q[0], q[1]) - 0.06, z, -nrm[0], -nrm[1], -nrm[2], q[0], q[1], base, eaveAbs, cA, kind, 4, seed);
     }) : null;
     for (const t of tris) {
       const p0 = pl[t[0]], p1 = pl[t[1]], p2 = pl[t[2]];
@@ -307,8 +308,8 @@ function addBuilding(G, b, rnd, tcIdx, roadIdx, bIdx) {
 
   // ---- fascia / bargeboards along the overhanging roof edge, gutters + downpipes on eaves, ridge tiles
   const quad = (A, Bq, ya0, ya1, yb0, yb1, nx, nz, surf) => {
-    const ids = [G.v(A[0], ya0, A[1], nx, 0, nz, 0, 1, base, eaveAbs, c, kind, surf, seed), G.v(Bq[0], yb0, Bq[1], nx, 0, nz, 1, 1, base, eaveAbs, c, kind, surf, seed),
-      G.v(A[0], ya1, A[1], nx, 0, nz, 0, 1, base, eaveAbs, c, kind, surf, seed), G.v(Bq[0], yb1, Bq[1], nx, 0, nz, 1, 1, base, eaveAbs, c, kind, surf, seed)];
+    const ids = [G.v(A[0], ya0, A[1], nx, 0, nz, 0, 1, base, eaveAbs, cA, kind, surf, seed), G.v(Bq[0], yb0, Bq[1], nx, 0, nz, 1, 1, base, eaveAbs, cA, kind, surf, seed),
+      G.v(A[0], ya1, A[1], nx, 0, nz, 0, 1, base, eaveAbs, cA, kind, surf, seed), G.v(Bq[0], yb1, Bq[1], nx, 0, nz, 1, 1, base, eaveAbs, cA, kind, surf, seed)];
     const ex = Bq[0] - A[0], ez = Bq[1] - A[1];
     if (ex * nz - ez * nx > 0) G.idx.push(ids[0], ids[1], ids[2], ids[2], ids[1], ids[3]); else G.idx.push(ids[0], ids[2], ids[1], ids[1], ids[2], ids[3]);
   };
@@ -358,10 +359,10 @@ function addBuilding(G, b, rnd, tcIdx, roadIdx, bIdx) {
       const L0 = toXZ(-ru, 0), L1 = toXZ(ru, 0);
       for (const sd of [-1, 1]) {
         const A = [L0[0] + O.vx * sd * 0.16, L0[1] + O.vz * sd * 0.16], Bq = [L1[0] + O.vx * sd * 0.16, L1[1] + O.vz * sd * 0.16];
-        const ids = [G.v(L0[0], yr + 0.13, L0[1], O.vx * sd * 0.7, 0.7, O.vz * sd * 0.7, -ru, 0, base, eaveAbs, c, kind, S_RIDGE, seed),
-          G.v(L1[0], yr + 0.13, L1[1], O.vx * sd * 0.7, 0.7, O.vz * sd * 0.7, ru, 0, base, eaveAbs, c, kind, S_RIDGE, seed),
-          G.v(A[0], yr - 0.02, A[1], O.vx * sd * 0.7, 0.7, O.vz * sd * 0.7, -ru, 1, base, eaveAbs, c, kind, S_RIDGE, seed),
-          G.v(Bq[0], yr - 0.02, Bq[1], O.vx * sd * 0.7, 0.7, O.vz * sd * 0.7, ru, 1, base, eaveAbs, c, kind, S_RIDGE, seed)];
+        const ids = [G.v(L0[0], yr + 0.13, L0[1], O.vx * sd * 0.7, 0.7, O.vz * sd * 0.7, -ru, 0, base, eaveAbs, cA, kind, S_RIDGE, seed),
+          G.v(L1[0], yr + 0.13, L1[1], O.vx * sd * 0.7, 0.7, O.vz * sd * 0.7, ru, 0, base, eaveAbs, cA, kind, S_RIDGE, seed),
+          G.v(A[0], yr - 0.02, A[1], O.vx * sd * 0.7, 0.7, O.vz * sd * 0.7, -ru, 1, base, eaveAbs, cA, kind, S_RIDGE, seed),
+          G.v(Bq[0], yr - 0.02, Bq[1], O.vx * sd * 0.7, 0.7, O.vz * sd * 0.7, ru, 1, base, eaveAbs, cA, kind, S_RIDGE, seed)];
         triOriented(G, ids[0], ids[1], ids[3], O.vx * sd, 1, O.vz * sd);
         triOriented(G, ids[0], ids[3], ids[2], O.vx * sd, 1, O.vz * sd);
       }
@@ -375,20 +376,21 @@ function addBuilding(G, b, rnd, tcIdx, roadIdx, bIdx) {
     for (let e = 0; e < 4; e++) {
       const P = corners[e], Q = corners[(e + 1) % 4];
       const [nx, nz] = fn[e];
-      const ids = [G.v(P[0], yb, P[1], nx, 0, nz, 0, 1, base, eaveAbs, c, kind, surfSide, seed),
-        G.v(Q[0], yb, Q[1], nx, 0, nz, 1, 1, base, eaveAbs, c, kind, surfSide, seed),
-        G.v(P[0], top, P[1], nx, 0, nz, 0, 1, base, eaveAbs, c, kind, surfSide, seed),
-        G.v(Q[0], top, Q[1], nx, 0, nz, 1, 1, base, eaveAbs, c, kind, surfSide, seed)];
+      const el = Math.hypot(Q[0] - P[0], Q[1] - P[1]);
+      const ids = [G.v(P[0], yb, P[1], nx, 0, nz, 0, el, yb, top + 1, cA, kind, surfSide, seed),
+        G.v(Q[0], yb, Q[1], nx, 0, nz, el, el, yb, top + 1, cA, kind, surfSide, seed),
+        G.v(P[0], top, P[1], nx, 0, nz, 0, el, yb, top + 1, cA, kind, surfSide, seed),
+        G.v(Q[0], top, Q[1], nx, 0, nz, el, el, yb, top + 1, cA, kind, surfSide, seed)];
       const ex = Q[0] - P[0], ez = Q[1] - P[1];
       if (ex * nz - ez * nx > 0) G.idx.push(ids[0], ids[1], ids[2], ids[2], ids[1], ids[3]); else G.idx.push(ids[0], ids[2], ids[1], ids[1], ids[2], ids[3]);
     }
-    const tids = corners.map((q) => G.v(q[0], top, q[1], 0, 1, 0, 0, 0, base, eaveAbs, c, kind, surfTop, seed));
+    const tids = corners.map((q) => G.v(q[0], top, q[1], 0, 1, 0, 0, 0, base, eaveAbs, cA, kind, surfTop, seed));
     const ny = (corners[1][1] - corners[0][1]) * (corners[2][0] - corners[0][0]) - (corners[1][0] - corners[0][0]) * (corners[2][1] - corners[0][1]);
     if (ny > 0) G.idx.push(tids[0], tids[1], tids[2], tids[0], tids[2], tids[3]); else G.idx.push(tids[0], tids[2], tids[1], tids[0], tids[3], tids[2]);
   };
   if (roof !== 'flat' && (kind <= 2 || b._tc) && O.hl > 2.5 && b.k !== 'shed' && b.k !== 'garage') {
     const spots = [];
-    if (kind === 1 || O.hl > 9) { for (let u = -O.hl + 3.5; u < O.hl - 2; u += 6.5 + rnd() * 1.5) spots.push(u); }
+    if (kind === 1 || O.hl > 9) { const sp = b._old ? 5.2 : 6.5; for (let u = -O.hl + sp * 0.5; u < O.hl - 1.5; u += sp + rnd() * 0.6) spots.push(u); }
     else if (rnd() < (b._tc ? 1 : 0.85)) { spots.push((rnd() < 0.5 ? -1 : 1) * (O.hl - (roof === 'hipped' ? O.hw * 0.9 : 0.6))); if (rnd() < (b._tc ? 0.7 : 0.35)) spots.push(-spots[0]); }
     for (const u of spots) {
       const top = base + roofH(u, 0) + 0.9 + rnd() * 0.4;
@@ -398,6 +400,35 @@ function addBuilding(G, b, rnd, tcIdx, roadIdx, bIdx) {
       const np = 2 + (rnd() < 0.4 ? 1 : 0);
       for (let k = 0; k < np; k++) prism(u, (k - (np - 1) / 2) * 0.42, 0.1, 0.1, top - 0.02, top + 0.32 + rnd() * 0.12, S_POT, S_POT);
     }
+  }
+  // ---- St Peter's: west tower with spire; mills: tall chimney
+  if (b._spire) {
+    const uw = toXZ(-O.hl, 0)[0] < toXZ(O.hl, 0)[0] ? -O.hl : O.hl; // west end
+    const tc = toXZ(uw + Math.sign(-uw) * 2.4, 0), hw = 2.6, top = base + Math.max(H + 9, 22);
+    const cs = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([a, bb]) => [tc[0] + (O.ux * a + O.vx * bb) * hw, tc[1] + (O.uz * a + O.vz * bb) * hw]);
+    const towerEave = top - 0.6;
+    for (let e = 0; e < 4; e++) {
+      const P = cs[e], Q = cs[(e + 1) % 4], ex = Q[0] - P[0], ez = Q[1] - P[1], el = Math.hypot(ex, ez);
+      const mx = (P[0] + Q[0]) / 2 - tc[0], mz = (P[1] + Q[1]) / 2 - tc[1], ml = Math.hypot(mx, mz), nx = mx / ml, nz = mz / ml;
+      const ids = [G.v(P[0], base - 1, P[1], nx, 0, nz, 0, el, base, towerEave, cA, 6, S_WALL, seed), G.v(Q[0], base - 1, Q[1], nx, 0, nz, el, el, base, towerEave, cA, 6, S_WALL, seed),
+        G.v(P[0], top, P[1], nx, 0, nz, 0, el, base, towerEave, cA, 6, S_WALL, seed), G.v(Q[0], top, Q[1], nx, 0, nz, el, el, base, towerEave, cA, 6, S_WALL, seed)];
+      if (ex * nz - ez * nx > 0) G.idx.push(ids[0], ids[1], ids[2], ids[2], ids[1], ids[3]); else G.idx.push(ids[0], ids[2], ids[1], ids[1], ids[2], ids[3]);
+      // spire face
+      const apex = [tc[0], top + 20, tc[1]];
+      const P2 = [tc[0] + (P[0] - tc[0]) * 0.8, tc[1] + (P[1] - tc[1]) * 0.8], Q2 = [tc[0] + (Q[0] - tc[0]) * 0.8, tc[1] + (Q[1] - tc[1]) * 0.8];
+      const sl = Math.hypot(20, hw * 0.8), ny = hw * 0.8 / sl, nh = 20 / sl;
+      const s0 = G.v(P2[0], top, P2[1], nx * nh, ny, nz * nh, 0, 0, base, top, cA, 6, S_CAP, seed), s1 = G.v(Q2[0], top, Q2[1], nx * nh, ny, nz * nh, 0, 0, base, top, cA, 6, S_CAP, seed), s2 = G.v(apex[0], apex[1], apex[2], nx * nh, ny, nz * nh, 0, 0, base, top, cA, 6, S_CAP, seed);
+      triOriented(G, s0, s1, s2, nx, 0.2, nz);
+    }
+    // parapet cap
+    const capIds = cs.map((q) => G.v(q[0], top, q[1], 0, 1, 0, 0, 0, base, top, cA, 6, S_CAP, seed));
+    triOriented(G, capIds[0], capIds[1], capIds[2], 0, 1, 0); triOriented(G, capIds[0], capIds[2], capIds[3], 0, 1, 0);
+  }
+  if (b._millChimney) {
+    const u = O.hl + 3.2;
+    prism(u, 0, 1.1, 1.1, base - 0.5, base + 28, S_CHIM, S_CAP);
+    prism(u, 0, 1.35, 1.35, base - 0.5, base + 3, S_CHIM, S_CAP);
+    prism(u, 0, 1.25, 1.25, base + 27, base + 28.6, S_CAP, S_CAP);
   }
 }
 
