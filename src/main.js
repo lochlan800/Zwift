@@ -157,7 +157,7 @@ async function build() {
   const sky = createSky(renderer);
   scene.add(sky.dome);
   scene.environment = sky.envMap;
-  scene.environmentIntensity = 0.75; // sky-lighting hook: strong blue sky fill so shadows stay readable (~50% of lit)
+  scene.environmentIntensity = 0.55; // sky-lighting hook: strong blue sky fill so shadows stay readable (~50% of lit)
   U.uNoise.value = makeNoiseTexture(256);
   world.sky = sky;
 

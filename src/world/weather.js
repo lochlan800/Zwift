@@ -26,9 +26,9 @@ export const WEATHER_MODES = ['sunny', 'cloudy', 'rain', 'storm', 'auto'];
 // tunable look per state (values are blended smoothly)
 const STATES = {
   sunny:  { cover: 0.30, grey: 0.00, over: 0.00, dark: 0.00, sunMul: 1.25, envMul: 1.00, expMul: 1.00, fogMul: 0.75, rain: 0, storm: 0, wind: 0.55, gust: 0.15, sunVis: 1.0, cr: 0.52, cg: 0.57, cb: 0.65, drift: 1.0 },
-  cloudy: { cover: 0.74, grey: 0.55, over: 0.60, dark: 0.15, sunMul: 0.32, envMul: 1.30, expMul: 1.10, fogMul: 1.30, rain: 0, storm: 0, wind: 1.00, gust: 0.25, sunVis: 0.30, cr: 0.50, cg: 0.525, cb: 0.56, drift: 1.8 },
-  rain:   { cover: 0.95, grey: 0.97, over: 1.00, dark: 0.55, sunMul: 0.03, envMul: 1.25, expMul: 1.22, fogMul: 3.4, rain: 0.8, storm: 0, wind: 1.60, gust: 0.35, sunVis: 0.0, cr: 0.30, cg: 0.318, cb: 0.345, drift: 2.6 },
-  storm:  { cover: 1.00, grey: 1.00, over: 1.00, dark: 1.00, sunMul: 0.0, envMul: 1.05, expMul: 1.35, fogMul: 5.0, rain: 1.0, storm: 1.0, wind: 4.20, gust: 0.55, sunVis: 0.0, cr: 0.135, cg: 0.145, cb: 0.165, drift: 6.0 },
+  cloudy: { cover: 0.74, grey: 0.55, over: 0.60, dark: 0.15, sunMul: 0.20, envMul: 1.20, expMul: 1.08, fogMul: 1.30, rain: 0, storm: 0, wind: 1.00, gust: 0.25, sunVis: 0.30, cr: 0.50, cg: 0.525, cb: 0.56, drift: 1.8 },
+  rain:   { cover: 0.95, grey: 0.97, over: 1.00, dark: 0.55, sunMul: 0.03, envMul: 1.0, expMul: 1.12, fogMul: 3.4, rain: 0.8, storm: 0, wind: 1.60, gust: 0.35, sunVis: 0.0, cr: 0.30, cg: 0.318, cb: 0.345, drift: 2.6 },
+  storm:  { cover: 1.00, grey: 1.00, over: 1.00, dark: 1.00, sunMul: 0.0, envMul: 0.62, expMul: 1.05, fogMul: 5.0, rain: 1.0, storm: 1.0, wind: 4.20, gust: 0.55, sunVis: 0.0, cr: 0.085, cg: 0.092, cb: 0.105, drift: 6.0 },
   windy:  { cover: 0.42, grey: 0.00, over: 0.00, dark: 0.00, sunMul: 1.15, envMul: 1.00, expMul: 1.00, fogMul: 0.8, rain: 0, storm: 0, wind: 3.30, gust: 0.50, sunVis: 1.0, cr: 0.52, cg: 0.57, cb: 0.65, drift: 4.0 },
 };
 const KEYS = Object.keys(STATES.sunny);
@@ -76,7 +76,7 @@ void main() {
   vec3 box = L < 0.5 ? vec3(20.0, 15.0, 20.0) : (L < 1.5 ? vec3(60.0, 38.0, 60.0) : vec3(170.0, 90.0, 170.0));
   float wd = L < 0.5 ? 0.006 : (L < 1.5 ? 0.018 : 0.06);
   float ln = L < 0.5 ? 0.42 : (L < 1.5 ? 1.25 : 3.6);
-  float al = L < 0.5 ? 0.38 : (L < 1.5 ? 0.20 : 0.10);
+  float al = L < 0.5 ? 0.55 : (L < 1.5 ? 0.30 : 0.15);
   float sv = 0.85 + 0.35 * h11(aS.w * 97.0 + aS.x * 13.0);
   vec3 vel = uVel * sv;
   vec3 p0 = aS.xyz * box + vel * uT;
@@ -660,7 +660,7 @@ export function createWeather(ctx) {
 
     // screen drops
     lensState.time = clock;
-    lensState.amount = 0.42 * lensWet * clamp01(cur.rain * 1.3) * (1 - 0.55 * clamp01(speed / 14)) * (drone ? 0.35 : 1);
+    lensState.amount = 0.13 * lensWet * clamp01(cur.rain * 1.3) * (1 - 0.55 * clamp01(speed / 14)) * (drone ? 0.35 : 1);
 
     // public info
     info.rain = cur.rain; info.wet = wet; info.storm = cur.storm; info.cloudCover = cur.cover; info.overcast = cur.over;

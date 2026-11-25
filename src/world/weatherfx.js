@@ -99,7 +99,7 @@ export class LensDropsEffect extends Effect {
           // slight darkening of the rim, bright glint on the upper-left of each drop
           float rim = clamp(length(wxDropN) * 18.0, 0.0, 1.0);
           float glint = clamp(dot(normalize(wxDropN + 1e-5), vec2(-0.6, 0.8)), 0.0, 1.0) * rim;
-          c = mix(c, c * 0.82, rim * m * 0.55);
+          c = mix(c, c * 0.93, rim * m * 0.3);
           c += vec3(0.9, 0.95, 1.0) * glint * glint * m * 0.22 + vec3(0.9, 0.95, 1.0) * m * 0.015;
         }
         outputColor = vec4(c, inputColor.a);

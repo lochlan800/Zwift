@@ -40,10 +40,18 @@ attribute vec3 aAcc;
 attribute float aBox;
 attribute float aShade;
 varying vec3 vMatCol;
+varying float vRough;
+varying float vMetal;
+const vec3 RR = vec3(0.1);
 `;
 const GLSL_NORMAL = /* glsl */`
 vec3 objectNormal = vec3( normal );
-if (aBox > 7.5) {
+if (aBox < 7.5) {
+  int ty0 = int(aInst.x + 0.5);
+  int k0 = ty0 * ${NB} + int(aBox + 0.5);
+  vec3 d = position - clamp(position, vec3(-0.4), vec3(0.4));
+  if (dot(d, d) > 1e-8) objectNormal = normalize(d / max(uBoxS[k0].xyz, vec3(0.02)));
+} else {
   int ty = int(aInst.x + 0.5);
   float ang = aInst.y / uWheel[ty].w;
   float ca = cos(ang), sa = sin(ang);
@@ -59,9 +67,14 @@ vec3 transformed;
     int k = ty * ${NB} + int(aBox + 0.5);
     vec4 c = uBoxC[k]; vec4 sz = uBoxS[k];
     vec3 p = position;
+    vec3 q = clamp(p, vec3(-0.4), vec3(0.4));
+    vec3 dd = p - q;
+    if (dot(dd, dd) > 1e-8) p = q + normalize(dd) * 0.1;
     p.z *= 1.0 - c.w * (p.y + 0.5);
     transformed = p * sz.xyz + c.xyz;
     float m = sz.w;
+    vRough = m < 0.5 ? 0.28 : m < 1.5 ? 0.04 : m < 2.5 ? 0.55 : m < 3.5 ? 0.15 : m < 4.5 ? 0.2 : m < 5.5 ? 0.3 : 0.5;
+    vMetal = m < 0.5 ? 0.4 : m < 1.5 ? 0.0 : m < 2.5 ? 0.1 : 0.0;
     col = m < 0.5 ? aBody : m < 1.5 ? vec3(0.025, 0.04, 0.06) : m < 2.5 ? vec3(0.03) : m < 3.5 ? vec3(0.95, 0.88, 0.65) : m < 4.5 ? vec3(0.55, 0.03, 0.03) : m < 5.5 ? aAcc : vec3(0.62);
   } else {
     vec4 w = uWheel[ty];
@@ -73,7 +86,8 @@ vec3 transformed;
     vec3 p = position;
     p.yz = vec2(ca * p.y - sa * p.z, sa * p.y + ca * p.z);
     transformed = vec3(p.x * (w.w > 0.45 ? 0.32 : 0.24) + sx * w.x, p.y * 2.0 * w.w + w.w, p.z * 2.0 * w.w + zc);
-    col = aShade < 0.5 ? vec3(0.022) : aShade < 1.5 ? vec3(0.62, 0.63, 0.65) : vec3(0.16);
+    col = aShade < 0.5 ? vec3(0.02) : aShade < 1.5 ? vec3(0.62, 0.63, 0.65) : vec3(0.2);
+    vRough = aShade < 0.5 ? 0.92 : 0.3; vMetal = aShade < 0.5 ? 0.0 : 0.9;
   }
   vMatCol = col;
 }
@@ -81,7 +95,9 @@ vec3 transformed;
 
 function buildGeometry() {
   const pos = [], nor = [], box = [], shade = [], idx = [];
-  const cube = new THREE.BoxGeometry(1, 1, 1);
+  const cube = new THREE.BoxGeometry(1, 1, 1, 5, 5, 5);
+  const MAP = (t) => { const a = Math.abs(t), sg = Math.sign(t); return sg * (a > 0.45 ? 0.5 : a > 0.25 ? 0.46 : 0.4); };
+  for (let i = 0; i < cube.attributes.position.count; i++) for (let k = 0; k < 3; k++) cube.attributes.position.array[i * 3 + k] = MAP(cube.attributes.position.array[i * 3 + k]);
   const cp = cube.attributes.position.array, cn = cube.attributes.normal.array, ci = cube.index.array;
   for (let b = 0; b < NB; b++) {
     const o = pos.length / 3;
@@ -143,13 +159,13 @@ export function createTraffic(scene, features, hf, cfg, ctx = {}) {
     uWheel.push(new THREE.Vector4(...t.wheel));
   }
   const uniforms = { uBoxC: { value: uBoxC }, uBoxS: { value: uBoxS }, uWheel: { value: uWheel } };
-  const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.32, metalness: 0.3, envMapIntensity: 1.2 });
+  const mat = new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.3, metalness: 0.3, clearcoat: 0.8, clearcoatRoughness: 0.06, envMapIntensity: 1.3 });
   patchMaterial(mat, {
     key: 'traffic', uniforms,
     vertexPars: GLSL_PARS,
     vertex: { beginnormal_vertex: GLSL_NORMAL, begin_vertex: GLSL_BEGIN },
-    fragmentPars: 'varying vec3 vMatCol;',
-    fragment: { color_fragment: 'diffuseColor.rgb *= vMatCol;' },
+    fragmentPars: 'varying vec3 vMatCol; varying float vRough; varying float vMetal;',
+    fragment: { color_fragment: 'diffuseColor.rgb *= vMatCol;', roughnessmap_fragment: 'float roughnessFactor = vRough;', metalnessmap_fragment: 'float metalnessFactor = vMetal;' },
   });
   mesh.material = mat;
   mesh.customDepthMaterial = depthMaterialFor(GLSL_PARS, GLSL_BEGIN, GLSL_NORMAL, uniforms);

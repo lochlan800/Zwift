@@ -57,8 +57,8 @@ class AOEffect extends Effect {
       defines: new Map([['AO_SAMPLES', String(samples)]]),
       uniforms: new Map([
         ['uProj', new THREE.Uniform(new THREE.Vector2(1, 1))],
-        ['uRadius', new THREE.Uniform(1.3)],
-        ['uStrength', new THREE.Uniform(0.85)],
+        ['uRadius', new THREE.Uniform(1.1)],
+        ['uStrength', new THREE.Uniform(0.6)],
         ['uFade', new THREE.Uniform(new THREE.Vector2(55, 150))],
       ]),
     });
@@ -83,37 +83,24 @@ class GradeEffect extends Effect {
       uniform float uContrast;
       uniform float uSat;
       uniform float uVig;
-      vec3 neutralTM(vec3 c) {
-        const float startC = 0.76, desat = 0.15;
-        float x = min(c.r, min(c.g, c.b));
-        float off = x < 0.08 ? x - 6.25 * x * x : 0.04;
-        c -= off;
-        float peak = max(c.r, max(c.g, c.b));
-        if (peak < startC) return c;
-        float d = 1.0 - startC;
-        float np = 1.0 - d * d / (peak + d - startC);
-        c *= np / peak;
-        float g = 1.0 - 1.0 / (desat * (peak - np) + 1.0);
-        return mix(c, vec3(np), g);
+      // ACES filmic (Narkowicz fit) with a gentle highlight desaturation like a real camera response
+      vec3 acesTM(vec3 x) {
+        x = (x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14);
+        return clamp(x, 0.0, 1.0);
       }
       void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor) {
-        vec3 c = neutralTM(max(inputColor.rgb, 0.0) * uExposure);
+        vec3 c = acesTM(max(inputColor.rgb, 0.0) * uExposure);
         vec3 g = pow(clamp(c, 0.0, 1.0), vec3(1.0 / 2.2));
         // S-curve
         g = mix(g, g * g * (3.0 - 2.0 * g), uContrast);
         float l = dot(g, vec3(0.2126, 0.7152, 0.0722));
         // lifted warm blacks, cool shadows, warm highlights
-        g = vec3(0.028, 0.026, 0.026) + g * (1.0 - vec3(0.028, 0.026, 0.026));
-        g += vec3(-0.003, 0.0, 0.006) * (1.0 - l) * (1.0 - l);
-        g += vec3(0.014, 0.007, -0.012) * l * l;
-        // vibrance: boost low-saturation pixels more, greens a bit more again
-        float mx = max(g.r, max(g.g, g.b)), mn = min(g.r, min(g.g, g.b));
-        float s = (mx - mn) / (mx + 1e-4);
-        float greenW = clamp((g.g - max(g.r, g.b)) * 5.0, 0.0, 1.0);
-        float k = uSat * (1.0 + (1.0 - s) * 0.25) + greenW * 0.14;
+        g = vec3(0.012, 0.012, 0.013) + g * (1.0 - vec3(0.012, 0.012, 0.013));
+        g += vec3(-0.002, 0.0, 0.004) * (1.0 - l) * (1.0 - l);
+        g += vec3(0.008, 0.004, -0.007) * l * l;
+        // neutral saturation (no vibrance push)
         float lum = dot(g, vec3(0.2126, 0.7152, 0.0722));
-        k = mix(0.82, k, smoothstep(0.08, 0.5, lum)); // keep shadows near-neutral: no saturation boost in the dark
-        g = max(mix(vec3(lum), g, k), 0.0);
+        g = max(mix(vec3(lum), g, uSat), 0.0);
         // vignette
         vec2 q = uv - 0.5;
         q.x *= resolution.x / resolution.y * 0.55 + 0.45;
@@ -124,10 +111,10 @@ class GradeEffect extends Effect {
         outputColor = vec4(pow(clamp(g, 0.0, 1.0), vec3(2.2)), inputColor.a);
       }`, {
       uniforms: new Map([
-        ['uExposure', new THREE.Uniform(opts.exposure ?? 1.1)],
-        ['uContrast', new THREE.Uniform(opts.contrast ?? 0.2)],
-        ['uSat', new THREE.Uniform(opts.sat ?? 1.18)],
-        ['uVig', new THREE.Uniform(opts.vignette ?? 0.2)],
+        ['uExposure', new THREE.Uniform(opts.exposure ?? 0.95)],
+        ['uContrast', new THREE.Uniform(opts.contrast ?? 0.1)],
+        ['uSat', new THREE.Uniform(opts.sat ?? 1.02)],
+        ['uVig', new THREE.Uniform(opts.vignette ?? 0.14)],
       ]),
     });
   }
@@ -149,7 +136,7 @@ export function createPost(renderer, scene, camera, cfg) {
   let bloom = null;
   if (cfg.bloom) {
     bloom = new BloomEffect({
-      blendFunction: BlendFunction.ADD, intensity: cfg.tier === 'high' ? 0.45 : 0.35,
+      blendFunction: BlendFunction.ADD, intensity: cfg.tier === 'high' ? 0.28 : 0.22,
       luminanceThreshold: 3.4, luminanceSmoothing: 0.6, mipmapBlur: true, radius: 0.55, levels: cfg.tier === 'high' ? 6 : 4,
     });
     effects.push(bloom);
@@ -172,7 +159,7 @@ export function createPost(renderer, scene, camera, cfg) {
   const lens = createLensDrops(cfg);
   if (lens) effects.push(lens);
 
-  const tone = new GradeEffect({ exposure: 1.1 });
+  const tone = new GradeEffect({ exposure: 0.95 });
   effects.push(tone);
   composer.addPass(new EffectPass(camera, ...effects));
 

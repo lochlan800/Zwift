@@ -113,7 +113,7 @@ void main() {
     p += 0.45 * vec2(vnoise(p * 1.4), vnoise(p * 1.4 + 7.3)) - 0.22;   // billow warp
     float n = fbm(p);
     float th = 1.0 - uCover;
-    float dens = smoothstep(th, th + 0.07, n);
+    float dens = smoothstep(th, th + 0.13, n);
     float fade = smoothstep(0.008, 0.10, y);
     float a = dens * fade;
     if (a > 0.003) {
@@ -121,16 +121,18 @@ void main() {
       vec2 up = -normalize(d.xz + 1e-4);                 // toward zenith in plane space
       float lit;
 #ifdef CLOUD_LIT
-      float n2 = fbm(p + normalize(sdir + up * 0.9) * 0.055);
-      lit = clamp(0.50 + (n - n2) * 9.0, 0.0, 1.0);
+      vec2 ld = normalize(sdir + up * 0.9);
+      float n2 = fbm(p + ld * 0.05), n3 = fbm(p + ld * 0.13);
+      lit = clamp(0.55 + (n - n2) * 7.0 + (n - n3) * 3.5, 0.0, 1.0);
 #else
       lit = clamp(0.30 + 0.70 * smoothstep(th, th + 0.30, n), 0.0, 1.0);
 #endif
       float core = smoothstep(th + 0.03, th + 0.30, n);
-      vec3 shade = vec3(0.46, 0.58, 0.82);
-      vec3 sunl = vec3(1.55, 1.46, 1.30);
+      vec3 shade = vec3(0.42, 0.50, 0.66);
+      vec3 sunl = vec3(1.40, 1.32, 1.18);
       vec3 cc = mix(shade, sunl, lit);
-      cc = mix(cc, shade * 0.9 + 0.1, core * 0.25 * (1.0 - lit));       // thick interiors a touch darker
+      cc = mix(cc, shade * 0.85, core * 0.35 * (1.0 - lit));          // dense cores keep a grey belly
+      cc = mix(cc, sunl * 1.1, (1.0 - core) * 0.35 * pow(max(mu, 0.0), 3.0)); // thin edges glow when backlit       // thick interiors a touch darker
       cc += vec3(1.0, 0.85, 0.6) * pow(max(mu, 0.0), 8.0) * (1.0 - core) * 0.8; // silver rim toward sun
       cc = mix(cc, uHorizon * 1.15, (1.0 - smoothstep(0.0, 0.22, y)) * 0.45);   // distant clouds fade to haze
       col = mix(col, cc * uScale, clamp(a, 0.0, 1.0));
@@ -160,8 +162,8 @@ function skyMaterial({ lut, cloudOct, cloudLit }) {
       uGround: { value: new THREE.Color(0.06, 0.07, 0.045) },
       uDesat: { value: 0 },
       uTint: { value: new THREE.Color(1, 1, 1) },
-      uZenith: { value: new THREE.Color(0.03, 0.17, 0.66) },
-      uHorizon: { value: new THREE.Color(0.36, 0.62, 0.96) },
+      uZenith: { value: new THREE.Color(0.05, 0.19, 0.58) },
+      uHorizon: { value: new THREE.Color(0.40, 0.57, 0.80) },
       uWind: { value: new THREE.Vector2(0.008, 0.0025) },
       uCover: { value: 0.50 },
       ...WX_SKY_UNIFORM_OBJECTS, // WEATHER: shared weather uniforms
