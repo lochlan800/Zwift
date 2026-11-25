@@ -22,84 +22,133 @@ const BAKE_ELEV = 12 * Math.PI / 180;
 // ------------------------------------------------------------------ species table
 // colours are linear multipliers (vertex colours)
 const SPECIES = [
-  /* 0 oak      */ { cell: 0, leaf: [1.00, 1.00, 0.84], bark: [0.15, 0.105, 0.07], birch: 0, cy: 0.60, ry: 0.36, trunkTop: 0.42, trunkR: 0.050, lobes: 8, s0: 0.27, s1: 0.44 },
-  /* 1 sycamore */ { cell: 1, leaf: [0.86, 1.02, 0.86], bark: [0.18, 0.135, 0.10], birch: 0, cy: 0.62, ry: 0.35, trunkTop: 0.44, trunkR: 0.042, lobes: 7, s0: 0.26, s1: 0.43 },
-  /* 2 ash      */ { cell: 2, leaf: [1.08, 1.12, 0.80], bark: [0.18, 0.145, 0.105], birch: 0, cy: 0.64, ry: 0.38, trunkTop: 0.44, trunkR: 0.040, lobes: 7, s0: 0.25, s1: 0.42 },
-  /* 3 birch    */ { cell: 2, leaf: [1.18, 1.18, 0.78], bark: [1.00, 1.00, 0.96], birch: 1, cy: 0.64, ry: 0.36, trunkTop: 0.50, trunkR: 0.030, lobes: 6, s0: 0.24, s1: 0.40 },
-  /* 4 beech    */ { cell: 1, leaf: [0.94, 0.98, 0.78], bark: [0.25, 0.21, 0.17], birch: 0, cy: 0.58, ry: 0.38, trunkTop: 0.36, trunkR: 0.052, lobes: 8, s0: 0.27, s1: 0.45 },
-  /* 5 conifer  */ { cell: 3, leaf: [0.38, 0.50, 0.30], bark: [0.16, 0.085, 0.05], birch: 0, cy: 0.5, ry: 0.5, trunkTop: 0.95, trunkR: 0.036, lobes: 0, s0: 0.3, s1: 0.4 },
+  /* 0 oak      */ { cell: 0, leaf: [1.00, 1.00, 0.92], bark: [0.15, 0.105, 0.07], birch: 0, cy: 0.60, ry: 0.36, trunkTop: 0.42, trunkR: 0.050, lobes: 8, s0: 0.27, s1: 0.44 },
+  /* 1 sycamore */ { cell: 1, leaf: [0.92, 1.02, 0.95], bark: [0.18, 0.135, 0.10], birch: 0, cy: 0.62, ry: 0.35, trunkTop: 0.44, trunkR: 0.042, lobes: 7, s0: 0.26, s1: 0.43 },
+  /* 2 ash      */ { cell: 2, leaf: [1.10, 1.10, 0.88], bark: [0.18, 0.145, 0.105], birch: 0, cy: 0.64, ry: 0.38, trunkTop: 0.44, trunkR: 0.040, lobes: 7, s0: 0.25, s1: 0.42 },
+  /* 3 birch    */ { cell: 2, leaf: [1.20, 1.18, 0.90], bark: [1.00, 1.00, 0.96], birch: 1, cy: 0.64, ry: 0.36, trunkTop: 0.50, trunkR: 0.030, lobes: 6, s0: 0.24, s1: 0.40 },
+  /* 4 beech    */ { cell: 1, leaf: [0.98, 1.0, 0.86], bark: [0.25, 0.21, 0.17], birch: 0, cy: 0.58, ry: 0.38, trunkTop: 0.36, trunkR: 0.052, lobes: 8, s0: 0.27, s1: 0.45 },
+  /* 5 conifer  */ { cell: 3, leaf: [0.82, 0.92, 0.88], bark: [0.16, 0.085, 0.05], birch: 0, cy: 0.5, ry: 0.5, trunkTop: 0.95, trunkR: 0.036, lobes: 0, s0: 0.3, s1: 0.4 },
 ];
 
 // ------------------------------------------------------------------ atlas painter
+// ---- realistic leaf painter: real leaf outlines, midrib + veins, two-tone (upper / pale underside), twigs
+function leafOutline(kind, L) {
+  const pts = [];
+  const N = 22;
+  if (kind === 'palmate') {
+    // sycamore: five pointed lobes radiating from the base
+    for (let i = 0; i <= 40; i++) {
+      const th = -1.35 + (i / 40) * 2.7;
+      const lobe = Math.pow(Math.abs(Math.cos(th * 2.5)), 0.9);
+      const r = L * (0.38 + 0.62 * lobe) * (0.85 + 0.15 * Math.cos(th));
+      pts.push([Math.cos(th) * r * 0.9 + L * 0.05, Math.sin(th) * r * 0.9]);
+    }
+    pts.push([0, 0]);
+    return pts;
+  }
+  const W = { oak: 0.30, ovate: 0.30, beech: 0.27, birch: 0.34, leaflet: 0.2 }[kind] || 0.3;
+  const half = (t) => {
+    let w;
+    if (kind === 'oak') w = Math.sin(Math.PI * Math.pow(t, 0.8)) * (0.72 + 0.28 * Math.cos(t * Math.PI * 9));
+    else if (kind === 'birch') w = Math.sin(Math.PI * Math.pow(t, 0.65)) * (1 + 0.07 * Math.cos(t * Math.PI * 22));
+    else if (kind === 'beech') w = Math.sin(Math.PI * Math.pow(t, 0.75)) * (1 + 0.04 * Math.cos(t * Math.PI * 16));
+    else if (kind === 'leaflet') w = Math.sin(Math.PI * Math.pow(t, 0.9));
+    else w = Math.sin(Math.PI * Math.pow(t, 0.8));
+    return w * W * L;
+  };
+  for (let i = 0; i <= N; i++) { const t = i / N; pts.push([t * L, -half(t)]); }
+  for (let i = N; i >= 0; i--) { const t = i / N; pts.push([t * L, half(t)]); }
+  return pts;
+}
+
 function leafCell(g, ox, oy, rnd, o) {
   const S = CELL, cx = ox + S / 2, cy = oy + S / 2;
   const R = S * 0.5 * 0.9;
   const leaves = [];
   for (let i = 0; i < o.n; i++) {
-    // irregular blob silhouette: radius limit varies with angle
     const a = rnd() * Math.PI * 2;
-    const lim = R * (0.78 + 0.22 * Math.sin(a * 3 + o.phase) * Math.sin(a * 5 + 1.3 * o.phase) + 0.1 * Math.sin(a * 7));
-    const rd = Math.sqrt(rnd());
+    // natural, irregular outline: low-frequency lumps plus ragged detail
+    const lim = R * (0.80 + 0.16 * Math.sin(a * 3 + o.phase) * Math.sin(a * 5 + 1.3 * o.phase) + 0.07 * Math.sin(a * 11 + o.phase * 2));
+    const rd = Math.pow(rnd(), 0.55);
     const x = Math.cos(a) * rd * lim, y = Math.sin(a) * rd * lim;
-    leaves.push({ x, y, rot: Math.atan2(y, x) + (rnd() - 0.5) * 1.3, sz: o.size * (0.8 + rnd() * 0.5), rd, r: rnd(), a });
+    const kind = o.kinds[Math.floor(rnd() * o.kinds.length)];
+    leaves.push({ x, y, rot: Math.atan2(y, x) + (rnd() - 0.5) * 2.6, sz: o.size * (0.75 + rnd() * 0.5) * (kind === 'leaflet' ? 1 : 1), rd, r: rnd(), kind, flip: rnd() < 0.14 });
   }
-  // dark underlayer first (fills gaps, gives depth), then lit leaves sorted dark->light
-  for (let i = 0; i < leaves.length; i++) leaves[i].k = (-leaves[i].y / R) * 0.5 + 0.5 + (leaves[i].r - 0.5) * 0.55;
+  for (const L of leaves) L.k = (-L.y / R) * 0.5 + 0.5 + (L.r - 0.5) * 0.7;
   leaves.sort((p, q) => p.k - q.k);
-  const drawLeaf = (L, hsl, shade) => {
+  // twigs behind the foliage: the cluster reads as growing from branches
+  g.lineCap = 'round';
+  for (let t = 0; t < 9; t++) {
+    const a = rnd() * Math.PI * 2, len = R * (0.5 + rnd() * 0.45);
+    g.strokeStyle = `hsl(28,${20 + rnd() * 10}%,${14 + rnd() * 8}%)`; g.lineWidth = 2.5 + rnd() * 2;
+    g.beginPath(); g.moveTo(cx, cy); g.quadraticCurveTo(cx + Math.cos(a + 0.4) * len * 0.5, cy + Math.sin(a + 0.4) * len * 0.5, cx + Math.cos(a) * len, cy + Math.sin(a) * len); g.stroke();
+  }
+  const drawLeaf = (L, hsl, under) => {
     g.save(); g.translate(cx + L.x, cy + L.y); g.rotate(L.rot);
-    const w = L.sz, h = L.sz * o.aspect;
-    g.fillStyle = `hsl(${hsl[0]},${hsl[1]}%,${hsl[2]}%)`;
-    g.strokeStyle = `hsla(${hsl[0] + 4},${hsl[1] - 6}%,${Math.max(6, hsl[2] - 12)}%,0.9)`; g.lineWidth = 1.4;
-    g.beginPath();
-    if (o.shape === 'oak') {
-      // lobed leaf: three overlapping ellipses along the leaf axis
-      g.ellipse(w * 0.15, 0, w * 0.55, h * 0.8, 0, 0, 6.3);
-      g.moveTo(w * 0.5 + w * 0.3, h * 0.2); g.ellipse(w * 0.45, h * 0.28, w * 0.34, h * 0.42, 0.5, 0, 6.3);
-      g.moveTo(w * 0.45 + w * 0.3, -h * 0.2); g.ellipse(w * 0.45, -h * 0.28, w * 0.34, h * 0.42, -0.5, 0, 6.3);
-    } else if (o.shape === 'ovate') {
-      g.moveTo(-w * 0.5, 0); g.bezierCurveTo(-w * 0.2, -h, w * 0.5, -h * 0.7, w * 0.95, 0); g.bezierCurveTo(w * 0.5, h * 0.7, -w * 0.2, h, -w * 0.5, 0);
-    } else {
-      g.ellipse(0, 0, w * 0.9, h * 0.55, 0, 0, 6.3);
-    }
-    g.fill(); if (o.stroke) g.stroke();
-    if (shade > 0.55 && o.vein) { g.strokeStyle = `hsla(${hsl[0] - 6},${hsl[1] - 8}%,${hsl[2] + 14}%,0.55)`; g.lineWidth = 1.2; g.beginPath(); g.moveTo(-w * 0.4, 0); g.lineTo(w * 0.8, 0); g.stroke(); }
+    const sz = L.sz;
+    let col = `hsl(${hsl[0]},${hsl[1]}%,${hsl[2]}%)`;
+    if (under) col = `hsl(${hsl[0] - 6},${Math.max(14, hsl[1] - 14)}%,${Math.min(62, hsl[2] + 17)}%)`;
+    const one = (kind, ox2, oy2, rot, scale) => {
+      g.save(); g.translate(ox2, oy2); g.rotate(rot);
+      const pts = leafOutline(kind, sz * scale);
+      g.beginPath(); g.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) g.lineTo(pts[i][0], pts[i][1]); g.closePath();
+      g.fillStyle = col; g.fill();
+      g.strokeStyle = `hsla(${hsl[0]},${hsl[1]}%,${Math.max(5, hsl[2] - 8)}%,0.55)`; g.lineWidth = 0.8; g.stroke();
+      // midrib + veins
+      g.strokeStyle = `hsla(${hsl[0] + 4},${hsl[1] - 8}%,${Math.min(70, hsl[2] + (under ? 6 : 13))}%,0.6)`; g.lineWidth = Math.max(0.6, sz * scale * 0.035);
+      const Lx = sz * scale;
+      g.beginPath(); g.moveTo(0, 0); g.lineTo(Lx * 0.92, 0);
+      if (kind !== 'leaflet' && kind !== 'palmate') for (let v = 1; v <= 5; v++) { const t = v / 6; g.moveTo(Lx * t, 0); g.lineTo(Lx * (t + 0.14), Lx * 0.22 * Math.sin(Math.PI * t)); g.moveTo(Lx * t, 0); g.lineTo(Lx * (t + 0.14), -Lx * 0.22 * Math.sin(Math.PI * t)); }
+      g.stroke();
+      g.restore();
+    };
+    if (L.kind === 'pinnate') {
+      // ash compound leaf: rachis with opposite leaflet pairs
+      g.strokeStyle = `hsl(${hsl[0] + 10},30%,${hsl[2] - 4}%)`; g.lineWidth = 1.6;
+      g.beginPath(); g.moveTo(0, 0); g.lineTo(sz * 1.6, 0); g.stroke();
+      for (let p = 0; p < 4; p++) {
+        const x = sz * (0.25 + p * 0.32);
+        one('leaflet', x, 0, 0.9, 0.62); one('leaflet', x, 0, -0.9, 0.62);
+      }
+      one('leaflet', sz * 1.5, 0, 0, 0.7);
+    } else one(L.kind, 0, 0, 0, 1);
     g.restore();
   };
-  // underlayer
-  for (let i = 0; i < leaves.length; i += 2) {
-    const L = leaves[i];
-    drawLeaf({ ...L, sz: L.sz * 1.1, x: L.x * 0.9, y: L.y * 0.9 }, [o.hue[1] + 2, o.sat - 4, o.light[0] - 6], 0);
-  }
   for (const L of leaves) {
     const k = Math.max(0, Math.min(1, L.k));
-    const hue = o.hue[1] - (o.hue[1] - o.hue[0]) * k + (L.r - 0.5) * 6;
-    const l = o.light[0] + (o.light[1] - o.light[0]) * k + (L.r - 0.5) * 5;
-    drawLeaf(L, [hue, o.sat + (k - 0.4) * 10, l], k);
+    const hue = o.hue[1] - (o.hue[1] - o.hue[0]) * k + (L.r - 0.5) * 10;
+    const l = o.light[0] + (o.light[1] - o.light[0]) * Math.pow(k, 1.3) + (L.r - 0.5) * 6;
+    drawLeaf(L, [hue, o.sat - (1 - k) * 4 + (L.r - 0.5) * 8, l], L.flip);
   }
 }
 
 function needleCell(g, ox, oy, rnd) {
-  // soft, dense needle clump: a puffy disc of short radiating needles (dark underlayer -> lit tips)
+  // dense needle sprays: thin dark needles on short shoots, silvery-blue underside flashes
   const S = CELL, cx = ox + S / 2, cy = oy + S * 0.5;
   g.lineCap = 'round';
   const R = S * 0.5 * 0.86;
   const pts = [];
-  for (let i = 0; i < 1500; i++) {
+  for (let i = 0; i < 2600; i++) {
     const a = rnd() * Math.PI * 2;
-    const lim = R * (0.82 + 0.18 * Math.sin(a * 4 + 0.7) * Math.sin(a * 7 + 2.0));
-    const rd = Math.pow(rnd(), 0.65);
+    const lim = R * (0.80 + 0.18 * Math.sin(a * 4 + 0.7) * Math.sin(a * 7 + 2.0) + 0.06 * Math.sin(a * 13));
+    const rd = Math.pow(rnd(), 0.6);
     pts.push({ x: Math.cos(a) * rd * lim, y: Math.sin(a) * rd * lim, rd, r: rnd() });
   }
   for (const p of pts) p.k = (-p.y / R) * 0.5 + 0.5 + (p.r - 0.5) * 0.6;
   pts.sort((p, q) => p.k - q.k);
+  for (let t = 0; t < 10; t++) {
+    const a = rnd() * Math.PI * 2, len = R * (0.6 + rnd() * 0.35);
+    g.strokeStyle = '#2d2016'; g.lineWidth = 3.5;
+    g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx + Math.cos(a) * len, cy + Math.sin(a) * len); g.stroke();
+  }
   for (let pass = 0; pass < 2; pass++) {
     for (let i = pass; i < pts.length; i += pass ? 1 : 2) {
       const p = pts[i];
-      const base = Math.atan2(p.y, p.x) + (rnd() - 0.5) * 1.6 + 1.2 * (rnd() < 0.5 ? 1 : -1) * 0.25;
-      const len = (pass ? 24 : 32) + rnd() * 16;
-      const l = pass ? 26 + (p.k - 0.3) * 24 + rnd() * 7 : 17 + rnd() * 6;
-      g.strokeStyle = `hsl(${98 + rnd() * 22},${pass ? 46 : 40}%,${l}%)`; g.lineWidth = pass ? 4.4 : 5.5;
+      const base = Math.atan2(p.y, p.x) + (rnd() - 0.5) * 1.8;
+      const len = (pass ? 20 : 26) + rnd() * 14;
+      const l = pass ? 15 + (p.k - 0.3) * 20 + rnd() * 6 : 9 + rnd() * 5;
+      const blue = rnd() < 0.12;
+      g.strokeStyle = blue ? `hsl(150,14%,${l + 14}%)` : `hsl(${92 + rnd() * 22},${pass ? 34 : 28}%,${l}%)`; g.lineWidth = pass ? 2.4 : 3.2;
       g.beginPath(); g.moveTo(cx + p.x, cy + p.y); g.lineTo(cx + p.x + Math.cos(base) * len, cy + p.y + Math.sin(base) * len); g.stroke();
     }
   }
@@ -110,23 +159,33 @@ function makeAtlas() {
   const g = cv.getContext('2d');
   const rnd = mulberry32(4242);
   // 0 oak (lobed), 1 broad (sycamore/beech), 2 small leaflets (ash/birch), 3 conifer sprays
-  leafCell(g, 0, 0, rnd, { n: 260, size: 27, aspect: 0.7, hue: [84, 112], sat: 52, light: [21, 40], shape: 'oak', phase: 0.3, stroke: true, vein: false });
-  leafCell(g, CELL, 0, rnd, { n: 230, size: 34, aspect: 0.6, hue: [86, 114], sat: 50, light: [20, 38], shape: 'ovate', phase: 1.1, stroke: true, vein: true });
-  leafCell(g, 0, CELL, rnd, { n: 520, size: 21, aspect: 0.55, hue: [82, 110], sat: 54, light: [22, 41], shape: 'small', phase: 2.2, stroke: false, vein: false });
+  // 0 oak (lobed), 1 sycamore (palmate) + beech (ovate), 2 ash (pinnate) + birch (small ovate), 3 conifer needles
+  leafCell(g, 0, 0, rnd, { n: 1500, size: 25, kinds: ['oak'], hue: [74, 98], sat: 38, light: [13, 33], phase: 0.3 });
+  leafCell(g, CELL, 0, rnd, { n: 1000, size: 34, kinds: ['palmate', 'beech', 'beech'], hue: [74, 100], sat: 36, light: [13, 32], phase: 1.1 });
+  leafCell(g, 0, CELL, rnd, { n: 700, size: 17, kinds: ['pinnate', 'birch', 'birch', 'birch'], hue: [72, 96], sat: 38, light: [14, 34], phase: 2.2 });
   needleCell(g, CELL, CELL, rnd);
-  // bark strip
-  g.fillStyle = '#cfcac2'; g.fillRect(0, BARK_Y, 512, BARK_H);
-  for (let i = 0; i < 160; i++) {
-    g.fillStyle = `rgba(50,44,38,${0.12 + rnd() * 0.3})`;
-    g.fillRect(rnd() * 512, BARK_Y, 1.5 + rnd() * 6, BARK_H);
+  // bark strip: left = furrowed grey-brown bark with lichen, right = birch
+  g.fillStyle = '#b3aba0'; g.fillRect(0, BARK_Y, 512, BARK_H);
+  for (let i = 0; i < 90; i++) {
+    const x = rnd() * 512, w = 4 + rnd() * 12;
+    g.fillStyle = `rgba(30,24,20,${0.25 + rnd() * 0.45})`;
+    g.beginPath(); g.moveTo(x, BARK_Y); for (let y = 0; y <= BARK_H; y += 16) g.lineTo(x + Math.sin(y * 0.1 + i) * 3, BARK_Y + y); g.lineTo(x + w + 2, BARK_Y + BARK_H); g.lineTo(x + w, BARK_Y); g.fill();
+    g.fillStyle = `rgba(210,200,185,${0.1 + rnd() * 0.2})`; g.fillRect(x + w + 1, BARK_Y, 2 + rnd() * 3, BARK_H);
   }
-  g.fillStyle = '#f2f0ec'; g.fillRect(512, BARK_Y, 512, BARK_H);
+  for (let i = 0; i < 70; i++) { g.fillStyle = `rgba(25,20,16,${0.2 + rnd() * 0.3})`; g.fillRect(rnd() * 512, BARK_Y + rnd() * BARK_H, 8 + rnd() * 26, 1.5 + rnd() * 2); }
+  for (let i = 0; i < 26; i++) {   // lichen / moss patches
+    const x = rnd() * 512, y = BARK_Y + rnd() * BARK_H, r = 4 + rnd() * 12, c = rnd();
+    g.fillStyle = c < 0.5 ? `hsla(95,22%,62%,0.55)` : c < 0.8 ? `hsla(85,35%,38%,0.5)` : `hsla(38,70%,52%,0.5)`;
+    g.beginPath(); g.ellipse(x, y, r, r * 0.8, rnd() * 3, 0, 6.3); g.fill();
+    for (let k = 0; k < 6; k++) { g.beginPath(); g.arc(x + (rnd() - 0.5) * r * 2, y + (rnd() - 0.5) * r * 2, 1 + rnd() * 3, 0, 6.3); g.fill(); }
+  }
+  g.fillStyle = '#e9e7e1'; g.fillRect(512, BARK_Y, 512, BARK_H);
   for (let i = 0; i < 60; i++) {
-    g.fillStyle = `rgba(150,148,142,${0.1 + rnd() * 0.2})`;
+    g.fillStyle = `rgba(140,138,130,${0.1 + rnd() * 0.25})`;
     g.fillRect(512 + rnd() * 512, BARK_Y, 1 + rnd() * 5, BARK_H);
   }
-  for (let i = 0; i < 90; i++) {
-    g.fillStyle = `rgba(28,26,24,${0.55 + rnd() * 0.4})`;
+  for (let i = 0; i < 110; i++) {
+    g.fillStyle = `rgba(24,22,20,${0.55 + rnd() * 0.4})`;
     g.fillRect(512 + rnd() * 500, BARK_Y + rnd() * (BARK_H - 8), 14 + rnd() * 70, 2 + rnd() * 4);
   }
   const t = new THREE.CanvasTexture(cv);
@@ -169,14 +228,15 @@ function buildDeciduous(sp, lod, tier) {
   // crown = several big overlapping lobes (ellipsoids) -> bumpy, clumpy, painterly silhouette
   const nLobe = S.lobes;
   const lobes = [];
-  lobes.push({ x: 0, y: cy + ry * 0.18, z: 0, rx: 0.7, ry: ry * 0.85, rz: 0.7 });
+  // irregular, asymmetric crown: lobes of different sizes at uneven distances/heights (no regular ring)
+  lobes.push({ x: (rnd() - 0.5) * 0.15, y: cy + ry * 0.15, z: (rnd() - 0.5) * 0.15, rx: 0.62 + rnd() * 0.12, ry: ry * (0.75 + rnd() * 0.15), rz: 0.62 + rnd() * 0.12 });
   const a0 = rnd() * 6.28;
+  const stretch = 0.85 + rnd() * 0.3, sa = rnd() * 6.28;
   for (let i = 0; i < nLobe - 1; i++) {
-    const a = a0 + (i / (nLobe - 1)) * Math.PI * 2 + (rnd() - 0.5) * 0.5;
-    const d = 0.54 + rnd() * 0.14;
-    const lr = 0.52 + rnd() * 0.1;
-    const high = (i % 2 === 0) ? 0.1 : -0.18;
-    lobes.push({ x: Math.cos(a) * d, y: cy + ry * (high + (rnd() - 0.5) * 0.25), z: Math.sin(a) * d, rx: lr, ry: ry * (0.66 + rnd() * 0.12), rz: lr });
+    const a = a0 + (i / (nLobe - 1)) * Math.PI * 2 + (rnd() - 0.5) * 1.0;
+    const d = (0.38 + rnd() * 0.5) * (1 + 0.18 * Math.cos(a - sa) * (stretch - 1) * 3);
+    const lr = 0.34 + rnd() * 0.3;
+    lobes.push({ x: Math.cos(a) * d, y: cy + ry * (-0.3 + rnd() * 0.65), z: Math.sin(a) * d, rx: lr, ry: ry * (0.5 + rnd() * 0.35), rz: lr * (0.8 + rnd() * 0.4) });
   }
   // limbs start inside the crown (hidden by foliage) and fan out to each outer lobe
   for (let i = 1; i < lobes.length; i++) {
@@ -188,7 +248,7 @@ function buildDeciduous(sp, lod, tier) {
     segs.push([mid.x, mid.y, mid.z, L.x * 0.85, L.y, L.z * 0.85, lr * 0.7, lr * 0.35, hi ? 5 : 4, 0]);
   }
   // opaque dark cores so the crown never shows sky through it
-  for (const L of lobes) blobs.push({ c: V(L.x, L.y, L.z), rx: L.rx * 0.8, ry: L.ry * 0.8, rz: L.rz * 0.8, detail: hi ? 1 : 0 });
+  for (const L of lobes) blobs.push({ c: V(L.x, L.y, L.z), rx: L.rx * 0.66, ry: L.ry * 0.66, rz: L.rz * 0.66, detail: hi ? 1 : 0 });
   const inside = (p, k, skip) => { let n = 0; for (let i = 0; i < lobes.length; i++) { if (i === skip) continue; const L = lobes[i]; const q = ((p.x - L.x) / L.rx) ** 2 + ((p.y - L.y) / L.ry) ** 2 + ((p.z - L.z) / L.rz) ** 2; if (q < k * k) n++; } return n; };
   const size = hi ? S.s0 : S.s1;
   const per = Math.round(tier.cards / nLobe);
@@ -201,7 +261,7 @@ function buildDeciduous(sp, lod, tier) {
         let d;
         do { d = V(rnd() * 2 - 1, rnd() * 2 - 1, rnd() * 2 - 1); } while (d.x * d.x + d.y * d.y + d.z * d.z > 1 || d.x * d.x + d.y * d.y + d.z * d.z < 0.05);
         d = norm3(d);
-        const f = 0.86 + rnd() * 0.22;
+        const f = 0.78 + rnd() * 0.4;
         const q = V(L.x + d.x * L.rx * f, L.y + (d.y < 0 ? d.y * 0.75 : d.y) * L.ry * f, L.z + d.z * L.rz * f);
         if (inside(q, 0.9, li) === 0 || tries === 7) { p = q; nrm = d; break; }
       }
@@ -215,7 +275,7 @@ function buildDeciduous(sp, lod, tier) {
       ao *= 0.5 + 0.5 * Math.min(1, Math.max(0, (yn + 0.9) / 1.7));      // dark underside
       ao *= Math.pow(0.7, inside(p, 1.0, li));                             // dark creases between lobes
       ao *= 0.85 + 0.3 * Math.max(0, nrm.y);                               // sunlit lobe tops
-      cards.push({ c: p, ax, ay, s: size * (0.85 + rnd() * 0.3), ao: Math.min(1, ao), n: sph, hue: [0.94 + rnd() * 0.12, 0.95 + rnd() * 0.08, 0.92 + rnd() * 0.12] });
+      cards.push({ c: p, ax, ay, s: size * (0.8 + rnd() * 0.4) * (rnd() < 0.12 ? 0.6 : 1), ao: Math.min(1, ao), n: sph, hue: [0.94 + rnd() * 0.12, 0.95 + rnd() * 0.08, 0.92 + rnd() * 0.12] });
     }
   }
   return { segs, cards, blobs, skirts, sp };
@@ -293,7 +353,7 @@ function modelGeometry(model) {
   const coreU = 0.25, coreV = bv0;
   const pushV = (x, y, z, nx, ny, nz, ao, k) => {
     pos.push(x, y, z); nor.push(nx, ny, nz); uv.push(coreU, coreV);
-    col.push(0.12 * k * 2, 0.30 * k * 2, 0.05 * k * 2); aT.push(0.4, ao); aC.push(x, y, z);
+    col.push(0.12 * k * 2, 0.20 * k * 2, 0.06 * k * 2); aT.push(0.4, ao); aC.push(x, y, z);
   };
   for (const b of model.blobs || []) {
     const ico = new THREE.IcosahedronGeometry(1, b.detail);
@@ -374,7 +434,7 @@ function bakeImpostors(model, atlasCv, tierName) {
     variants.push(arr);
   }
   const sx = TILE / (2.3 * BAKE_R0);
-  const coreCol = SPECIES.map((S) => { const c = (v) => Math.round(Math.pow(Math.min(1, v * 0.07), 1 / 2.2) * 255); return `rgb(${c(S.leaf[0] * 0.55 * 2.2)},${c(S.leaf[1] * 0.55 * 3.4)},${c(S.leaf[2] * 0.55 * 1.5)})`; });
+  const coreCol = SPECIES.map((S) => `rgb(${Math.round(34 * S.leaf[0])},${Math.round(44 * S.leaf[1])},${Math.round(26 * S.leaf[2])})`);
   const items = [];
   for (let sp = 0; sp < SP_COUNT; sp++) {
     const m = model[sp];
@@ -638,7 +698,7 @@ export function createTrees(features, hf, opts) {
           }
           diffuseColor.rgb *= mix(vec3(1.0), vTint, vT.x);
           // painterly value structure: deep blue-green interior, rich mid greens outside
-          diffuseColor.rgb *= mix(vec3(0.40, 0.64, 0.44), vec3(1.0), smoothstep(0.12, 0.85, vT.y));`,
+          diffuseColor.rgb *= mix(vec3(0.46, 0.60, 0.46), vec3(1.0), smoothstep(0.12, 0.85, vT.y));`,
         lights_fragment_begin: THREE.ShaderChunk.lights_fragment_begin.replace('getSunLightInfo( sunLight, directLight );', 'getSunLightInfo( sunLight, directLight ); directLight.color *= hbSun;'),
         // double-sided leaf cards keep their (spherical) normal on both faces for soft crown shading
         normal_fragment_begin: `
@@ -647,15 +707,15 @@ export function createTrees(features, hf, opts) {
           vec3 nonPerturbedNormal = normal;
           hbSun = texture2D(uShadowBake, gridUV(vAerialWorld.xz)).r;`,
         aomap_fragment: `float tao = mix(1.0, vT.y, 0.8);
-          reflectedLight.indirectDiffuse *= tao; reflectedLight.directDiffuse *= mix(vec3(1.0), vec3(1.16, 1.08, 0.72), smoothstep(0.55, 1.0, vT.y)) * mix(1.0, vT.y, 0.7); reflectedLight.indirectSpecular *= tao;
+          reflectedLight.indirectDiffuse *= tao; reflectedLight.directDiffuse *= mix(vec3(1.0), vec3(1.06, 1.02, 0.84), smoothstep(0.55, 1.0, vT.y)) * mix(1.0, vT.y, 0.7); reflectedLight.indirectSpecular *= tao;
           {
             vec3 vd = normalize(vAerialWorld - cameraPosition);
             float back = pow(max(dot(vd, uSunDir), 0.0), 4.0) * vT.x * hbSun;
             // backlit translucency: yellow-green glow, stronger on thin outer leaves
-            reflectedLight.directDiffuse += diffuseColor.rgb * vec3(1.15, 1.2, 0.55) * uSunColor * back * (0.35 + 0.65 * vT.y) * 1.1;
+            reflectedLight.directDiffuse += diffuseColor.rgb * vec3(0.95, 1.1, 0.42) * uSunColor * back * (0.35 + 0.65 * vT.y) * 1.0;
             // soft wrap light so the shaded side stays lush rather than muddy
             float wrap = clamp(dot(normal, uSunDir) * 0.5 + 0.5, 0.0, 1.0);
-            reflectedLight.directDiffuse += diffuseColor.rgb * uSunColor * wrap * wrap * 0.10 * hbSun * vT.x * vT.y;
+            reflectedLight.directDiffuse += diffuseColor.rgb * uSunColor * wrap * wrap * 0.06 * hbSun * vT.x * vT.y;
           }`,
       },
     });

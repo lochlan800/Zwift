@@ -26,9 +26,9 @@ export const WEATHER_MODES = ['sunny', 'cloudy', 'rain', 'storm', 'auto'];
 // tunable look per state (values are blended smoothly)
 const STATES = {
   sunny:  { cover: 0.30, grey: 0.00, over: 0.00, dark: 0.00, sunMul: 1.25, envMul: 1.00, expMul: 1.00, fogMul: 0.75, rain: 0, storm: 0, wind: 0.55, gust: 0.15, sunVis: 1.0, cr: 0.52, cg: 0.57, cb: 0.65, drift: 1.0 },
-  cloudy: { cover: 0.74, grey: 0.55, over: 0.60, dark: 0.15, sunMul: 0.32, envMul: 1.30, expMul: 1.10, fogMul: 1.30, rain: 0, storm: 0, wind: 1.00, gust: 0.25, sunVis: 0.30, cr: 0.50, cg: 0.55, cb: 0.62, drift: 1.8 },
-  rain:   { cover: 0.95, grey: 0.97, over: 1.00, dark: 0.55, sunMul: 0.03, envMul: 1.25, expMul: 1.22, fogMul: 3.4, rain: 0.8, storm: 0, wind: 1.60, gust: 0.35, sunVis: 0.0, cr: 0.31, cg: 0.345, cb: 0.395, drift: 2.6 },
-  storm:  { cover: 1.00, grey: 1.00, over: 1.00, dark: 1.00, sunMul: 0.0, envMul: 1.05, expMul: 1.35, fogMul: 5.0, rain: 1.0, storm: 1.0, wind: 4.20, gust: 0.55, sunVis: 0.0, cr: 0.145, cg: 0.16, cb: 0.19, drift: 6.0 },
+  cloudy: { cover: 0.74, grey: 0.55, over: 0.60, dark: 0.15, sunMul: 0.32, envMul: 1.30, expMul: 1.10, fogMul: 1.30, rain: 0, storm: 0, wind: 1.00, gust: 0.25, sunVis: 0.30, cr: 0.50, cg: 0.525, cb: 0.56, drift: 1.8 },
+  rain:   { cover: 0.95, grey: 0.97, over: 1.00, dark: 0.55, sunMul: 0.03, envMul: 1.25, expMul: 1.22, fogMul: 3.4, rain: 0.8, storm: 0, wind: 1.60, gust: 0.35, sunVis: 0.0, cr: 0.30, cg: 0.318, cb: 0.345, drift: 2.6 },
+  storm:  { cover: 1.00, grey: 1.00, over: 1.00, dark: 1.00, sunMul: 0.0, envMul: 1.05, expMul: 1.35, fogMul: 5.0, rain: 1.0, storm: 1.0, wind: 4.20, gust: 0.55, sunVis: 0.0, cr: 0.135, cg: 0.145, cb: 0.165, drift: 6.0 },
   windy:  { cover: 0.42, grey: 0.00, over: 0.00, dark: 0.00, sunMul: 1.15, envMul: 1.00, expMul: 1.00, fogMul: 0.8, rain: 0, storm: 0, wind: 3.30, gust: 0.50, sunVis: 1.0, cr: 0.52, cg: 0.57, cb: 0.65, drift: 4.0 },
 };
 const KEYS = Object.keys(STATES.sunny);
@@ -74,9 +74,9 @@ float h11(float p) { p = fract(p * 0.1031); p *= p + 33.33; p *= p + p; return f
 void main() {
   float L = aS.w < 0.42 ? 0.0 : (aS.w < 0.78 ? 1.0 : 2.0);
   vec3 box = L < 0.5 ? vec3(20.0, 15.0, 20.0) : (L < 1.5 ? vec3(60.0, 38.0, 60.0) : vec3(170.0, 90.0, 170.0));
-  float wd = L < 0.5 ? 0.010 : (L < 1.5 ? 0.028 : 0.085);
+  float wd = L < 0.5 ? 0.006 : (L < 1.5 ? 0.018 : 0.06);
   float ln = L < 0.5 ? 0.42 : (L < 1.5 ? 1.25 : 3.6);
-  float al = L < 0.5 ? 0.55 : (L < 1.5 ? 0.30 : 0.16);
+  float al = L < 0.5 ? 0.38 : (L < 1.5 ? 0.20 : 0.10);
   float sv = 0.85 + 0.35 * h11(aS.w * 97.0 + aS.x * 13.0);
   vec3 vel = uVel * sv;
   vec3 p0 = aS.xyz * box + vel * uT;
@@ -153,7 +153,7 @@ void main() {
     float r = length(vUv);
     float R = mix(0.12, 0.95, sqrt(vAge));
     float w = mix(0.16, 0.06, vAge);
-    a = smoothstep(w, 0.0, abs(r - R)) * pow(1.0 - vAge, 1.4) * 0.9;
+    a = smoothstep(w * 0.6, 0.0, abs(r - R)) * pow(1.0 - vAge, 1.6) * 0.6;
     a += smoothstep(0.05, 0.0, abs(r - R * 0.55)) * (1.0 - vAge) * 0.35 * step(0.25, vAge);
   } else {
     // crown: a few droplets thrown up on parabolic arcs
@@ -167,7 +167,7 @@ void main() {
       float d = length(vec2((x - tx) * 1.0, (y - ty) * 1.3));
       a += smoothstep(0.10, 0.03, d) * step(ph, 0.999) * step(0.001, ph);
     }
-    a *= (1.0 - vAge) * 0.45;
+    a *= (1.0 - vAge) * 0.28;
   }
   a *= vA;
   if (a < 0.004) discard;
@@ -231,8 +231,8 @@ varying vec2 vK;
 void main() {
   float x = abs(vK.x);
   vec3 c;
-  if (vK.y < 0.5) c = vec3(0.92, 0.96, 1.0) * 5.0 * pow(1.0 - x, 1.2);
-  else c = vec3(0.45, 0.62, 1.0) * 1.1 * exp(-x * x * 3.5);
+  if (vK.y < 0.5) c = vec3(0.95, 0.97, 1.0) * 7.0 * pow(1.0 - x, 2.0);
+  else c = vec3(0.50, 0.62, 1.0) * 0.8 * exp(-x * x * 4.0);
   gl_FragColor = vec4(c * uEnv, 1.0);
 }`;
 
@@ -261,16 +261,16 @@ void main() {
   float r = length(vP);
   vec3 c = vec3(0.0);
   if (vKind < 0.5) {            // glare: soft halo + subtle star
-    float a = exp(-r * r * 5.0) * 0.55 + exp(-r * 2.2) * 0.12;
+    float a = exp(-r * r * 5.0) * 0.42 + exp(-r * 2.2) * 0.10;
     float ang = atan(vP.y, vP.x);
-    a += pow(max(cos(ang * 3.0), 0.0), 24.0) * exp(-r * 3.0) * 0.18;
+    a += pow(max(cos(ang * 3.0), 0.0), 24.0) * exp(-r * 3.0) * 0.05;
     c = vec3(1.0, 0.93, 0.78) * a;
   } else if (vKind < 1.5) {     // ghost disc
-    c = vec3(1.0, 0.8, 0.55) * smoothstep(1.0, 0.7, r) * 0.25;
+    c = vec3(1.0, 0.9, 0.75) * smoothstep(1.0, 0.6, r) * 0.05;
   } else if (vKind < 2.5) {     // ring
-    c = vec3(0.6, 0.85, 1.0) * smoothstep(0.12, 0.0, abs(r - 0.82)) * 0.5;
+    c = vec3(0.9, 0.95, 1.0) * smoothstep(0.2, 0.0, abs(r - 0.82)) * 0.03;
   } else {                      // horizontal anamorphic streak
-    c = vec3(0.7, 0.8, 1.0) * exp(-abs(vP.y) * 18.0) * smoothstep(1.0, 0.2, abs(vP.x)) * 0.35;
+    c = vec3(1.0, 0.95, 0.9) * exp(-abs(vP.y) * 30.0) * smoothstep(1.0, 0.2, abs(vP.x)) * 0.05;
   }
   gl_FragColor = vec4(c * vI, 1.0);
 }`;
@@ -446,7 +446,7 @@ export function createWeather(ctx) {
       const d = v2.length();
       v3.crossVectors(v1, v2).normalize();
       for (let kind = 0; kind < 2; kind++) {
-        const w = d * 0.0034 * s[6] * (kind === 0 ? 1 : 6.0);
+        const w = d * 0.0022 * s[6] * (kind === 0 ? 1 : 7.0);
         const o = q * 4;
         for (let j = 0; j < 4; j++) {
           const end = j >> 1, side = (j & 1) ? 1 : -1;
@@ -631,7 +631,7 @@ export function createWeather(ctx) {
       rainMat.uniforms.uVel.value.set(wx * 0.7, -9.5, wz * 0.7);
       rainMat.uniforms.uPx.value = 2 / (camera.projectionMatrix.elements[5] * renderer.domElement.height);
       const gc = U.uGreyCol.value;
-      rainMat.uniforms.uCol.value.setRGB(gc.r * 1.5 + 0.10, gc.g * 1.5 + 0.11, gc.b * 1.5 + 0.13);
+      rainMat.uniforms.uCol.value.setRGB(gc.r * 1.25 + 0.06, gc.g * 1.25 + 0.065, gc.b * 1.25 + 0.075);
     }
     splash.visible = rain.visible && (wet > 0.3 || rainA > 0.3);
     if (splash.visible) {

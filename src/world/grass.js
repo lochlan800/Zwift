@@ -61,15 +61,15 @@ function clumpGeometry(nb, nt, ns) {
   };
   for (let i = 0; i < nb; i++) {
     const a = (i / nb) * Math.PI * 2 + rnd() * 0.8;
-    blade(0, 0.04 + Math.sqrt(rnd()) * 0.42, a, 0.6 + rnd() * 0.4, 0.25 + rnd() * 0.45, 0.026 + rnd() * 0.014, rnd(), (rnd() - 0.5) * 0.25);
+    blade(0, 0.04 + Math.sqrt(rnd()) * 0.42, a, 0.6 + rnd() * 0.4, 0.25 + rnd() * 0.45, 0.011 + rnd() * 0.006, rnd(), (rnd() - 0.5) * 0.25);
   }
   for (let i = 0; i < nt; i++) {
     const a = (i / nt) * Math.PI * 2 + rnd() * 1.2;
-    blade(1, 0.03 + Math.sqrt(rnd()) * 0.35, a, 1.0 + rnd() * 0.35, 0.12 + rnd() * 0.3, 0.020 + rnd() * 0.008, rnd(), (rnd() - 0.5) * 0.3);
+    blade(1, 0.03 + Math.sqrt(rnd()) * 0.35, a, 1.0 + rnd() * 0.35, 0.12 + rnd() * 0.3, 0.012 + rnd() * 0.005, rnd(), (rnd() - 0.5) * 0.3);
   }
   for (let i = 0; i < ns; i++) {
     const a = (i / Math.max(1, ns)) * Math.PI * 2 + rnd() * 2;
-    const t = blade(1, 0.04 + rnd() * 0.08, a, 1.05 + rnd() * 0.25, 0.15 + rnd() * 0.2, 0.007, rnd(), 0.12);
+    const t = blade(1, 0.04 + rnd() * 0.08, a, 1.05 + rnd() * 0.25, 0.15 + rnd() * 0.2, 0.005, rnd(), 0.12);
     head(2, t[0], t[1] * 0.98, t[2], rnd() * 6, 0.2, 0.012, rnd());
   }
   // a wildflower: thin stem + small crossed kite head
@@ -91,10 +91,10 @@ export function createGrass(hf, lc, roadIdx, bIdx, cfg) {
   const R = cfg.grassRadius;
   const n = Math.ceil(R / CELL);
   const M = 2 * n + 1;
-  const K = Math.round(105 * cfg.grass);
+  const K = Math.round(75 * cfg.grass);
   const total = M * M * K;
   const low = cfg.tier === 'low';
-  const geo = clumpGeometry(low ? 9 : 15, low ? 3 : 4, low ? 1 : 2);
+  const geo = clumpGeometry(low ? 11 : 20, low ? 3 : 4, low ? 1 : 2);
   const inst = new Float32Array(total * 4);
   const attr = new THREE.InstancedBufferAttribute(inst, 4);
   attr.setUsage(THREE.DynamicDrawUsage);
@@ -125,7 +125,7 @@ export function createGrass(hf, lc, roadIdx, bIdx, cfg) {
         float s = sc * (1.0 - smoothstep(uR * 0.62, uR, d)) * step(r2, keep);
         bool rough = typ > 0.5;
         // flower chance is stored in the fractional hash: lawns get few daisies, rough grass many wildflowers
-        float flowerP = rough ? 0.42 : 0.07;
+        float flowerP = rough ? 0.42 : 0.05;
         if (kind > 2.5 && r3 > flowerP) s = 0.0;
         if (kind > 0.5 && kind < 2.5 && !rough) s = 0.0;
         float ang = r1 * 6.2831;
@@ -133,9 +133,8 @@ export function createGrass(hf, lc, roadIdx, bIdx, cfg) {
         vec3 p = position;
         p.xz = mat2(cs, -sn, sn, cs) * p.xz;
         // blade widths: rough tufts are wider/fuller than the fine lawn
-        float wide = rough ? 1.5 : 0.78;
+        float wide = rough ? 1.15 : 1.0;
         p.xz *= wide * mix(0.8, 1.0, min(1.0, s * 3.0));
-        if (!rough) { p.xz = mix(p.xz, p.xz * 0.7, 1.0); }
         p.y *= s;
         float hgt = uv.y;
         if (kind > 0.5 && kind < 1.5) hgt = uv.y;
@@ -149,20 +148,25 @@ export function createGrass(hf, lc, roadIdx, bIdx, cfg) {
         vec4 n1 = texture2D(uNoise, aI.xz / 260.0), n2 = texture2D(uNoise, aI.xz / 41.0), n3 = texture2D(uNoise, aI.xz / 7.3);
         vec3 col;
         if (!rough) {
-          vec3 a = mix(lin(0.25, 0.42, 0.07), lin(0.34, 0.51, 0.10), n2.g);
-          a = mix(a, lin(0.40, 0.50, 0.11), smoothstep(0.55, 0.9, n1.r) * 0.35);
-          // soft mown-stripe hint
+          vec3 a = mix(lin(0.19, 0.30, 0.065), lin(0.27, 0.38, 0.09), n2.g);
+          a = mix(a, lin(0.31, 0.37, 0.10), smoothstep(0.55, 0.9, n1.r) * 0.45);
+          // clover / weed patches: darker, bluer green
+          float cl = smoothstep(0.60, 0.78, n3.r * 0.6 + n2.b * 0.5);
+          a = mix(a, lin(0.10, 0.22, 0.06), cl * 0.7);
           float st = smoothstep(-0.3, 0.3, sin(dot(aI.xz, vec2(0.62, 0.78)) * 0.55));
-          a *= 0.92 + 0.14 * st;
-          col = a * (0.92 + 0.16 * aK.y);
+          a *= 0.93 + 0.12 * st;
+          // sun-dried tips on some blades
+          float dry = (aK.y > 0.55 ? 0.6 : 0.2) * smoothstep(0.55, 1.0, uv.y) * (0.4 + n1.r);
+          a = mix(a, lin(0.46, 0.40, 0.19), clamp(dry, 0.0, 0.7));
+          col = a * (0.88 + 0.24 * aK.y);
         } else {
-          vec3 gr = mix(lin(0.22, 0.36, 0.07), lin(0.32, 0.46, 0.10), n2.g);
-          vec3 straw = mix(lin(0.56, 0.47, 0.17), lin(0.70, 0.60, 0.27), n3.b);
+          vec3 gr = mix(lin(0.18, 0.28, 0.06), lin(0.26, 0.36, 0.09), n2.g);
+          vec3 straw = mix(lin(0.48, 0.40, 0.16), lin(0.62, 0.52, 0.24), n3.b);
           float gm = smoothstep(0.30, 0.75, n1.r) * 0.55 + (aK.y > 0.62 ? 0.55 : 0.0) + uv.y * uv.y * 0.35;
           col = mix(gr, straw, clamp(gm, 0.0, 1.0)) * (0.9 + 0.2 * aK.y);
         }
         if (kind > 1.5 && kind < 2.5) col = lin(0.66, 0.53, 0.24) * (0.8 + 0.4 * aK.y) * mix(0.8, 1.0, uv.y);
-        if (kind > 2.5 && kind < 3.5) col = lin(0.22, 0.34, 0.08);
+        if (kind > 2.5 && kind < 3.5) col = lin(0.18, 0.28, 0.07);
         if (kind > 3.5) {
           float c = aK.y;
           col = c < 0.45 ? lin(0.95, 0.94, 0.88) : (c < 0.8 ? lin(0.96, 0.78, 0.10) : lin(0.62, 0.30, 0.62));

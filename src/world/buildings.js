@@ -263,7 +263,7 @@ function addBuilding(G, b, rnd, tcIdx, roadIdx, bIdx) {
   // ---- roof
   const uvPoly0 = poly.map((q) => toUV(q[0], q[1]));
   // eaves / verge overhang for pitched roofs (approximated by scaling about the OBB centre)
-  const OH = roof === 'flat' ? 0 : 0.5;
+  const OH = roof === 'flat' ? 0 : (b._old ? 0.25 : 0.35);
   const uvPoly = OH ? uvPoly0.map((q) => [q[0] * (O.hl + (roof === 'hipped' ? OH : OH * 0.8)) / O.hl, q[1] * (O.hw + OH) / O.hw]) : uvPoly0;
   const addPlane = (pl, hfun, nrm, surf) => {
     if (pl.length < 3) return;
@@ -330,7 +330,7 @@ function addBuilding(G, b, rnd, tcIdx, roadIdx, bIdx) {
         if (l < 0.05) continue;
         const nx = outSign * ez / l, nz = -outSign * ex / l;
         const ya = base + roofH(ua[0], ua[1]), yb = base + roofH(ub[0], ub[1]);
-        quad(A, Bq, ya - 0.24, ya + 0.04, yb - 0.24, yb + 0.04, nx, nz, S_FASCIA);
+        quad(A, Bq, ya - 0.17, ya + 0.03, yb - 0.17, yb + 0.03, nx, nz, S_FASCIA);
         // gutter on horizontal eaves
         if (Math.abs(ya - yb) < 0.05 && l > 1.0) {
           const go = 0.08;
@@ -446,23 +446,23 @@ float boxAA(vec2 p, vec2 lo, vec2 hi, vec2 fw) {
   return a.x * a.y;
 }
 vec3 brickCol(int c) {
-  if (c == 0) return lin3(vec3(0.60, 0.25, 0.15));
-  if (c == 1) return lin3(vec3(0.66, 0.33, 0.19));
-  if (c == 2) return lin3(vec3(0.50, 0.21, 0.13));
-  if (c == 3) return lin3(vec3(0.70, 0.42, 0.25));
-  if (c == 4) return lin3(vec3(0.68, 0.58, 0.42));   // warm buff gritstone
-  if (c == 5) return lin3(vec3(0.58, 0.50, 0.38));   // darker weathered stone
-  if (c == 8) return lin3(vec3(0.66, 0.24, 0.14));   // bright Victorian red brick
-  if (c == 9) return lin3(vec3(0.74, 0.63, 0.46));   // honey Yorkshire sandstone
-  if (c == 10) return lin3(vec3(0.86, 0.82, 0.72));  // cream render
-  if (c == 11) return lin3(vec3(0.55, 0.58, 0.60));  // painted grey render (pub)
-  if (c == 6) return lin3(vec3(0.84, 0.78, 0.66));
-  return lin3(vec3(0.80, 0.79, 0.75));
+  if (c == 0) return lin3(vec3(0.54, 0.29, 0.23));   // common red brick  ~#8a4a3a
+  if (c == 1) return lin3(vec3(0.50, 0.30, 0.24));
+  if (c == 2) return lin3(vec3(0.43, 0.23, 0.19));   // dark engineering-ish ~#6e3b30
+  if (c == 3) return lin3(vec3(0.58, 0.38, 0.28));   // buff-red
+  if (c == 4) return lin3(vec3(0.58, 0.52, 0.42));   // weathered buff gritstone
+  if (c == 5) return lin3(vec3(0.46, 0.42, 0.36));   // sooty grey-brown gritstone
+  if (c == 8) return lin3(vec3(0.56, 0.28, 0.21));   // Victorian red brick
+  if (c == 9) return lin3(vec3(0.66, 0.58, 0.45));   // honey/buff sandstone
+  if (c == 10) return lin3(vec3(0.76, 0.74, 0.68));  // limewash / render
+  if (c == 11) return lin3(vec3(0.52, 0.54, 0.55));  // painted grey render
+  if (c == 6) return lin3(vec3(0.70, 0.68, 0.62));   // roughcast
+  return lin3(vec3(0.66, 0.65, 0.62));
 }
-vec3 accentFrame(float s) { float h = hb(s * 3.17 + 1.0); return h < 0.62 ? lin3(vec3(0.93, 0.93, 0.90)) : h < 0.86 ? lin3(vec3(0.90, 0.85, 0.72)) : lin3(vec3(0.07, 0.07, 0.08)); }
+vec3 accentFrame(float s) { float h = hb(s * 3.17 + 1.0); return h < 0.62 ? lin3(vec3(0.84, 0.84, 0.82)) : h < 0.86 ? lin3(vec3(0.80, 0.77, 0.68)) : lin3(vec3(0.12, 0.12, 0.12)); }
 vec3 accentDoor(float s) { float h = hb(s * 5.31 + 2.0);
-  return h < 0.2 ? lin3(vec3(0.06, 0.10, 0.28)) : h < 0.38 ? lin3(vec3(0.06, 0.22, 0.12)) : h < 0.56 ? lin3(vec3(0.40, 0.05, 0.08)) : h < 0.72 ? lin3(vec3(0.05, 0.05, 0.06)) : h < 0.86 ? lin3(vec3(0.70, 0.10, 0.08)) : lin3(vec3(0.90, 0.90, 0.87)); }
-vec3 accentFascia(float s) { float h = hb(s * 7.7 + 3.0); return h < 0.55 ? lin3(vec3(0.94, 0.94, 0.91)) : h < 0.75 ? lin3(vec3(0.90, 0.85, 0.72)) : h < 0.9 ? lin3(vec3(0.08, 0.08, 0.09)) : lin3(vec3(0.07, 0.20, 0.12)); }
+  return h < 0.2 ? lin3(vec3(0.14, 0.17, 0.26)) : h < 0.38 ? lin3(vec3(0.15, 0.24, 0.18)) : h < 0.56 ? lin3(vec3(0.34, 0.12, 0.12)) : h < 0.72 ? lin3(vec3(0.10, 0.10, 0.11)) : h < 0.86 ? lin3(vec3(0.42, 0.33, 0.24)) : lin3(vec3(0.80, 0.80, 0.77)); }
+vec3 accentFascia(float s) { float h = hb(s * 7.7 + 3.0); return h < 0.45 ? lin3(vec3(0.80, 0.80, 0.78)) : h < 0.65 ? lin3(vec3(0.62, 0.58, 0.50)) : lin3(vec3(0.14, 0.14, 0.14)); }
 void buildingSurface(vec3 w, vec3 Nw) {
   int craw = int(vB.x + 0.5), kind = int(vB.y + 0.5), surf = int(vB.z + 0.5);
   bool old = craw >= 16; int c = old ? craw - 16 : craw;
@@ -495,18 +495,18 @@ void buildingSurface(vec3 w, vec3 Nw) {
       bBump = hgt < 1.8 ? 0.0 : rib * 0.4;
       bMetal = hgt < 1.8 ? 0.0 : 0.3; bRough = hgt < 1.8 ? 0.85 : 0.5;
     } else if (brick) {
-      vec2 bp = vec2(u / 0.27, hgt / 0.09);
+      vec2 bp = vec2(u / 0.225, hgt / 0.075);
       float row = floor(bp.y);
       bp.x += mod(row, 2.0) * 0.5;
       vec2 f = fract(bp); vec2 fw = fwidth(bp);
       float mortar = (1.0 - smoothstep(0.0, 0.06 + fw.x, min(f.x, 1.0 - f.x) * 1.0)) ;
       mortar = max(mortar, 1.0 - smoothstep(0.0, 0.14 + fw.y, min(f.y, 1.0 - f.y)));
-      float aa = smoothstep(0.4, 1.1, max(fw.x, fw.y));
+      float aa = smoothstep(0.3, 0.9, max(fw.x, fw.y));
       float bh = hb(floor(bp.x) + row * 31.7 + seed);
-      vec3 bc = base * (0.82 + 0.3 * bh) * (0.9 + 0.2 * n4.r);
+      vec3 bc = base * (0.84 + 0.24 * bh) * mix(vec3(1.0), vec3(0.92, 0.96, 1.02), step(0.86, bh)) * (0.92 + 0.14 * n4.r);
       vec3 mc = lin3(vec3(0.62, 0.58, 0.52));
       // keep a faint coursing even when individual bricks are sub-pixel
-      float course = 0.5 + 0.5 * sin(hgt / 0.09 * 6.2831);
+      float course = 0.5 + 0.5 * sin(hgt / 0.075 * 6.2831);
       col = mix(mix(bc, mc, mortar * 0.85), mix(base, mc, 0.18) * (0.94 + 0.08 * course * (1.0 - smoothstep(1.2, 2.5, fw.y))), aa);
       bBump = (1.0 - mortar) * (1.0 - aa);
     } else if (stone) {
@@ -574,9 +574,20 @@ void buildingSurface(vec3 w, vec3 Nw) {
       if (surf == 3) k += 0.2;
       col *= 1.0 - clamp(k, 0.0, 0.62) * (c == 9 ? 0.55 : 1.0);
     }
+    // weathering (all ages): rain streaks, north-face algae, rising damp, efflorescence
+    if (!shop) {
+      vec4 wn = texture2D(uNoise, vec2(u * 0.6, hgt * 0.08) + seed * 0.013);
+      float streak = smoothstep(0.55, 0.95, wn.b) * smoothstep(0.62, 0.9, texture2D(uNoise, vec2(u * 0.09, 0.3) + seed * 0.02).r);
+      col *= 1.0 - 0.18 * streak;
+      float north = clamp(-Nw.z, 0.0, 1.0);
+      float damp = (1.0 - smoothstep(0.0, 1.1 + 0.6 * n3.g, hgt));
+      col = mix(col, col * vec3(0.78, 0.86, 0.72), clamp(north * 0.45 * smoothstep(0.45, 0.8, n3.g) + damp * 0.35 * smoothstep(0.4, 0.75, n4.g), 0.0, 0.6));
+      col = mix(col, lin3(vec3(0.78, 0.77, 0.72)), (brick ? 0.18 : 0.0) * damp * smoothstep(0.7, 0.9, wn.a));
+      bRough = clamp(bRough + 0.05 * streak, 0.0, 1.0);
+    }
     // baked AO (inside corners, neighbours)
-    col *= mix(0.62, 1.0, vAO);
-    bAO *= mix(0.45, 1.0, vAO);
+    col *= mix(0.8, 1.0, vAO);
+    bAO *= mix(0.6, 1.0, vAO);
     if (dress && hgt > (shop ? 3.55 : 0.3)) {
       // dressed quoins on the corners, alternating long/short
       float qd = min(u, L - u);
@@ -699,8 +710,8 @@ void buildingSurface(vec3 w, vec3 Nw) {
         vec2 lp2 = lp - vec2(dot(vv, T), vv.y) * depth / ndv;
         float open = boxAA(lp, lo, hi, fw);                 // hole in the wall face
         float back = boxAA(lp2, lo, hi, fw);                // frame plane seen through the hole
-        float frameIn = clamp(back - boxAA(lp2, lo + 0.075, hi - 0.075, fw), 0.0, 1.0);
-        float glass = boxAA(lp2, lo + 0.075, hi - 0.075, fw);
+        float frameIn = clamp(back - boxAA(lp2, lo + 0.055, hi - 0.055, fw), 0.0, 1.0);
+        float glass = boxAA(lp2, lo + 0.055, hi - 0.055, fw);
         if (arched && !door) {
           float ar = (hi.x - lo.x) * 0.5;
           vec2 ac = vec2((lo.x + hi.x) * 0.5, hi.y - ar);
@@ -792,7 +803,7 @@ void buildingSurface(vec3 w, vec3 Nw) {
     float down = w.y / slope; // distance along slope
     float ac = dot(w, along);
     bool slate = (c == 4 || c == 5 || kind == 1 || c == 2 || kind == 6 || c >= 8);
-    vec3 rc = slate ? lin3(vec3(0.30, 0.32, 0.345)) : (c == 0 || c == 3) ? lin3(vec3(0.58, 0.30, 0.20)) : (c == 6) ? lin3(vec3(0.44, 0.30, 0.22)) : lin3(vec3(0.33, 0.33, 0.35));
+    vec3 rc = slate ? lin3(vec3(0.25, 0.26, 0.28)) : (c == 0 || c == 3) ? lin3(vec3(0.46, 0.28, 0.22)) : (c == 6) ? lin3(vec3(0.38, 0.30, 0.25)) : lin3(vec3(0.33, 0.33, 0.33));
     if (industrial) rc = lin3(vec3(0.42, 0.43, 0.44));
     vec2 tp = slate ? vec2(ac / 0.3, down / 0.22) : vec2(ac / 0.33, down / 0.26);
     float row = floor(tp.y);
@@ -803,7 +814,7 @@ void buildingSurface(vec3 w, vec3 Nw) {
     float gap = mix(smoothstep(0.0, 0.06 + fw.x, min(f.x, 1.0 - f.x)), 1.0, aa);
     float th = hb(floor(tp.x) + row * 13.1 + seed);
     float th2 = hb(floor(tp.x) * 3.1 + row * 7.7 + seed * 0.3);
-    vec3 col = rc * (0.78 + 0.45 * th * (1.0 - aa)) * mix(vec3(1.0), slate ? vec3(0.9, 0.9, 0.92) : vec3(1.08, 0.95, 0.9), th2 * (1.0 - aa)) * shadow * (0.7 + 0.3 * gap);
+    vec3 col = rc * (0.84 + 0.3 * th * (1.0 - aa)) * mix(vec3(1.0), slate ? vec3(0.9, 0.9, 0.92) : vec3(1.08, 0.95, 0.9), th2 * (1.0 - aa)) * shadow * (0.7 + 0.3 * gap);
     // darker weathering towards the gutters
     col *= mix(0.72, 1.0, smoothstep(0.0, 1.2, w.y - vW.w + 0.5));
     col = mix(col, lin3(vec3(0.30, 0.33, 0.16)), smoothstep(0.58, 0.85, n3.g) * (old ? 0.4 : 0.12)); // moss / lichen

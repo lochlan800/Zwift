@@ -221,7 +221,7 @@ void roadSurface(vec3 w) {
   vec4 n5 = texture2D(uNoise, w.xz / 0.37);
   float fa = 1.0 - smoothstep(8.0, 40.0, dist);
   // neutral warm-grey asphalt, fine aggregate
-  vec3 asph = lin3(vec3(0.255, 0.258, 0.27)) * (1.0 + (n5.a - 0.5) * 0.28 * fa + (n4.b - 0.5) * 0.1) * (0.95 + 0.1 * n2.g);
+  vec3 asph = lin3(vec3(0.27, 0.268, 0.265)) * (1.0 + (n5.a - 0.5) * 0.28 * fa + (n4.b - 0.5) * 0.1) * (0.95 + 0.1 * n2.g);
   // fine cracks (thin dark lines from the noise iso-contours) and longitudinal tar-seal joints
   {
     float cn = texture2D(uNoise, w.xz / 4.7).g;
@@ -238,7 +238,29 @@ void roadSurface(vec3 w) {
   track *= vMark;
   asph *= 1.0 - 0.06 * track;
   asph *= mix(1.0, 0.9 + 0.1 * n3.b, smoothstep(hw - 0.5, hw, abs(v)) * vMark); // edge grime
-  rAlb = asph; rRough = 0.9 - 0.06 * track; rBump = n5.a * 0.5 + n4.a * 0.3;
+  // oil drips / tar bleed along the lane centres
+  float lq = (abs(v) - hw * 0.5) / 0.45; float lane = exp(-lq * lq) * vMark;
+  float oil = smoothstep(0.72, 0.9, n3.r) * lane;
+  asph *= 1.0 - 0.22 * oil;
+  rAlb = asph; rRough = 0.9 - 0.06 * track - 0.25 * oil; rBump = n5.a * 0.5 + n4.a * 0.3;
+  // gully grates at the kerb every ~32 m, manhole covers in the lane every ~73 m
+  if (vRoad.w < 23.5 && vMark > 0.5 && hw > 2.0) {
+    float gu = abs(fract(u / 32.0 + 0.37) - 0.5) * 32.0;
+    vec2 gfw = vec2(fwidth(u), fwidth(v)) * 0.75 + 1e-4;
+    float gx = 1.0 - smoothstep(0.32 - gfw.x, 0.32 + gfw.x, gu);
+    float gy = (1.0 - smoothstep(0.5 - gfw.y, 0.5 + gfw.y, hw - abs(v))) * smoothstep(0.08 - gfw.y, 0.08 + gfw.y, hw - abs(v));
+    float g = gx * gy;
+    float bars = step(0.5, fract(gu / 0.05));
+    rAlb = mix(rAlb, lin3(vec3(0.10, 0.10, 0.10)) * (0.4 + 0.6 * bars), g);
+    rRough = mix(rRough, 0.55, g); rBump = mix(rBump, bars, g);
+    float mu = abs(fract(u / 73.0 + 0.11) - 0.5) * 73.0;
+    float md = length(vec2(mu, v - sign(v + 1e-3) * hw * 0.42));
+    float m = 1.0 - smoothstep(0.33 - gfw.x, 0.33 + gfw.x, md);
+    float ring = smoothstep(0.27, 0.29, md) * m;
+    float pat = step(0.5, fract((mu + v) / 0.06));
+    rAlb = mix(rAlb, lin3(vec3(0.16, 0.155, 0.15)) * (0.75 + 0.25 * pat) * (1.0 - 0.35 * ring), m);
+    rRough = mix(rRough, 0.5, m); rBump = mix(rBump, pat, m);
+  }
   if (t <= 3) {
     float paint = 0.0;
     float m = vMark;
@@ -278,7 +300,8 @@ void roadSurface(vec3 w) {
     }
     paint *= 0.75 + 0.25 * n4.b;
     paint *= 1.0 - smoothstep(0.62, 0.75, n3.r) * 0.5; // worn
-    rAlb = mix(rAlb, vec3(0.86), paint);
+    paint *= 0.8 - 0.25 * smoothstep(0.4, 0.8, n2.b); // faded
+    rAlb = mix(rAlb, vec3(0.72, 0.72, 0.70), paint);
     // rural lanes without pavements: narrow grit shoulder
     if (rural && vMark > 0.5 && hw > 1.6) {
       float sh = smoothstep(hw - 0.45, hw - 0.3, abs(v));
@@ -290,7 +313,7 @@ void roadSurface(vec3 w) {
       // double yellow lines along both kerbs
       float yl = max(lineAA(abs(v) - (hw - 0.22), 0.05), lineAA(abs(v) - (hw - 0.42), 0.05)) * m;
       yl *= 0.8 + 0.2 * n4.b;
-      rAlb = mix(rAlb, lin3(vec3(0.95, 0.72, 0.08)), yl);
+      rAlb = mix(rAlb, lin3(vec3(0.80, 0.62, 0.16)), yl * 0.9);
       rRough = mix(rRough, 0.6, yl);
     }
   } else if (t == ${RT.TRACK}) {
