@@ -636,7 +636,7 @@ export function createStreetLife(features, hf, lc, roadIdx, bIdx, routeIdx, give
 
   // ---- Storrs Hill Road: scrub on the far side, retaining wall + Ossett sign near the top, pylons in the fields
   const scrub = [], pylons = [], pylonWire = [];
-  let ossett = null;
+  let ossett = null, slow = null;
   if (st && st.roads.length) {
     let top = null;
     for (const r of st.roads) {
@@ -660,6 +660,10 @@ export function createStreetLife(features, hf, lc, roadIdx, bIdx, routeIdx, give
           const ps = r._paveSide, o = hw + r._pave + 0.35;
           const px = x + tz * ps * o, pz = z - tx * ps * o;
           push(stoneWalls, px, y - 0.1, pz, Math.atan2(tx, tz), 1, 2.1, 1.02, [1, 1, 1]);
+        }
+        if (!slow && rs > 2885 && rs < 2900) {
+          const dx = tx * dir, dz = tz * dir, lx = tz * r._paveSide, lz = -tx * r._paveSide;
+          slow = { cx: x + lx * hw * 0.5, cz: z + lz * hw * 0.5, dx, dz };
         }
         if (!ossett && rs > 2955 && rs < 2975) {
           const o = hw + 1.4, px = x + tz * side * o, pz = z - tx * side * o;
@@ -792,6 +796,23 @@ export function createStreetLife(features, hf, lc, roadIdx, bIdx, routeIdx, give
     const wg = new THREE.BufferGeometry(); wg.setAttribute('position', new THREE.Float32BufferAttribute(pylonWire, 3));
     const wl = new THREE.LineSegments(wg, new THREE.LineBasicMaterial({ color: 0x2a2d31, transparent: true, opacity: 0.8 }));
     wl.name = 'pylonwires'; group.add(wl);
+  }
+  if (slow) {
+    const rx = -slow.dz, rz = slow.dx; // right of travel
+    const corner = (a, b) => { const x = slow.cx + rx * a + slow.dx * b, z = slow.cz + rz * a + slow.dz * b; const q = roadIdx.query(x, z, 0.5, null, tmp); return [x, (q ? q.y : hf.sample(x, z)) + 0.085, z]; };
+    const P = [corner(-0.75, -2.4), corner(0.75, -2.4), corner(0.75, 2.4), corner(-0.75, 2.4)];
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(P.flat(), 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 1, 1, 0, 1], 2));
+    g.setIndex([0, 2, 1, 0, 3, 2]); g.computeVertexNormals();
+    if (g.attributes.normal.getY(0) < 0) g.setIndex([0, 1, 2, 0, 2, 3]);
+    g.computeVertexNormals();
+    const cv = document.createElement('canvas'); cv.width = 128; cv.height = 512;
+    const c2 = cv.getContext('2d'); c2.fillStyle = '#fff'; c2.font = 'bold 76px Arial, Helvetica, sans-serif'; c2.textAlign = 'center'; c2.textBaseline = 'middle';
+    c2.save(); c2.translate(64, 256); c2.scale(0.95, 4.6); c2.fillText('SLOW', 0, 0); c2.restore();
+    const tex = new THREE.CanvasTexture(cv); tex.anisotropy = 8;
+    const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ map: tex, transparent: true, alphaTest: 0.3, roughness: 0.6, color: 0xe8e8e8, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4, depthWrite: false }));
+    m.receiveShadow = true; m.name = 'slow'; group.add(m);
   }
   if (ossett) {
     const m = new THREE.Mesh(ossettGeometry(), new THREE.MeshStandardMaterial({ map: ossettTexture(), roughness: 0.6 }));
