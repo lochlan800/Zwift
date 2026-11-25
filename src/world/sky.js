@@ -106,7 +106,7 @@ void main() {
   if (d.y > 0.0) {
     float y = d.y;
     vec2 p = d.xz / (y * 0.9 + 0.24);
-    p = p * 0.46 + uWind * uTime;
+    p = p * 1.05 + uWind * uTime;
     p += 0.45 * vec2(vnoise(p * 1.4), vnoise(p * 1.4 + 7.3)) - 0.22;   // billow warp
     float n = fbm(p);
     float th = 1.0 - uCover;
@@ -118,7 +118,7 @@ void main() {
       vec2 up = -normalize(d.xz + 1e-4);                 // toward zenith in plane space
       float lit;
 #ifdef CLOUD_LIT
-      float n2 = fbm(p + normalize(sdir + up * 0.9) * 0.10);
+      float n2 = fbm(p + normalize(sdir + up * 0.9) * 0.055);
       lit = clamp(0.50 + (n - n2) * 9.0, 0.0, 1.0);
 #else
       lit = clamp(0.30 + 0.70 * smoothstep(th, th + 0.30, n), 0.0, 1.0);
@@ -157,7 +157,7 @@ function skyMaterial({ lut, cloudOct, cloudLit }) {
       uDesat: { value: 0 },
       uZenith: { value: new THREE.Color(0.03, 0.17, 0.66) },
       uHorizon: { value: new THREE.Color(0.36, 0.62, 0.96) },
-      uWind: { value: new THREE.Vector2(0.004, 0.0012) },
+      uWind: { value: new THREE.Vector2(0.008, 0.0025) },
       uCover: { value: 0.50 },
     },
     vertexShader: SKY_VS, fragmentShader: SKY_FS,

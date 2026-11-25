@@ -14,7 +14,7 @@ const FA = [0, R_WHEEL, 0.485];
 const HIP = [0, 1.07, -0.25];             // hip pivot at rest
 const PHI_REST = 0.85;                    // torso lean from vertical at rest (rad, ~49 deg)
 const SHOULDER = 0.47;                    // shoulder height along the torso
-const HEAD_AT = [0, 0.68, 0.03];          // head centre in torso space
+const HEAD_AT = [0, 0.6, -0.02];          // head centre in torso space
 const HEAD_PITCH = 0.2;                   // head tilted slightly down toward the road
 const L_THIGH = 0.46, L_SHIN = 0.47, L_UP = 0.29, L_FORE = 0.28;
 const CRANK_ARM = Math.hypot(0.05, CRANK);
@@ -194,7 +194,7 @@ const paintTorso = (x, y, z) => {
   if (z > 0 && y > 0.2 && y < 0.245) return K.accent;                     // chest band
   return null;
 };
-const paintPelvis = (x, y) => (y < -0.045 ? K.chamois : null);
+const paintPelvis = (x, y) => (y < -0.06 ? K.chamois : null);
 const paintHelmet = (x, y, z) => (Math.abs(x) > 0.028 && Math.abs(x) < 0.04 && y > 0.06 && z > -0.06 && z < 0.07 ? K.vent : null);
 const paintThigh = (x, y) => (y < 0.28 ? K.bibs : y < 0.31 ? K.accent : null);
 const paintShin = (x, y) => (y > L_SHIN - 0.15 && y <= L_SHIN - 0.13 ? K.accent : y > L_SHIN - 0.13 ? K.sock : null);
@@ -203,11 +203,11 @@ const paintFore = (x, y) => (y > L_FORE - 0.08 ? K.glove : null);
 
 function buildRiderGeo() {
   // torso space: origin at hip, +y up the torso, +z forward
-  const pelvis = ell([0, -0.03, 0], [0.128, 0.078, 0.13], 'bibs', paintPelvis);
+  const pelvis = ell([0, -0.02, 0], [0.126, 0.07, 0.128], 'bibs', paintPelvis);
   const torso = finish(xf(revolve(0.55, (u) => 0.112 + 0.012 * Math.sin(u * Math.PI * 0.9), 18), [0, 0, 0], IDQ, [1.2, 1, 0.92]), 'jersey', paintTorso);
   const shL = ell([-0.158, SHOULDER, 0], [0.05, 0.05, 0.05], 'jersey');
   const shR = ell([0.158, SHOULDER, 0], [0.05, 0.05, 0.05], 'jersey');
-  const neck = finish(xf(revolve(0.22, () => 0.048, 12), [0, 0.48, 0]), 'skin');
+  const neck = finish(xf(revolve(0.2, () => 0.05, 12), [0, 0.46, -0.01]), 'skin');
   const spine = mergeGeometries([pelvis, torso, shL, shR, neck]);
 
   // head space: origin at head centre

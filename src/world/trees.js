@@ -22,12 +22,12 @@ const BAKE_ELEV = 12 * Math.PI / 180;
 // ------------------------------------------------------------------ species table
 // colours are linear multipliers (vertex colours)
 const SPECIES = [
-  /* 0 oak      */ { cell: 0, leaf: [1.00, 1.00, 0.84], bark: [0.30, 0.23, 0.17], birch: 0, cy: 0.60, ry: 0.36, trunkTop: 0.42, trunkR: 0.050, lobes: 6, s0: 0.20, s1: 0.34 },
-  /* 1 sycamore */ { cell: 1, leaf: [0.86, 1.02, 0.86], bark: [0.34, 0.30, 0.26], birch: 0, cy: 0.62, ry: 0.35, trunkTop: 0.44, trunkR: 0.042, lobes: 5, s0: 0.19, s1: 0.33 },
-  /* 2 ash      */ { cell: 2, leaf: [1.08, 1.12, 0.80], bark: [0.34, 0.31, 0.27], birch: 0, cy: 0.64, ry: 0.38, trunkTop: 0.44, trunkR: 0.040, lobes: 5, s0: 0.18, s1: 0.32 },
-  /* 3 birch    */ { cell: 2, leaf: [1.18, 1.18, 0.78], bark: [1.00, 1.00, 0.96], birch: 1, cy: 0.64, ry: 0.36, trunkTop: 0.50, trunkR: 0.030, lobes: 4, s0: 0.17, s1: 0.30 },
-  /* 4 beech    */ { cell: 1, leaf: [0.94, 0.98, 0.78], bark: [0.52, 0.50, 0.47], birch: 0, cy: 0.58, ry: 0.38, trunkTop: 0.36, trunkR: 0.052, lobes: 6, s0: 0.20, s1: 0.35 },
-  /* 5 conifer  */ { cell: 3, leaf: [0.66, 0.86, 0.74], bark: [0.30, 0.20, 0.14], birch: 0, cy: 0.5, ry: 0.5, trunkTop: 0.95, trunkR: 0.036, lobes: 0, s0: 0.3, s1: 0.4 },
+  /* 0 oak      */ { cell: 0, leaf: [1.00, 1.00, 0.84], bark: [0.30, 0.23, 0.17], birch: 0, cy: 0.60, ry: 0.36, trunkTop: 0.42, trunkR: 0.050, lobes: 6, s0: 0.23, s1: 0.38 },
+  /* 1 sycamore */ { cell: 1, leaf: [0.86, 1.02, 0.86], bark: [0.34, 0.30, 0.26], birch: 0, cy: 0.62, ry: 0.35, trunkTop: 0.44, trunkR: 0.042, lobes: 5, s0: 0.22, s1: 0.37 },
+  /* 2 ash      */ { cell: 2, leaf: [1.08, 1.12, 0.80], bark: [0.34, 0.31, 0.27], birch: 0, cy: 0.64, ry: 0.38, trunkTop: 0.44, trunkR: 0.040, lobes: 5, s0: 0.21, s1: 0.36 },
+  /* 3 birch    */ { cell: 2, leaf: [1.18, 1.18, 0.78], bark: [1.00, 1.00, 0.96], birch: 1, cy: 0.64, ry: 0.36, trunkTop: 0.50, trunkR: 0.030, lobes: 4, s0: 0.20, s1: 0.34 },
+  /* 4 beech    */ { cell: 1, leaf: [0.94, 0.98, 0.78], bark: [0.52, 0.50, 0.47], birch: 0, cy: 0.58, ry: 0.38, trunkTop: 0.36, trunkR: 0.052, lobes: 6, s0: 0.23, s1: 0.39 },
+  /* 5 conifer  */ { cell: 3, leaf: [0.40, 0.58, 0.46], bark: [0.30, 0.20, 0.14], birch: 0, cy: 0.5, ry: 0.5, trunkTop: 0.95, trunkR: 0.036, lobes: 0, s0: 0.3, s1: 0.4 },
 ];
 
 // ------------------------------------------------------------------ atlas painter
@@ -186,9 +186,9 @@ function buildDeciduous(sp, lod, tier) {
     segs.push([st.x, st.y, st.z, mid.x, mid.y, mid.z, lr, lr * 0.7, hi ? 5 : 4, 0]);
     segs.push([mid.x, mid.y, mid.z, L.x * 0.9, L.y - L.ry * 0.25, L.z * 0.9, lr * 0.7, lr * 0.35, hi ? 5 : 4, 0]);
   }
-  segs.push([top.x, top.y, top.z, 0, cy + ry * 0.2, 0, tr * 0.55, tr * 0.2, 4, 0]);
+  segs.push([top.x, top.y, top.z, 0, cy + ry * 0.2, 0, tr * 0.6, tr * 0.2, 5, 0]);
   // opaque dark cores so the crown never shows sky through it
-  for (const L of lobes) blobs.push({ c: V(L.x, L.y, L.z), rx: L.rx * 0.84, ry: L.ry * 0.84, rz: L.rz * 0.84, detail: hi ? 1 : 0 });
+  for (const L of lobes) blobs.push({ c: V(L.x, L.y, L.z), rx: L.rx * 0.68, ry: L.ry * 0.68, rz: L.rz * 0.68, detail: hi ? 1 : 0 });
   const inside = (p, k, skip) => { let n = 0; for (let i = 0; i < lobes.length; i++) { if (i === skip) continue; const L = lobes[i]; const q = ((p.x - L.x) / L.rx) ** 2 + ((p.y - L.y) / L.ry) ** 2 + ((p.z - L.z) / L.rz) ** 2; if (q < k * k) n++; } return n; };
   const size = hi ? S.s0 : S.s1;
   const per = Math.round(tier.cards / nLobe);
@@ -257,7 +257,7 @@ function buildModel(sp, lod, tierName) {
   const hiDetail = tierName !== 'low';
   const t = sp === 5
     ? (lod === 0 ? { tiers: hiDetail ? 11 : 8, ring: 10 } : { tiers: 8, ring: 6 })
-    : (lod === 0 ? { cards: hiDetail ? 300 : 190 } : { cards: hiDetail ? 100 : 64 });
+    : (lod === 0 ? { cards: hiDetail ? 360 : 230 } : { cards: hiDetail ? 120 : 80 });
   return sp === 5 ? buildConifer(sp, lod, t) : buildDeciduous(sp, lod, t);
 }
 
@@ -293,7 +293,7 @@ function modelGeometry(model) {
   const coreU = 0.25, coreV = bv0;
   const pushV = (x, y, z, nx, ny, nz, ao, k) => {
     pos.push(x, y, z); nor.push(nx, ny, nz); uv.push(coreU, coreV);
-    col.push(S.leaf[0] * k, S.leaf[1] * k, S.leaf[2] * k); aT.push(0.4, ao); aC.push(x, y, z);
+    col.push(0.10 * k * 2, 0.27 * k * 2, 0.05 * k * 2); aT.push(0.4, ao); aC.push(x, y, z);
   };
   for (const b of model.blobs || []) {
     const ico = new THREE.IcosahedronGeometry(1, b.detail);
@@ -303,17 +303,17 @@ function modelGeometry(model) {
       const dx = ip.getX(i), dy = ip.getY(i), dz = ip.getZ(i);
       const x = b.c.x + dx * b.rx, y = b.c.y + dy * b.ry, z = b.c.z + dz * b.rz;
       const sph = norm3(V(x, (y - S.cy) / (S.ry || 0.4) * 0.8, z));
-      pushV(x, y, z, sph.x, sph.y + 0.1, sph.z, 0.30 + 0.25 * Math.max(0, dy), 0.55);
+      pushV(x, y, z, sph.x, sph.y + 0.1, sph.z, 0.55 + 0.2 * Math.max(0, dy), 0.55);
       idx.push(base0 + i);
     }
     ico.dispose();
   }
   for (const k of model.skirts || []) {
     const sd = k.sides, base0 = pos.length / 3;
-    pushV(0, k.y + k.h, 0, 0, 1, 0, 0.5, 0.5);
+    pushV(0, k.y + k.h, 0, 0, 1, 0, 0.55, 0.5);
     for (let i = 0; i <= sd; i++) {
       const a = i / sd * Math.PI * 2, cs = Math.cos(a), sn = Math.sin(a);
-      pushV(cs * k.rad, k.y - k.h * 0.35, sn * k.rad, cs * 0.8, 0.6, sn * 0.8, 0.3, 0.5);
+      pushV(cs * k.rad, k.y - k.h * 0.35, sn * k.rad, cs * 0.8, 0.6, sn * 0.8, 0.45, 0.5);
     }
     for (let i = 0; i < sd; i++) idx.push(base0, base0 + 1 + i, base0 + 2 + i);
   }
