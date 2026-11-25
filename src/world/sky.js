@@ -4,7 +4,7 @@ import { detectTier } from '../render/quality.js';
 
 // Bright, clean, sunny afternoon: sun fairly high in the WSW, deep-blue sky with soft cumulus.
 export const SUN_AZIMUTH_DEG = 244; // clockwise from north
-export const SUN_ELEVATION_DEG = 33;
+export const SUN_ELEVATION_DEG = 29;
 
 // ---------------------------------------------------------------------------------------------
 // Artistic (not Preetham) sky: gradient + warm sun glow + lit/shaded 2D cumulus layer.

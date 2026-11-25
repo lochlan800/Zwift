@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { SegmentIndex, splitByCell } from './heightfield.js';
-import { patchMaterial } from './shared.js';
+import { patchMaterial, GRID_GLSL } from './shared.js';
 
 // type codes used by the road shader
 export const RT = { MAJOR: 0, MAJOR_DASH: 1, MINOR: 2, SERVICE: 3, TRACK: 4, FOOT: 5, PATH: 6, PAVE: 7, KERB: 8, BALLAST: 9, RAIL: 10, PARAPET: 11, CYCLE: 12, TOWN: 13 };
@@ -481,9 +481,11 @@ export async function createRoads(features, hf, lc, roadIdx, slicer, bIdx = null
     key: 'roads',
     vertexPars: 'attribute vec4 aRoad; attribute vec4 aMark; varying vec4 vRoad; varying float vMark; varying vec3 vGw;',
     vertex: { begin_vertex: '$\n vRoad = aRoad; vMark = aMark.x; vGw = aMark.yzw;' },
-    fragmentPars: ROAD_FRAG,
+    // shadow hook (sky/lighting): long-range baked sun shadow (terrain + buildings + trees) beyond the realtime cascades
+    fragmentPars: GRID_GLSL + '\nfloat hbSun;\n' + ROAD_FRAG,
     fragment: {
-      map_fragment: 'roadSurface(vAerialWorld); diffuseColor.rgb = rAlb;',
+      lights_fragment_begin: THREE.ShaderChunk.lights_fragment_begin.replace('getSunLightInfo( sunLight, directLight );', 'getSunLightInfo( sunLight, directLight ); directLight.color *= hbSun;'),
+      map_fragment: 'hbSun = bakedSun(vAerialWorld); roadSurface(vAerialWorld); diffuseColor.rgb = rAlb;',
       roughnessmap_fragment: 'float roughnessFactor = rRough;',
       normal_fragment_begin: `$
         {

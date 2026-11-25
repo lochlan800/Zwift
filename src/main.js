@@ -152,11 +152,11 @@ async function build() {
   const sky = createSky(renderer);
   scene.add(sky.dome);
   scene.environment = sky.envMap;
-  scene.environmentIntensity = 1.0; // sky-lighting hook: strong blue sky fill so shadows stay readable (~50% of lit)
+  scene.environmentIntensity = 0.75; // sky-lighting hook: strong blue sky fill so shadows stay readable (~50% of lit)
   U.uNoise.value = makeNoiseTexture(256);
   world.sky = sky;
 
-  const sun = new SunLight(0xffffff, 6.2);
+  const sun = new SunLight(0xffffff, 8.2);
   sun.color.copy(sky.sunColor);
   U.uSunI.value = sun.intensity;
   sun.position.copy(sky.sunDir);
