@@ -61,11 +61,11 @@ function clumpGeometry(nb, nt, ns) {
   };
   for (let i = 0; i < nb; i++) {
     const a = (i / nb) * Math.PI * 2 + rnd() * 0.8;
-    blade(0, 0.03 + rnd() * 0.13, a, 0.6 + rnd() * 0.4, 0.25 + rnd() * 0.45, 0.020 + rnd() * 0.012, rnd(), (rnd() - 0.5) * 0.25);
+    blade(0, 0.04 + Math.sqrt(rnd()) * 0.42, a, 0.6 + rnd() * 0.4, 0.25 + rnd() * 0.45, 0.026 + rnd() * 0.014, rnd(), (rnd() - 0.5) * 0.25);
   }
   for (let i = 0; i < nt; i++) {
     const a = (i / nt) * Math.PI * 2 + rnd() * 1.2;
-    blade(1, 0.02 + rnd() * 0.1, a, 1.0 + rnd() * 0.35, 0.12 + rnd() * 0.3, 0.020 + rnd() * 0.008, rnd(), (rnd() - 0.5) * 0.3);
+    blade(1, 0.03 + Math.sqrt(rnd()) * 0.35, a, 1.0 + rnd() * 0.35, 0.12 + rnd() * 0.3, 0.020 + rnd() * 0.008, rnd(), (rnd() - 0.5) * 0.3);
   }
   for (let i = 0; i < ns; i++) {
     const a = (i / Math.max(1, ns)) * Math.PI * 2 + rnd() * 2;
@@ -95,10 +95,10 @@ export function createGrass(hf, lc, roadIdx, bIdx, cfg) {
   const R = cfg.grassRadius;
   const n = Math.ceil(R / CELL);
   const M = 2 * n + 1;
-  const K = Math.round(100 * cfg.grass);
+  const K = Math.round(120 * cfg.grass);
   const total = M * M * K;
   const low = cfg.tier === 'low';
-  const geo = clumpGeometry(low ? 6 : 8, low ? 2 : 3, low ? 1 : 2);
+  const geo = clumpGeometry(low ? 8 : 12, low ? 3 : 4, low ? 1 : 2);
   const inst = new Float32Array(total * 4);
   const attr = new THREE.InstancedBufferAttribute(inst, 4);
   attr.setUsage(THREE.DynamicDrawUsage);

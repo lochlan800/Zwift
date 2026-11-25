@@ -27,7 +27,7 @@ const SPECIES = [
   /* 2 ash      */ { cell: 2, leaf: [1.08, 1.12, 0.80], bark: [0.34, 0.31, 0.27], birch: 0, cy: 0.64, ry: 0.38, trunkTop: 0.44, trunkR: 0.040, lobes: 5, s0: 0.21, s1: 0.36 },
   /* 3 birch    */ { cell: 2, leaf: [1.18, 1.18, 0.78], bark: [1.00, 1.00, 0.96], birch: 1, cy: 0.64, ry: 0.36, trunkTop: 0.50, trunkR: 0.030, lobes: 4, s0: 0.20, s1: 0.34 },
   /* 4 beech    */ { cell: 1, leaf: [0.94, 0.98, 0.78], bark: [0.52, 0.50, 0.47], birch: 0, cy: 0.58, ry: 0.38, trunkTop: 0.36, trunkR: 0.052, lobes: 6, s0: 0.23, s1: 0.39 },
-  /* 5 conifer  */ { cell: 3, leaf: [0.50, 0.62, 0.36], bark: [0.30, 0.20, 0.14], birch: 0, cy: 0.5, ry: 0.5, trunkTop: 0.95, trunkR: 0.036, lobes: 0, s0: 0.3, s1: 0.4 },
+  /* 5 conifer  */ { cell: 3, leaf: [0.38, 0.50, 0.30], bark: [0.30, 0.20, 0.14], birch: 0, cy: 0.5, ry: 0.5, trunkTop: 0.95, trunkR: 0.036, lobes: 0, s0: 0.3, s1: 0.4 },
 ];
 
 // ------------------------------------------------------------------ atlas painter
@@ -182,7 +182,7 @@ function buildDeciduous(sp, lod, tier) {
     const sy = tT * (0.7 + rnd() * 0.28);
     const st = V(top.x * (sy / tT), sy, top.z * (sy / tT));
     const mid = V(L.x * 0.5, sy + (L.y - sy) * 0.4, L.z * 0.5);
-    const lr = tr * 0.5;
+    const lr = tr * 0.66;
     segs.push([st.x, st.y, st.z, mid.x, mid.y, mid.z, lr, lr * 0.7, hi ? 5 : 4, 0]);
     segs.push([mid.x, mid.y, mid.z, L.x * 0.9, L.y - L.ry * 0.25, L.z * 0.9, lr * 0.7, lr * 0.35, hi ? 5 : 4, 0]);
   }

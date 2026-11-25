@@ -232,7 +232,7 @@ export function createSky(renderer) {
   // faces pick up blue from above and warm green from below
   const pmrem = new THREE.PMREMGenerator(renderer);
   const envLut = lutRT.clone();
-  lu.uDesat.value = 0.30; lu.uGround.value.setRGB(0.24, 0.27, 0.15); lu.uScale.value = 2.8;
+  lu.uDesat.value = 0.52; lu.uGround.value.setRGB(0.24, 0.27, 0.15); lu.uScale.value = 2.8;
   renderer.setRenderTarget(envLut); renderer.render(sc, cam); renderer.setRenderTarget(null);
   const envRT = pmrem.fromEquirectangular(envLut.texture);
   pmrem.dispose();

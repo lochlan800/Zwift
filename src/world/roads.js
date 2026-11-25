@@ -358,7 +358,7 @@ export async function createRoads(features, hf, lc, roadIdx, slicer, bIdx = null
     };
     const markFn = (i) => (other(i, 1.0) ? 0 : 1); // plain asphalt near junctions -> overlapping ribbons look identical
     // UK practice: no centre line on narrow lanes
-    const tt = r._forceT !== undefined ? r._forceT : (K.t <= 1 && (r._w < 6.0 || (!r._pave && r._w < 6.6 && (r.k === 'tertiary' || r.k === 'unclassified')))) ? RT.MINOR : K.t);
+    const tt = r._forceT !== undefined ? r._forceT : ((K.t <= 1 && (r._w < 6.0 || (!r._pave && r._w < 6.6 && (r.k === 'tertiary' || r.k === 'unclassified')))) ? RT.MINOR : K.t);
     // give-way where this (minor) road ends on a road of higher rank
     const rk = RANK[r.k] || 0;
     const gwEnd = (pt, fromEnd) => {
