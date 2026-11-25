@@ -103,7 +103,7 @@ class GradeEffect extends Effect {
         float l = dot(g, vec3(0.2126, 0.7152, 0.0722));
         // lifted warm blacks, cool shadows, warm highlights
         g = vec3(0.028, 0.026, 0.026) + g * (1.0 - vec3(0.028, 0.026, 0.026));
-        g += vec3(-0.006, 0.0, 0.014) * (1.0 - l) * (1.0 - l);
+        g += vec3(-0.003, 0.0, 0.006) * (1.0 - l) * (1.0 - l);
         g += vec3(0.014, 0.007, -0.012) * l * l;
         // vibrance: boost low-saturation pixels more, greens a bit more again
         float mx = max(g.r, max(g.g, g.b)), mn = min(g.r, min(g.g, g.b));

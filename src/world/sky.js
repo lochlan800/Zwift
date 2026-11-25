@@ -224,7 +224,7 @@ export function createSky(renderer) {
     }
     const a = new THREE.Color(r / w, g / w, b / w);
     const l = a.r * 0.2126 + a.g * 0.7152 + a.b * 0.0722;
-    a.lerp(new THREE.Color(l, l, l), 0.25).lerp(new THREE.Color(0.30, 0.40, 0.22), 0.12).multiplyScalar(1.9);
+    a.lerp(new THREE.Color(l, l, l), 0.5).lerp(new THREE.Color(0.30, 0.40, 0.22), 0.12).multiplyScalar(1.9);
     U.uSkyAmb.value.copy(a);
   } catch (e) { /* not fatal */ }
 
@@ -232,7 +232,7 @@ export function createSky(renderer) {
   // faces pick up blue from above and warm green from below
   const pmrem = new THREE.PMREMGenerator(renderer);
   const envLut = lutRT.clone();
-  lu.uDesat.value = 0.52; lu.uGround.value.setRGB(0.24, 0.27, 0.15); lu.uScale.value = 2.8;
+  lu.uDesat.value = 0.78; lu.uGround.value.setRGB(0.24, 0.27, 0.15); lu.uScale.value = 2.8;
   renderer.setRenderTarget(envLut); renderer.render(sc, cam); renderer.setRenderTarget(null);
   const envRT = pmrem.fromEquirectangular(envLut.texture);
   pmrem.dispose();
