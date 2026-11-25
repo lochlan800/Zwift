@@ -25,6 +25,8 @@ import { ChaseCamera } from './ride/camera.js';
 import { Hud, fmtTime } from './ui/hud.js';
 import { createPost } from './render/post.js';
 import { detectTier, DynamicResolution } from './render/quality.js';
+import { createWeather, setWeather, getWeather, onWeatherEvent } from './world/weather.js'; // WEATHER
+import { initWeatherUI } from './ui/weatherui.js'; // WEATHER
 
 const $ = (id) => document.getElementById(id);
 const cfg = detectTier();
@@ -238,6 +240,8 @@ async function build() {
 
   post = createPost(renderer, scene, camera, cfg);
   dynres = new DynamicResolution(renderer, resize, cfg);
+  // WEATHER: state machine + rain/splash/leaf/lightning particles; drives sky/fog/light via shared uniforms
+  world.weather = createWeather({ scene, camera, renderer, sun: world.sun, sky: world.sky, cfg, hf, heightTex, getPost: () => post });
   resize();
   placeRider(0, 0);
 
@@ -371,6 +375,7 @@ function frame(now) {
     rider.update(dt, 0, state.lean, 0);
   }
   camera.updateMatrixWorld();
+  if (world.weather) world.weather.update(dt, state.mode === 'paused', state.speed, !!(world.chase && world.chase.mode)); // WEATHER
   if (world.traffic) world.traffic.update(dt, camera.position, rider.root.position, state.heading, state.speed, state.mode === 'paused');
   world.terrain.update(camera);
   world.trees.update(camera.position);
@@ -404,7 +409,8 @@ window.__hb = { state, world, camera, renderer, breakdown() {
   const out = {}; const meas = () => { renderer.info.reset(); post.composer.render(0); return [renderer.info.render.calls, renderer.info.render.triangles]; };
   const all = meas(); out.all = all;
   for (const c of scene.children) { const v = c.visible; c.visible = false; const m = meas(); out[c.name || c.type] = [all[0] - m[0], all[1] - m[1]]; c.visible = v; }
-  return out; }, getPost: () => post, setCamMode(m) { setCamMode(m); world.chase.initialized = false; }, setS(s) { state.s = s; state.dist = s; state.time = s / 6.4; placeRider(0, 0); world.chase.initialized = false; }, cfg };
+  return out; }, getPost: () => post, setCamMode(m) { setCamMode(m); world.chase.initialized = false; }, setWeather(n, s) { setWeather(n, s == null ? 0 : s); }, getWeather, onWeatherEvent, get weather() { return world.weather; }, setS(s) { state.s = s; state.dist = s; state.time = s / 6.4; placeRider(0, 0); world.chase.initialized = false; }, cfg };
 
+initWeatherUI(); // WEATHER: HUD button + title-screen chooser
 requestAnimationFrame(frame);
 build().catch((e) => { console.error(e); fatal('Could not build the world', String(e && e.message || e)); });

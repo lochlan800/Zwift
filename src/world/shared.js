@@ -261,6 +261,6 @@ vec3 hbWetRefl(vec3 w, vec3 Nw) {
   float c = clamp(dot(-rd, Nw), 0.0, 1.0);
   float f = pow(1.0 - c, 4.0);
   vec3 sky = skyLUT(reflect(rd, Nw));
-  return sky * (hbPud * (0.30 + 0.65 * f) + hbWetAmt * 0.55 * f);
+  return sky * (hbPud * (0.13 + 0.55 * f) + hbWetAmt * 0.40 * f);
 }
 `;

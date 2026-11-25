@@ -53,7 +53,7 @@ export function markTownCentre(features, hf, lc) {
     fronting.push({ b, key: best.seg + best.t });
   }
   fronting.sort((a, c) => a.key - c.key);
-  const cycle = [PAL_HONEY, PAL_BRICK_WHITE, PAL_RENDER, PAL_HONEY, 4, PAL_BRICK_WHITE];
+  const cycle = [PAL_HONEY, PAL_BRICK_WHITE, 5, PAL_HONEY, 4, PAL_BRICK_WHITE, PAL_HONEY, PAL_BRICK_WHITE, PAL_RENDER];
   let prev = -1;
   for (const f of fronting) {
     const h = hash2(f.b.p[0][0], f.b.p[0][1]);

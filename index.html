@@ -16,6 +16,14 @@
       <div class="kicker">Virtual ride · West Yorkshire</div>
       <h1>Horbury <span>Ride</span></h1>
       <p class="desc">Cycle a real road loop through Horbury, Wakefield, rebuilt in 3D from 1&nbsp;m LiDAR and open map data.</p>
+      <div class="wx-pick" id="wxPick" role="group" aria-label="Weather">
+        <span class="wx-pick-l">Weather</span>
+        <button type="button" data-wx="auto" class="on">Auto</button>
+        <button type="button" data-wx="sunny">Sunny</button>
+        <button type="button" data-wx="cloudy">Cloudy</button>
+        <button type="button" data-wx="rain">Rain</button>
+        <button type="button" data-wx="storm">Storm</button>
+      </div>
       <div class="loader" id="loader">
         <div class="bar"><div class="fill" id="loadFill"></div></div>
         <div class="loadtext" id="loadText">Preparing…</div>
@@ -40,6 +48,10 @@
     </div>
     <button id="pauseBtn" class="icon-btn" aria-label="Pause">
       <svg viewBox="0 0 24 24"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>
+    </button>
+    <button id="wxBtn" class="cam-btn wx-btn" aria-label="Change weather">
+      <svg id="wxIcon" viewBox="0 0 24 24"></svg>
+      <span id="wxLabel">Auto</span>
     </button>
     <button id="camBtn" class="cam-btn" aria-label="Switch camera">
       <svg viewBox="0 0 24 24"><path d="M12 3l2.2 3.6H9.8zM4 9h16v9H4zm8 1.6a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"/></svg>

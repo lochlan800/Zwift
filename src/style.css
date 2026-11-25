@@ -88,3 +88,15 @@ h2 { margin: 0 0 12px; font-size: 28px; }
 .cam-btn.drone { background: rgba(255, 158, 61, 0.28); }
 @media (max-width: 560px) { .cam-btn { bottom: calc(80px + var(--sab)); } }
 @media (max-height: 480px) and (orientation: landscape) { .cam-btn { bottom: calc(10px + var(--sab)); } }
+
+/* ---- WEATHER: HUD button (sits left of the camera button) + title-screen chooser ---- */
+.wx-btn { right: calc(128px + var(--sar)); }
+.wx-btn.wet { background: rgba(90, 150, 255, 0.26); }
+.wx-btn svg { fill: #cfe3ff; stroke: none; }
+@media (max-height: 480px) and (orientation: landscape) { .wx-btn { right: calc(10px + var(--sar)); bottom: calc(70px + var(--sab)); } }
+.wx-pick { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px; margin: 0 auto 14px; }
+.wx-pick-l { font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); margin-right: 4px; }
+.wx-pick button { height: 34px; padding: 0 13px; border-radius: 999px; border: 1px solid var(--glass-b); background: rgba(255, 255, 255, 0.07);
+  color: var(--ink); font-size: 13px; font-weight: 600; cursor: pointer; transition: background .2s, transform .1s; }
+.wx-pick button:active { transform: scale(.95); }
+.wx-pick button.on { background: linear-gradient(180deg, #ffc46b, #ff8f2e); color: #1d1206; border-color: transparent; }

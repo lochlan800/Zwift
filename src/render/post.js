@@ -4,6 +4,7 @@ import {
   BloomEffect, SMAAEffect, SMAAPreset, FXAAEffect, GodRaysEffect, KernelSize,
 } from 'postprocessing';
 import { sunDirection } from '../world/sky.js';
+import { createLensDrops } from '../world/weatherfx.js'; // WEATHER: rain-on-lens effect
 
 // ---------------------------------------------------------------------------------------------
 // AO: depth-only screen-space ambient occlusion (Alchemy/HBAO-lite). No normal pass (that would
@@ -166,6 +167,10 @@ export function createPost(renderer, scene, camera, cfg) {
     });
     effects.push(godrays);
   }
+
+  // WEATHER: water drops on the camera lens (refraction via mainUv, merged into this pass; not created on low tier)
+  const lens = createLensDrops(cfg);
+  if (lens) effects.push(lens);
 
   const tone = new GradeEffect({ exposure: 1.1 });
   effects.push(tone);
