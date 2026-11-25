@@ -702,7 +702,7 @@ void buildingSurface(vec3 w, vec3 Nw) {
     float down = w.y / slope; // distance along slope
     float ac = dot(w, along);
     bool slate = (c == 4 || c == 5 || kind == 1 || c == 2 || kind == 6 || c >= 8);
-    vec3 rc = slate ? lin3(vec3(0.27, 0.31, 0.38)) : (c == 0 || c == 3) ? lin3(vec3(0.58, 0.30, 0.20)) : (c == 6) ? lin3(vec3(0.44, 0.30, 0.22)) : lin3(vec3(0.33, 0.33, 0.35));
+    vec3 rc = slate ? lin3(vec3(0.30, 0.32, 0.345)) : (c == 0 || c == 3) ? lin3(vec3(0.58, 0.30, 0.20)) : (c == 6) ? lin3(vec3(0.44, 0.30, 0.22)) : lin3(vec3(0.33, 0.33, 0.35));
     if (industrial) rc = lin3(vec3(0.42, 0.43, 0.44));
     vec2 tp = slate ? vec2(ac / 0.3, down / 0.22) : vec2(ac / 0.33, down / 0.26);
     float row = floor(tp.y);
@@ -713,7 +713,7 @@ void buildingSurface(vec3 w, vec3 Nw) {
     float gap = mix(smoothstep(0.0, 0.06 + fw.x, min(f.x, 1.0 - f.x)), 1.0, aa);
     float th = hb(floor(tp.x) + row * 13.1 + seed);
     float th2 = hb(floor(tp.x) * 3.1 + row * 7.7 + seed * 0.3);
-    vec3 col = rc * (0.78 + 0.45 * th * (1.0 - aa)) * mix(vec3(1.0), slate ? vec3(0.92, 0.98, 1.08) : vec3(1.08, 0.95, 0.9), th2 * (1.0 - aa)) * shadow * (0.7 + 0.3 * gap);
+    vec3 col = rc * (0.78 + 0.45 * th * (1.0 - aa)) * mix(vec3(1.0), slate ? vec3(0.9, 0.9, 0.92) : vec3(1.08, 0.95, 0.9), th2 * (1.0 - aa)) * shadow * (0.7 + 0.3 * gap);
     // darker weathering towards the gutters
     col *= mix(0.72, 1.0, smoothstep(0.0, 1.2, w.y - vW.w + 0.5));
     col = mix(col, lin3(vec3(0.30, 0.33, 0.18)), smoothstep(0.62, 0.85, n3.g) * 0.15); // moss
@@ -764,7 +764,7 @@ export async function createBuildings(features, slicer, onProgress, tcIdx = null
   }
   // fill small (<2 m) gaps between adjacent town-centre frontages with a short wall
   let fills = 0;
-  for (let i = 0; i < frontEnds.length; i++) {
+  for (let i = 0; i < 0 * frontEnds.length; i++) {
     const A = frontEnds[i];
     for (const pa of [A.P, A.Q]) {
       let best = null, bd = 2.0;

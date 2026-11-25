@@ -211,3 +211,23 @@ export function storrsTrees(st, hf, bIdx) {
   }
   return out;
 }
+
+// long rough grass strip between the Storrs Hill footway and the field
+export function storrsVerge(st, hf, lc) {
+  let n = 0;
+  for (const r of st.roads) {
+    const hw = r._w / 2 + r._pave, side = r._paveSide;
+    for (let i = 0; i + 1 < r.p.length; i++) {
+      const a = r.p[i], b = r.p[i + 1], L = Math.hypot(b[0] - a[0], b[2] - a[2]);
+      const tx = (b[0] - a[0]) / L, tz = (b[2] - a[2]) / L, nx = tz * side, nz = -tx * side;
+      for (let s = 0; s < L; s += 2) for (let o = hw + 0.5; o <= hw + 7; o += 2) {
+        const x = a[0] + tx * s + nx * o, z = a[2] + tz * s + nz * o;
+        const ii = Math.round((x - hf.x0) / hf.res), jj = Math.round((z - hf.z0) / hf.res);
+        if (ii < 0 || jj < 0 || ii >= hf.cols || jj >= hf.rows) continue;
+        const k = jj * hf.cols + ii;
+        if (lc[k] === 1 || lc[k] === 0) { lc[k] = 7; n++; }
+      }
+    }
+  }
+  return n;
+}

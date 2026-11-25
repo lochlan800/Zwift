@@ -14,7 +14,7 @@ import { createGrass } from './world/grass.js';
 import { createWalls } from './world/walls.js';
 import { bakeShadows } from './world/shadowbake.js';
 import { generateHedgerows, createStreetLife } from './world/streetlife.js';
-import { markTownCentre, markQuarryHill, quarryTrees, quarryPub, markStorrs, storrsTrees } from './world/towncentre.js';
+import { markTownCentre, markQuarryHill, quarryTrees, quarryPub, markStorrs, storrsTrees, storrsVerge } from './world/towncentre.js';
 import { SegmentIndex, distanceCull } from './world/heightfield.js';
 import { createRider } from './ride/rider.js';
 import { Route, Physics } from './ride/route.js';
@@ -108,7 +108,7 @@ async function build() {
   const tc = markTownCentre(features, hf, data.landcover);
   const qh = markQuarryHill(features);
   const st = markStorrs(features);
-  console.info('storrs hill segments', st.roads.length);
+  console.info('storrs hill segments', st.roads.length, 'verge nodes', storrsVerge(st, hf, data.landcover));
   console.info('town centre', tc.roads.length, 'roads,', tc.fronting, 'fronting buildings, paved', tc.paved, 'crossings', tc.crossings.map((c) => c.note).join('; '));
   const roadIdx = buildRoadIndex(features);
   conformTerrain(hf, features);
