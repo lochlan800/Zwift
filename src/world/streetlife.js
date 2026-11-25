@@ -3,6 +3,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { patchMaterial, GRID_GLSL, OCC_GLSL } from './shared.js';
 const OCC_FRAG = { alphatest_fragment: '$\n if (ign(gl_FragCoord.xy) > occFade(vAerialWorld)) discard;' };
 import { hash2, mulberry32 } from './heightfield.js';
+import { foliageTexture, FOLIAGE_GLSL } from './trees.js';
 
 // ------------------------------------------------------------------ helpers
 const fract = (x) => x - Math.floor(x);
@@ -224,10 +225,10 @@ function basketGeometry() {
   const arm = new THREE.CylinderGeometry(0.025, 0.025, 0.6, 6); arm.rotateX(Math.PI / 2); arm.translate(0, 3.95, 0.3);
   const chain = new THREE.CylinderGeometry(0.01, 0.01, 0.45, 4); chain.translate(0, 3.72, 0.55);
   const bowl = new THREE.SphereGeometry(0.3, 10, 6, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2); bowl.translate(0, 3.5, 0.55);
-  const flowers = new THREE.IcosahedronGeometry(0.42, 2); flowers.scale(1, 0.8, 1); flowers.translate(0, 3.42, 0.55);
+  const flowers = new THREE.IcosahedronGeometry(0.33, 3); flowers.scale(1, 0.75, 1); flowers.translate(0, 3.45, 0.55);
   const fn = flowers.index ? flowers.toNonIndexed() : flowers;
   const n = fn.attributes.position.count, c = new Float32Array(n * 3);
-  const pal = [[0.85, 0.18, 0.5], [0.55, 0.15, 0.6], [0.8, 0.08, 0.12], [0.95, 0.5, 0.75], [0.12, 0.3, 0.08], [0.15, 0.35, 0.1]];
+  const pal = [[0.62, 0.16, 0.38], [0.42, 0.14, 0.45], [0.55, 0.08, 0.1], [0.12, 0.26, 0.07], [0.15, 0.3, 0.08], [0.1, 0.22, 0.06], [0.14, 0.28, 0.08], [0.7, 0.45, 0.6]];
   for (let i = 0; i < n; i += 3) { const p = pal[Math.floor(Math.abs(Math.sin(i * 12.9898) * 43758.5) % 1 * pal.length)]; for (let k = 0; k < 3; k++) { c[(i + k) * 3] = p[0]; c[(i + k) * 3 + 1] = p[1]; c[(i + k) * 3 + 2] = p[2]; } }
   fn.setAttribute('color', new THREE.BufferAttribute(c, 3)); fn.deleteAttribute('uv');
   return mergeGeometries([colored(arm, ...D), colored(chain, ...D), colored(bowl, 0.05, 0.05, 0.05), fn]);
@@ -718,19 +719,21 @@ export function createStreetLife(features, hf, lc, roadIdx, bIdx, routeIdx, give
         }`,
     },
   });
+  // garden hedges (privet / beech) and scrub (hawthorn, bramble, elder): the painted leaf atlas, photoreal olive
   const hedgeMat = patchMaterial(new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.95 }), {
-    key: 'ghedge',
-    fragmentPars: OCC_GLSL + 'uniform sampler2D uNoise;',
+    key: 'ghedge', uniforms: { uFoliage: { value: foliageTexture() } },
+    fragmentPars: OCC_GLSL + FOLIAGE_GLSL + 'uniform sampler2D uNoise;',
     fragment: {
       ...OCC_FRAG,
       color_fragment: `$
         {
           vec3 w = vAerialWorld;
-          vec4 n = texture2D(uNoise, (w.xz + w.y * 0.7) / 0.6);
           vec4 m = texture2D(uNoise, (w.xz - w.y) / 2.3);
-          float l1 = texture2D(uNoise, (w.xz + w.y * 0.9) / 0.23).a, l2 = texture2D(uNoise, (w.zx - w.y * 1.1) / 0.11).b;
-          float cav = smoothstep(0.3, 0.65, l1 * 0.6 + l2 * 0.4);
-          diffuseColor.rgb *= mix(vec3(0.06, 0.13, 0.03), vec3(0.16, 0.27, 0.07), n.a) * (0.75 + 0.45 * m.g) * mix(0.35, 1.15, cav);
+          vec3 inst = diffuseColor.rgb;
+          vec3 tint = mix(vec3(0.78, 0.84, 0.68), vec3(1.12, 1.06, 0.84), m.g) * (0.8 + 0.3 * inst.g);
+          // mix of small privet-like and broad bramble/elder leaves by position
+          vec4 fs = foliageSurface(w, m.b > 0.5 ? vec2(0.5, 0.5556) : vec2(0.0, 0.1111), 0.9, tint);
+          diffuseColor.rgb = fs.rgb;
         }`,
     },
   });

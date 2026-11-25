@@ -95,7 +95,7 @@ export class LensDropsEffect extends Effect {
         wxDrop = max(h0.x, h0.y * 0.3); wxDropN = n * 0.004;
         // refraction: bend toward the drop centre; magnified inverted view inside the drop body
         vec2 off = n * 0.0011 + (0.5 - uv) * 0.035 * inDrop;
-        float l = length(off); if (l > 0.06) off *= 0.06 / l;
+        float l = length(off); if (l > 0.035) off *= 0.035 / l;
         uv += off / vec2(asp, 1.0) * vec2(asp, 1.0);
       }
       void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor) {
@@ -105,7 +105,7 @@ export class LensDropsEffect extends Effect {
           // slight darkening of the rim, bright glint on the upper-left of each drop
           float rim = clamp(length(wxDropN) * 0.9, 0.0, 1.0);
           float glint = clamp(dot(normalize(wxDropN + 1e-6), vec2(-0.6, 0.8)), 0.0, 1.0) * rim;
-          c = mix(c, c * 0.9, rim * m * 0.25);
+          c = mix(c, c * 0.95, rim * m * 0.15);
           c += vec3(0.9, 0.95, 1.0) * glint * glint * glint * m * 0.35;
         }
         if (any(isnan(c))) c = inputColor.rgb;

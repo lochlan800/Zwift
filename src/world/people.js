@@ -224,7 +224,8 @@ export function createPeople(scene, graph, features, cfg, ctx = {}) {
     p.scale = 0.9 + rnd() * 0.12 + (rnd() < 0.5 ? 0 : 0.03);
     p.sp = 1.05 + rnd() * 0.45;
   }
-  const offsetFor = (e) => e.w * 0.5 + (e.road._pave || 2) * (0.35 + rnd() * 0.45);
+  const offsetFor = (e) => e.w * 0.5 + (e.road._verge || 0) + (e.road._pave || 2) * (0.35 + rnd() * 0.3);
+  const sideFor = (e) => e.road._paveSide || (rnd() < 0.5 ? 1 : -1); // side in the road polyline frame (+ = left of polyline direction)
 
   function pickEdge(cx, cz) {
     for (let t = 0; t < 12; t++) {
@@ -242,10 +243,10 @@ export function createPeople(scene, graph, features, cfg, ctx = {}) {
   function spawnWalker(p, cx, cz) {
     const e = pickEdge(cx, cz);
     if (!e) return false;
-    p.e = e; p.dir = rnd() < 0.5 ? 1 : -1; p.s = rnd() * e.len; p.side = rnd() < 0.5 ? 1 : -1;
+    p.e = e; p.dir = rnd() < 0.5 ? 1 : -1; p.s = rnd() * e.len; p.side = sideFor(e);
     p.off = offsetFor(e);
     edgeAt(e, p.dir, p.s, out);
-    const x = out.x + out.tz * p.side * p.off, z = out.z - out.tx * p.side * p.off;
+    const x = out.x + out.tz * p.dir * p.side * p.off, z = out.z - out.tx * p.dir * p.side * p.off;
     const d = Math.hypot(x - cx, z - cz);
     if (d < R_SPAWN[0] * 0.8) return false;
     dress(p);
@@ -267,7 +268,7 @@ export function createPeople(scene, graph, features, cfg, ctx = {}) {
   function walkerPos(p) {
     edgeAt(p.e, p.dir, p.s, out);
     p.tx = out.tx; p.tz = out.tz;
-    const lat = p.side * p.off;
+    const lat = p.dir * p.side * p.off;
     p.x = out.x + out.tz * lat; p.z = out.z - out.tx * lat; p.y = out.y + 0.15;
     p.yaw = p.stand && p.fy !== undefined ? p.fy : Math.atan2(out.tx, out.tz);
   }
@@ -284,8 +285,8 @@ export function createPeople(scene, graph, features, cfg, ctx = {}) {
       const e = p.e, node = graph.nodes[p.dir > 0 ? e.b : e.a];
       const opts = [];
       for (const c of node.out) if (c.e !== e && c.e.road._pave > 0 && c.e.len >= 8) opts.push(c);
-      if (!opts.length) { p.dir = -p.dir; p.s = 0; p.side = -p.side; }
-      else { const c = opts[(rnd() * opts.length) | 0]; p.e = c.e; p.dir = c.dir; p.s = 0; p.off = offsetFor(c.e); }
+      if (!opts.length) { p.dir = -p.dir; p.s = 0; p.side = p.e.road._paveSide || p.side; /* turn round, stay on the same polyline side */ }
+      else { const c = opts[(rnd() * opts.length) | 0]; const tl = p.side * p.dir; p.e = c.e; p.dir = c.dir; p.s = 0; p.off = offsetFor(c.e); p.side = c.e.road._paveSide || tl * c.dir; }
     }
     p.ph += p.sp * dt * 4.4;
   }
@@ -370,7 +371,7 @@ export function createPeople(scene, graph, features, cfg, ctx = {}) {
       const g = dogs[i]; if (!g.on) continue;
       const o = peds[g.owner];
       if (!o.on || o.dog !== i) { g.on = false; continue; }
-      const ax = o.tx * 1.3 + o.tz * o.side * -0.25, az = o.tz * 1.3 - o.tx * o.side * -0.25;
+      const ax = o.tx * 1.3, az = o.tz * 1.3;
       g.x = o.x + ax; g.z = o.z + az; g.y = o.y; g.yaw = o.yaw; g.ph = o.ph * 1.1 + 1;
       setPose(dA, dl * 16, g.x, g.y, g.z, g.yaw, 0);
       const o4 = dl * 4, o3 = dl * 3;

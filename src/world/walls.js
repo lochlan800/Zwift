@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { patchMaterial, GRID_GLSL, OCC_GLSL } from './shared.js';
 import { splitByCell } from './heightfield.js';
+import { foliageTexture, FOLIAGE_GLSL } from './trees.js';
 
 // Hedges, dry-stone walls and fences as extruded profiles along polylines.
 const SPEC = { hedge: { w: 1.0, h: 1.45, t: 0 }, wall: { w: 0.5, h: 1.15, t: 1 }, fence: { w: 0.08, h: 1.1, t: 2 } };
@@ -55,8 +56,8 @@ export async function createWalls(features, slicer, castShadow = true, roadIdx =
       if (isHedge) {
         const n1 = vn(L / 2.6, seed), n2 = vn(L / 0.8, seed + 1), n3 = vn(L / 6.0, seed + 2);
         let bump = Math.max(0, vn(L / 4.5, seed + 3) - 0.72) * 2.6; // hawthorn-like crowns
-        const top = y + hBase * (0.82 + 0.3 * n3) + (n1 - 0.5) * 0.35 + (n2 - 0.5) * 0.14 + bump * 0.6;
-        const hw = 0.45 + n1 * 0.15 + bump * 0.15, bl = 0.18 + n2 * 0.14;
+        const top = y + hBase * (0.82 + 0.3 * n3) + (n1 - 0.5) * 0.4 + (n2 - 0.5) * 0.24 + (vn(L / 0.37, seed + 9) - 0.5) * 0.12 + bump * 0.6;
+        const hw = 0.42 + n1 * 0.17 + bump * 0.15 + (vn(L / 0.5, seed + 4) - 0.5) * 0.12, bl = 0.16 + n2 * 0.18;
         const h = top - y;
         const prof = [[hw * 0.8, -0.35, 0], [hw + bl, h * 0.45, 0.45], [hw * 0.75 + bl * 0.5, h * 0.85, 0.85], [0.05 * (n2 - 0.5), h, 1],
           [-(hw * 0.75 + bl * 0.4), h * 0.86, 0.85], [-(hw + bl * 0.9), h * 0.42, 0.45], [-hw * 0.8, -0.35, 0]];
@@ -79,10 +80,10 @@ export async function createWalls(features, slicer, castShadow = true, roadIdx =
   g.computeBoundingSphere();
   const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9, side: THREE.DoubleSide });
   patchMaterial(mat, {
-    key: 'walls',
+    key: 'walls', uniforms: { uFoliage: { value: foliageTexture() } },
     vertexPars: 'attribute vec4 aWl; varying vec4 vWl;',
     vertex: { begin_vertex: '$\n vWl = aWl;' },
-    fragmentPars: `${GRID_GLSL} ${OCC_GLSL} varying vec4 vWl; uniform sampler2D uNoise; float hbSun; float wBump;
+    fragmentPars: `${GRID_GLSL} ${OCC_GLSL} ${FOLIAGE_GLSL} varying vec4 vWl; uniform sampler2D uNoise; float hbSun; float wBump;
       vec3 lin3(vec3 c) { return pow(c, vec3(2.2)); }`,
     fragment: {
       map_fragment: `{
@@ -93,13 +94,12 @@ export async function createWalls(features, slicer, castShadow = true, roadIdx =
         wBump = 0.0;
         if (t == 0) {
           vec3 w = vAerialWorld;
-          float l1 = texture2D(uNoise, (w.xz + w.y * 0.7) / 0.55).a, l2 = texture2D(uNoise, (w.zx - w.y) / 0.21).a;
+          // hawthorn / blackthorn / privet: small painted leaves on twiggy dark interior
           float l3 = texture2D(uNoise, w.xz / 3.5 + w.y * 0.2).g;
-          float leaf = l1 * 0.55 + l2 * 0.45;
-          float cav = smoothstep(0.28, 0.62, leaf);
-          vec3 tint = mix(vec3(0.92, 1.0, 0.85), vec3(1.08, 1.02, 0.86), vWl.w);
-          vec3 base = mix(lin3(vec3(0.15, 0.24, 0.07)), lin3(vec3(0.30, 0.39, 0.13)), l3) * tint;
-          c = base * mix(0.32, 1.12, cav) * mix(0.45, 1.0, smoothstep(0.0, 0.75, vWl.y));
+          vec3 tint = mix(vec3(0.80, 0.84, 0.70), vec3(1.15, 1.08, 0.82), mix(l3, vWl.w, 0.5));
+          vec4 fs = foliageSurface(w, vec2(0.0, 0.1111), 0.8, tint);
+          float cav = fs.a;
+          c = fs.rgb * mix(0.35, 1.05, smoothstep(0.0, 0.75, vWl.y)) * mix(0.8, 1.15, smoothstep(0.3, 0.7, vWl.y * l3 + vWl.y * 0.3));
           wBump = cav;
         }
         else if (t == 1) { vec2 st = vec2(vWl.x / 0.35, vAerialWorld.y / 0.18); vec2 f = fract(st + vec2(fract(floor(st.y) * 0.37), 0.0));

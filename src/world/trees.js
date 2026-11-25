@@ -194,6 +194,34 @@ function makeAtlas() {
   return { tex: t, cv };
 }
 
+// shared singleton atlas + GLSL so hedges / scrub (walls.js, streetlife.js) use the very same painted leaves
+let _atlas = null;
+function getAtlas() { return _atlas || (_atlas = makeAtlas()); }
+export function foliageTexture() { return getAtlas().tex; }
+// atlas cell origins/sizes (uv): 0 oak, 1 sycamore+beech, 2 ash+birch small leaves
+export const FOLIAGE_GLSL = /* glsl */`
+uniform sampler2D uFoliage;
+vec4 foliageTri(vec3 w, vec3 n, vec2 org, float scale) {
+  vec3 an = pow(abs(n), vec3(4.0)); an /= (an.x + an.y + an.z + 1e-4);
+  vec2 sz = vec2(0.5, 0.4444);
+  vec4 c = vec4(0.0);
+  vec2 u0 = w.zy / scale, u1 = w.xz / scale, u2 = w.xy / scale;
+  c += an.x * textureGrad(uFoliage, org + (0.02 + 0.96 * fract(u0)) * sz, dFdx(u0) * sz, dFdy(u0) * sz);
+  c += an.y * textureGrad(uFoliage, org + (0.02 + 0.96 * fract(u1)) * sz, dFdx(u1) * sz, dFdy(u1) * sz);
+  c += an.z * textureGrad(uFoliage, org + (0.02 + 0.96 * fract(u2)) * sz, dFdx(u2) * sz, dFdy(u2) * sz);
+  return c;
+}
+// photoreal leafy surface: returns linear albedo, coverage in .a (gaps show dark twigs/interior)
+vec4 foliageSurface(vec3 w, vec2 org, float scale, vec3 tint) {
+  vec3 n = normalize(cross(dFdx(w), dFdy(w)));
+  vec4 a = foliageTri(w, n, org, scale);
+  vec4 b = foliageTri(w + vec3(0.37, 0.21, 0.53), n, org, scale * 0.42);
+  float cov = clamp(a.a * 0.7 + b.a * 0.55, 0.0, 1.0);
+  vec3 leaf = mix(a.rgb, b.rgb, 0.35 * b.a) * tint;
+  vec3 gap = vec3(0.012, 0.013, 0.007);
+  return vec4(mix(gap, leaf, smoothstep(0.25, 0.7, cov)), cov);
+}`;
+
 // ------------------------------------------------------------------ model description
 // Unit tree: base y=0, total height 1, crown horizontal radius 1.
 // A model = { segs: [[x0,y0,z0,x1,y1,z1,r0,r1,sides]], cards: [{c,ax,ay,s,ao,col}], sp }
@@ -655,7 +683,7 @@ export function createTrees(features, hf, opts) {
   const order = new Int32Array(N); const fill = cellStart.slice(0, gx * gz);
   for (let i = 0; i < N; i++) order[fill[cellOf[i]]++] = i;
 
-  const { tex: leafTex, cv: atlasCv } = makeAtlas();
+  const { tex: leafTex, cv: atlasCv } = getAtlas();
   const group = new THREE.Group(); group.name = 'trees';
 
   const models0 = [], models1 = [];

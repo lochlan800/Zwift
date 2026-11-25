@@ -170,7 +170,7 @@ export function createTraffic(scene, features, hf, cfg, ctx = {}) {
     vertexPars: GLSL_PARS,
     vertex: { beginnormal_vertex: GLSL_NORMAL, begin_vertex: GLSL_BEGIN },
     fragmentPars: 'varying vec3 vMatCol; varying float vRough; varying float vMetal;',
-    fragment: { color_fragment: 'diffuseColor.rgb *= vMatCol;', roughnessmap_fragment: 'float roughnessFactor = vRough;', metalnessmap_fragment: 'float metalnessFactor = vMetal;' },
+    fragment: { lights_physical_fragment: '$\n material.clearcoat *= (vRough < 0.35 ? 1.0 : 0.0);', color_fragment: 'diffuseColor.rgb *= vMatCol;', roughnessmap_fragment: 'float roughnessFactor = vRough;', metalnessmap_fragment: 'float metalnessFactor = vMetal;' },
   });
   mesh.material = mat;
   mesh.customDepthMaterial = depthMaterialFor(GLSL_PARS, GLSL_BEGIN, GLSL_NORMAL, uniforms);

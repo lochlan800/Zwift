@@ -244,7 +244,7 @@ void roadSurface(vec3 w) {
   asph *= 1.0 - 0.22 * oil;
   rAlb = asph; rRough = 0.9 - 0.06 * track - 0.25 * oil; rBump = n5.a * 0.5 + n4.a * 0.3;
   // gully grates at the kerb every ~32 m, manhole covers in the lane every ~73 m
-  if (vRoad.w < 23.5 && vMark > 0.5 && hw > 2.0) {
+  if (vRoad.w < 3.5 && vMark > 0.5 && hw > 2.0) {
     float gu = abs(fract(u / 32.0 + 0.37) - 0.5) * 32.0;
     vec2 gfw = vec2(fwidth(u), fwidth(v)) * 0.75 + 1e-4;
     float gx = 1.0 - smoothstep(0.32 - gfw.x, 0.32 + gfw.x, gu);
@@ -253,12 +253,16 @@ void roadSurface(vec3 w) {
     float bars = step(0.5, fract(gu / 0.05));
     rAlb = mix(rAlb, lin3(vec3(0.10, 0.10, 0.10)) * (0.4 + 0.6 * bars), g);
     rRough = mix(rRough, 0.55, g); rBump = mix(rBump, bars, g);
-    float mu = abs(fract(u / 73.0 + 0.11) - 0.5) * 73.0;
-    float md = length(vec2(mu, v - sign(v + 1e-3) * hw * 0.42));
-    float m = 1.0 - smoothstep(0.33 - gfw.x, 0.33 + gfw.x, md);
-    float ring = smoothstep(0.27, 0.29, md) * m;
-    float pat = step(0.5, fract((mu + v) / 0.06));
-    rAlb = mix(rAlb, lin3(vec3(0.16, 0.155, 0.15)) * (0.75 + 0.25 * pat) * (1.0 - 0.35 * ring), m);
+    // one manhole cover per ~110 m cell, in one lane centre only (never paired), 0.6 m round
+    float cell = floor(u / 110.0);
+    float ch = fract(sin(cell * 91.7 + hw * 13.1) * 43758.5453);
+    float mu = u - (cell + 0.2 + 0.6 * ch) * 110.0;
+    float side = ch < 0.5 ? -1.0 : 1.0;
+    float md = length(vec2(mu, v - side * hw * 0.5));
+    float m = (1.0 - smoothstep(0.3 - gfw.x, 0.3 + gfw.x, md)) * step(0.35, fract(ch * 7.3));
+    float ring = smoothstep(0.25, 0.27, md) * m;
+    float pat = step(0.5, fract((mu + v) / 0.05)) * step(0.5, fract((mu - v) / 0.05));
+    rAlb = mix(rAlb, lin3(vec3(0.30, 0.295, 0.285)) * (0.88 + 0.12 * pat) * (1.0 - 0.15 * ring), m);
     rRough = mix(rRough, 0.5, m); rBump = mix(rBump, pat, m);
   }
   if (t <= 3) {
