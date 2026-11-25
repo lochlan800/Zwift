@@ -27,7 +27,7 @@ const SPECIES = [
   /* 2 ash      */ { cell: 2, leaf: [1.10, 1.10, 0.88], bark: [0.18, 0.145, 0.105], birch: 0, cy: 0.64, ry: 0.38, trunkTop: 0.44, trunkR: 0.040, lobes: 7, s0: 0.25, s1: 0.42 },
   /* 3 birch    */ { cell: 2, leaf: [1.20, 1.18, 0.90], bark: [1.00, 1.00, 0.96], birch: 1, cy: 0.64, ry: 0.36, trunkTop: 0.50, trunkR: 0.030, lobes: 6, s0: 0.24, s1: 0.40 },
   /* 4 beech    */ { cell: 1, leaf: [0.98, 1.0, 0.86], bark: [0.25, 0.21, 0.17], birch: 0, cy: 0.58, ry: 0.38, trunkTop: 0.36, trunkR: 0.052, lobes: 8, s0: 0.27, s1: 0.45 },
-  /* 5 conifer  */ { cell: 3, leaf: [0.82, 0.92, 0.88], bark: [0.16, 0.085, 0.05], birch: 0, cy: 0.5, ry: 0.5, trunkTop: 0.95, trunkR: 0.036, lobes: 0, s0: 0.3, s1: 0.4 },
+  /* 5 conifer  */ { cell: 3, leaf: [1.15, 1.3, 1.2], bark: [0.16, 0.085, 0.05], birch: 0, cy: 0.5, ry: 0.5, trunkTop: 0.95, trunkR: 0.036, lobes: 0, s0: 0.3, s1: 0.4 },
 ];
 
 // ------------------------------------------------------------------ atlas painter

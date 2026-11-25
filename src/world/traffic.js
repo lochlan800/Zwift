@@ -14,10 +14,10 @@ import { mulberry32 } from './heightfield.js';
 const NB = 8;
 const TYPES = [
   { name: 'hatch', wheel: [0.76, 1.25, -1.2, 0.31], boxes: [
-    [0, 0.58, 0, 1.72, 0.52, 3.95, 0, 0], [0, 1.07, -0.1, 1.6, 0.44, 2.2, 0.3, 1], [0, 1.31, -0.1, 1.5, 0.06, 1.5, 0, 0],
+    [0, 0.58, 0, 1.72, 0.52, 3.95, 0, 0], [0, 1.07, -0.1, 1.6, 0.44, 2.2, 0.42, 1], [0, 1.31, -0.1, 1.5, 0.06, 1.5, 0, 0],
     [0, 0.42, 1.97, 1.66, 0.2, 0.1, 0, 2], [0, 0.42, -1.97, 1.66, 0.2, 0.1, 0, 2], [0, 0.7, 1.98, 1.5, 0.1, 0.06, 0, 3], [0, 0.72, -1.98, 1.5, 0.1, 0.06, 0, 4], [0, 0, 0, 0, 0, 0, 0, 0]] },
   { name: 'saloon', wheel: [0.78, 1.45, -1.4, 0.32], boxes: [
-    [0, 0.6, 0, 1.78, 0.55, 4.6, 0, 0], [0, 1.1, -0.2, 1.64, 0.44, 2.1, 0.3, 1], [0, 1.33, -0.2, 1.52, 0.06, 1.4, 0, 0],
+    [0, 0.6, 0, 1.78, 0.55, 4.6, 0, 0], [0, 1.1, -0.2, 1.64, 0.44, 2.1, 0.42, 1], [0, 1.33, -0.2, 1.52, 0.06, 1.4, 0, 0],
     [0, 0.44, 2.27, 1.72, 0.2, 0.1, 0, 2], [0, 0.44, -2.27, 1.72, 0.2, 0.1, 0, 2], [0, 0.72, 2.3, 1.56, 0.1, 0.06, 0, 3], [0, 0.76, -2.3, 1.56, 0.1, 0.06, 0, 4], [0, 0, 0, 0, 0, 0, 0, 0]] },
   { name: 'suv', wheel: [0.82, 1.4, -1.35, 0.37], boxes: [
     [0, 0.86, 0, 1.9, 0.82, 4.5, 0, 0], [0, 1.46, -0.25, 1.78, 0.5, 2.7, 0.14, 1], [0, 1.73, -0.25, 1.72, 0.07, 2.5, 0, 0],
@@ -115,12 +115,17 @@ function buildGeometry() {
     for (let i = 0; i < SEG; i++) { const a = o + i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
     for (const side of [-1, 1]) {
       for (let i = 0; i < SEG; i++) {
-        o = pos.length / 3;
         const a0 = (i / SEG) * Math.PI * 2, a1 = ((i + 1) / SEG) * Math.PI * 2;
         const sh = i & 1 ? 1 : 2;
-        pos.push(side * 0.5, 0, 0, side * 0.5, Math.cos(a0) * 0.42, Math.sin(a0) * 0.42, side * 0.5, Math.cos(a1) * 0.42, Math.sin(a1) * 0.42);
+        // hub (radius 0.3, alternating light/dark so spin is visible) + dark tyre sidewall ring (0.3..0.5)
+        let o = pos.length / 3;
+        pos.push(side * 0.5, 0, 0, side * 0.5, Math.cos(a0) * 0.3, Math.sin(a0) * 0.3, side * 0.5, Math.cos(a1) * 0.3, Math.sin(a1) * 0.3);
         for (let k = 0; k < 3; k++) { nor.push(side, 0, 0); box.push(8 + w); shade.push(sh); }
         if (side > 0) idx.push(o, o + 2, o + 1); else idx.push(o, o + 1, o + 2);
+        o = pos.length / 3;
+        pos.push(side * 0.5, Math.cos(a0) * 0.3, Math.sin(a0) * 0.3, side * 0.5, Math.cos(a0) * 0.5, Math.sin(a0) * 0.5, side * 0.5, Math.cos(a1) * 0.5, Math.sin(a1) * 0.5, side * 0.5, Math.cos(a1) * 0.3, Math.sin(a1) * 0.3);
+        for (let k = 0; k < 4; k++) { nor.push(side, 0, 0); box.push(8 + w); shade.push(0); }
+        if (side > 0) idx.push(o, o + 2, o + 1, o, o + 3, o + 2); else idx.push(o, o + 1, o + 2, o, o + 2, o + 3);
       }
     }
   }
