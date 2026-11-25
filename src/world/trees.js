@@ -27,7 +27,7 @@ const SPECIES = [
   /* 2 ash      */ { cell: 2, leaf: [1.08, 1.12, 0.80], bark: [0.34, 0.31, 0.27], birch: 0, cy: 0.64, ry: 0.38, trunkTop: 0.44, trunkR: 0.040, lobes: 5, s0: 0.21, s1: 0.36 },
   /* 3 birch    */ { cell: 2, leaf: [1.18, 1.18, 0.78], bark: [1.00, 1.00, 0.96], birch: 1, cy: 0.64, ry: 0.36, trunkTop: 0.50, trunkR: 0.030, lobes: 4, s0: 0.20, s1: 0.34 },
   /* 4 beech    */ { cell: 1, leaf: [0.94, 0.98, 0.78], bark: [0.52, 0.50, 0.47], birch: 0, cy: 0.58, ry: 0.38, trunkTop: 0.36, trunkR: 0.052, lobes: 6, s0: 0.23, s1: 0.39 },
-  /* 5 conifer  */ { cell: 3, leaf: [0.40, 0.58, 0.46], bark: [0.30, 0.20, 0.14], birch: 0, cy: 0.5, ry: 0.5, trunkTop: 0.95, trunkR: 0.036, lobes: 0, s0: 0.3, s1: 0.4 },
+  /* 5 conifer  */ { cell: 3, leaf: [0.50, 0.62, 0.36], bark: [0.30, 0.20, 0.14], birch: 0, cy: 0.5, ry: 0.5, trunkTop: 0.95, trunkR: 0.036, lobes: 0, s0: 0.3, s1: 0.4 },
 ];
 
 // ------------------------------------------------------------------ atlas painter
@@ -99,7 +99,7 @@ function needleCell(g, ox, oy, rnd) {
       const base = Math.atan2(p.y, p.x) + (rnd() - 0.5) * 1.6 + 1.2 * (rnd() < 0.5 ? 1 : -1) * 0.25;
       const len = (pass ? 24 : 32) + rnd() * 16;
       const l = pass ? 26 + (p.k - 0.3) * 24 + rnd() * 7 : 17 + rnd() * 6;
-      g.strokeStyle = `hsl(${112 + rnd() * 22},${pass ? 44 : 38}%,${l}%)`; g.lineWidth = pass ? 4.4 : 5.5;
+      g.strokeStyle = `hsl(${98 + rnd() * 22},${pass ? 46 : 40}%,${l}%)`; g.lineWidth = pass ? 4.4 : 5.5;
       g.beginPath(); g.moveTo(cx + p.x, cy + p.y); g.lineTo(cx + p.x + Math.cos(base) * len, cy + p.y + Math.sin(base) * len); g.stroke();
     }
   }
@@ -293,7 +293,7 @@ function modelGeometry(model) {
   const coreU = 0.25, coreV = bv0;
   const pushV = (x, y, z, nx, ny, nz, ao, k) => {
     pos.push(x, y, z); nor.push(nx, ny, nz); uv.push(coreU, coreV);
-    col.push(0.10 * k * 2, 0.27 * k * 2, 0.05 * k * 2); aT.push(0.4, ao); aC.push(x, y, z);
+    col.push(0.12 * k * 2, 0.30 * k * 2, 0.05 * k * 2); aT.push(0.4, ao); aC.push(x, y, z);
   };
   for (const b of model.blobs || []) {
     const ico = new THREE.IcosahedronGeometry(1, b.detail);
@@ -584,7 +584,7 @@ export function createTrees(features, hf, opts) {
           }
           diffuseColor.rgb *= mix(vec3(1.0), vTint, vT.x);
           // painterly value structure: deep blue-green interior, rich mid greens outside
-          diffuseColor.rgb *= mix(vec3(0.34, 0.58, 0.52), vec3(1.0), smoothstep(0.12, 0.85, vT.y));`,
+          diffuseColor.rgb *= mix(vec3(0.40, 0.64, 0.44), vec3(1.0), smoothstep(0.12, 0.85, vT.y));`,
         lights_fragment_begin: THREE.ShaderChunk.lights_fragment_begin.replace('getSunLightInfo( sunLight, directLight );', 'getSunLightInfo( sunLight, directLight ); directLight.color *= hbSun;'),
         // double-sided leaf cards keep their (spherical) normal on both faces for soft crown shading
         normal_fragment_begin: `
@@ -721,6 +721,40 @@ export function createTrees(features, hf, opts) {
   far.frustumCulled = false;
   group.add(far);
 
+  // --- soft dark contact-shadow blob under every near tree (grounds trees on the grass)
+  const GCAP = MAXN * 2;
+  const gArr = new Float32Array(GCAP * 4);
+  const gAttr = new THREE.InstancedBufferAttribute(gArr, 4); gAttr.setUsage(THREE.DynamicDrawUsage);
+  const gGeo = new THREE.InstancedBufferGeometry();
+  gGeo.setAttribute('position', new THREE.Float32BufferAttribute([-1, 0, -1, 1, 0, -1, 1, 0, 1, -1, 0, 1], 3));
+  gGeo.setIndex([0, 2, 1, 0, 3, 2]);
+  gGeo.setAttribute('aG', gAttr);
+  gGeo.instanceCount = 0;
+  gGeo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e7);
+  const gMat = new THREE.ShaderMaterial({
+    uniforms: { uNear },
+    transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2,
+    vertexShader: /* glsl */`
+      attribute vec4 aG; uniform float uNear; varying vec2 vP; varying float vA;
+      void main() {
+        vP = position.xz;
+        vec3 w = aG.xyz + vec3(position.x * aG.w, 0.12, position.z * aG.w);
+        float d = distance(aG.xz, cameraPosition.xz);
+        vA = 1.0 - smoothstep(uNear - 40.0, uNear, d);
+        gl_Position = projectionMatrix * viewMatrix * vec4(w, 1.0);
+      }`,
+    fragmentShader: /* glsl */`
+      varying vec2 vP; varying float vA;
+      void main() {
+        float r = length(vP);
+        float a = pow(clamp(1.0 - r, 0.0, 1.0), 1.4) * 0.42 * vA;
+        if (a < 0.01) discard;
+        gl_FragColor = vec4(0.012, 0.03, 0.012, a);
+      }`,
+  });
+  const gMesh = new THREE.Mesh(gGeo, gMat); gMesh.frustumCulled = false; gMesh.renderOrder = 2;
+  group.add(gMesh);
+
   // --- near set maintenance (no allocations)
   const last = new THREE.Vector3(1e9, 0, 0);
   const cnt0 = new Int32Array(SP_COUNT), cnt1 = new Int32Array(SP_COUNT);
@@ -737,6 +771,7 @@ export function createTrees(features, hf, opts) {
   }
   function rebuild(cam) {
     cnt0.fill(0); cnt1.fill(0);
+    let gn = 0;
     const R = uNear.value + 5, R2 = R * R;
     const d0 = uD0.value, in0 = (d0 + 12) * (d0 + 12), in1 = Math.max(0, d0 - 12) * Math.max(0, d0 - 12);
     const cx0 = Math.max(0, Math.floor((cam.x - R - hf.x0) / CELLW)), cx1 = Math.min(gx - 1, Math.floor((cam.x + R - hf.x0) / CELLW));
@@ -748,10 +783,12 @@ export function createTrees(features, hf, opts) {
         const dx = tx[i] - cam.x, dz = tz[i] - cam.z, d2 = dx * dx + dz * dz;
         if (d2 > R2) continue;
         const sp = tsp[i];
+        if (gn < GCAP) { const o = gn++ * 4; gArr[o] = tx[i]; gArr[o + 1] = ty[i]; gArr[o + 2] = tz[i]; gArr[o + 3] = Math.max(1.2, tr[i] * (sp === 5 ? 0.9 : 1.15)); }
         if (d2 < in0 && cnt0[sp] < MAXN) put(meshes0[sp], cnt0[sp]++, i);
         if (d2 >= in1 && cnt1[sp] < MAXN) put(meshes1[sp], cnt1[sp]++, i);
       }
     }
+    gGeo.instanceCount = gn; gAttr.clearUpdateRanges(); gAttr.addUpdateRange(0, gn * 4); gAttr.needsUpdate = true;
     for (let v = 0; v < SP_COUNT; v++) {
       for (let l = 0; l < 2; l++) {
         const m = l ? meshes1[v] : meshes0[v], n = l ? cnt1[v] : cnt0[v];

@@ -14,7 +14,7 @@ import { createGrass } from './world/grass.js';
 import { createWalls } from './world/walls.js';
 import { bakeShadows } from './world/shadowbake.js';
 import { generateHedgerows, createStreetLife } from './world/streetlife.js';
-import { markTownCentre, markQuarryHill, quarryTrees, quarryPub } from './world/towncentre.js';
+import { markTownCentre, markQuarryHill, quarryTrees, quarryPub, markStorrs, storrsTrees } from './world/towncentre.js';
 import { SegmentIndex, distanceCull } from './world/heightfield.js';
 import { createRider } from './ride/rider.js';
 import { Route, Physics } from './ride/route.js';
@@ -107,6 +107,8 @@ async function build() {
   annotateRoads(features, hf, data.landcover);
   const tc = markTownCentre(features, hf, data.landcover);
   const qh = markQuarryHill(features);
+  const st = markStorrs(features);
+  console.info('storrs hill segments', st.roads.length);
   console.info('town centre', tc.roads.length, 'roads,', tc.fronting, 'fronting buildings, paved', tc.paved, 'crossings', tc.crossings.map((c) => c.note).join('; '));
   const roadIdx = buildRoadIndex(features);
   conformTerrain(hf, features);
@@ -118,6 +120,7 @@ async function build() {
   for (const w of hedgerows.walls) features.walls.push(w);
   for (const t of hedgerows.trees) features.trees.push(t);
   const qTrees = quarryTrees(qh, hf, bIdx); for (const t of qTrees) features.trees.push(t);
+  for (const t of storrsTrees(st, hf, bIdx)) features.trees.push(t);
   const qPub = quarryPub(qh, features, tc.tcIdx);
   console.info('quarry hill roads', qh.roads.length, 'trees', qTrees.length, 'pub', qPub ? JSON.stringify(qPub.p[0]) : 'none');
   {
@@ -148,11 +151,11 @@ async function build() {
   const sky = createSky(renderer);
   scene.add(sky.dome);
   scene.environment = sky.envMap;
-  scene.environmentIntensity = 0.43;
+  scene.environmentIntensity = 1.0; // sky-lighting hook: strong blue sky fill so shadows stay readable (~50% of lit)
   U.uNoise.value = makeNoiseTexture(256);
   world.sky = sky;
 
-  const sun = new SunLight(0xffffff, 7.3);
+  const sun = new SunLight(0xffffff, 6.2);
   sun.color.copy(sky.sunColor);
   U.uSunI.value = sun.intensity;
   sun.position.copy(sky.sunDir);
@@ -192,7 +195,7 @@ async function build() {
   const buildings = await createBuildings(features, slicer, (f) => progress(0.62 + f * 0.2, `Raising buildings ${Math.round(f * 100)}%`), tc.tcIdx, roadIdx, bIdx);
   scene.add(buildings.group);
   world.buildings = buildings;
-  const street = createStreetLife(features, hf, data.landcover, roadIdx, bIdx, routeIdx, roads.giveWays, cfg, tc, shopUnits, pubFronts, qh);
+  const street = createStreetLife(features, hf, data.landcover, roadIdx, bIdx, routeIdx, roads.giveWays, cfg, tc, shopUnits, pubFronts, qh, st);
   console.info('landmarks', JSON.stringify(tc.landmarks), 'street trees', tc.streetTrees, 'gap fills', buildings.fills);
   scene.add(street.group);
   world.street = street;

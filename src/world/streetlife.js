@@ -59,6 +59,7 @@ export function generateHedgerows(features, hf, lc, roadIdx, bIdx) {
     if (!(c === 0 || c === 1 || c === 7)) return false;
     if (needFarm && lcAt(hf, lc, x + nx * 7, z + nz * 7) !== 1 && lcAt(hf, lc, x - nx * 7, z - nz * 7) !== 1) return false;
     if (roadIdx.query(x, z, 2.5, null, tmp)) return false;
+    if (roadIdx.query(x, z, 28, (q) => q.ref._storrs, tmp)) return false;
     if (bIdx.find(x, z, 3)) return false;
     return true;
   };
@@ -347,10 +348,65 @@ function planterGeometry() {
   return mergeGeometries(parts);
 }
 
+function bushGeometry() {
+  const g = new THREE.IcosahedronGeometry(0.55, 1);
+  const p = g.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i), y = p.getY(i), z = p.getZ(i), k = 1 + 0.22 * Math.sin(x * 9.1 + y * 5.3) * Math.cos(z * 7.7 - y * 3.1);
+    p.setXYZ(i, x * k, Math.max(-0.1, y * k) + 0.45, z * k);
+  }
+  g.computeVertexNormals();
+  return colored(g, 1, 1, 1);
+}
+function pylonGeometry() {
+  const G = [0.42, 0.44, 0.46];
+  const parts = [];
+  const H = 36, legAt = (h) => 3.6 * (1 - h / H) + 0.8 * (h / H);
+  const beam = (a, b, r) => { const d = new THREE.Vector3().subVectors(b, a), l = d.length(); const c = new THREE.CylinderGeometry(r, r, l, 4); c.translate(0, l / 2, 0); c.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize())); c.translate(a.x, a.y, a.z); parts.push(colored(c, ...G)); };
+  const V = (x, y, z) => new THREE.Vector3(x, y, z);
+  const corners = [[1, 1], [1, -1], [-1, -1], [-1, 1]];
+  for (const [sx, sz] of corners) beam(V(sx * legAt(0), 0, sz * legAt(0)), V(sx * legAt(H), H, sz * legAt(H)), 0.12);
+  for (let h = 0; h < H; h += 4.5) {
+    const h2 = Math.min(H, h + 4.5);
+    for (let k = 0; k < 4; k++) {
+      const [ax, az] = corners[k], [bx, bz] = corners[(k + 1) % 4];
+      beam(V(ax * legAt(h), h, az * legAt(h)), V(bx * legAt(h2), h2, bz * legAt(h2)), 0.05);
+      beam(V(bx * legAt(h), h, bz * legAt(h)), V(ax * legAt(h2), h2, az * legAt(h2)), 0.05);
+      beam(V(ax * legAt(h2), h2, az * legAt(h2)), V(bx * legAt(h2), h2, bz * legAt(h2)), 0.05);
+    }
+  }
+  for (const y of [24, 30]) { beam(V(-7, y, 0), V(7, y, 0), 0.16); beam(V(-7, y, 0), V(-legAt(y + 3), y + 3, 0), 0.06); beam(V(7, y, 0), V(legAt(y + 3), y + 3, 0), 0.06);
+    for (const x of [-6.5, 6.5]) beam(V(x, y - 1.2, 0), V(x, y, 0), 0.08); }
+  beam(V(0, H, 0), V(0, H + 3, 0), 0.08);
+  return mergeGeometries(parts);
+}
+function ossettGeometry() {
+  const P = [0.35, 0.36, 0.38];
+  const parts = [box(0.07, 1.6, 0.07, -0.65, 0.8, 0, P), box(0.07, 1.6, 0.07, 0.65, 0.8, 0, P)];
+  const b = new THREE.BoxGeometry(1.7, 0.55, 0.04); b.translate(0, 1.35, 0.05);
+  // UVs: only the +z face shows the name; other faces sample the white margin
+  const uv = b.attributes.uv;
+  for (let i = 0; i < uv.count; i++) if (i < 16 || i >= 20) uv.setXY(i, 0.02, 0.02);
+  const parts2 = parts.map((g) => { const n = g.attributes.position.count; g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(n * 2).fill(0.01), 2)); return g; });
+  for (const g of parts2) g.deleteAttribute('color');
+  return mergeGeometries([...parts2, b.toNonIndexed()]);
+}
+function ossettTexture() {
+  const cv = document.createElement('canvas'); cv.width = 512; cv.height = 168;
+  const g = cv.getContext('2d');
+  g.fillStyle = '#f4f4f0'; g.fillRect(0, 0, 512, 168);
+  g.strokeStyle = '#111'; g.lineWidth = 10; g.strokeRect(14, 14, 484, 140);
+  g.fillStyle = '#111'; g.font = 'bold 92px Arial, Helvetica, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText('Ossett', 256, 90);
+  g.fillStyle = '#555'; g.fillRect(0, 0, 18, 18);
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
+  return t;
+}
+
 const CAR_COLS = [[0.85, 0.85, 0.84], [0.55, 0.56, 0.58], [0.05, 0.05, 0.06], [0.08, 0.15, 0.35], [0.5, 0.06, 0.05], [0.3, 0.3, 0.32], [0.12, 0.25, 0.16], [0.62, 0.6, 0.55]];
 
 // ------------------------------------------------------------------ main
-export function createStreetLife(features, hf, lc, roadIdx, bIdx, routeIdx, giveWays, cfg, tc = null, shopUnits = [], pubFronts = [], qh = null) {
+export function createStreetLife(features, hf, lc, roadIdx, bIdx, routeIdx, giveWays, cfg, tc = null, shopUnits = [], pubFronts = [], qh = null, st = null) {
   const tmp = { seg: null, d: 0, t: 0, y: 0 };
   const rnd = mulberry32(99);
   const walls = [], hedges = [], lamps = [], cars = [], signs = [];
@@ -387,13 +443,13 @@ export function createStreetLife(features, hf, lc, roadIdx, bIdx, routeIdx, give
         }
       });
       // --- street lamps every ~30 m, alternating sides
-      walk(r.p, 30, (x, y, z, tx, tz, s) => {
-        if ((Math.round(s / 30) & 1) !== (side > 0 ? 1 : 0)) return;
+      walk(r.p, r._storrs ? 38 : 30, (x, y, z, tx, tz, s) => {
+        if (r._storrs ? side !== r._paveSide : (Math.round(s / 30) & 1) !== (side > 0 ? 1 : 0)) return;
         const vg = r._verge || 0;
         const nx = tz * side, nz = -tx * side, o = vg ? hw + vg * 0.5 : hw + pw - 0.45;
         const px = x + nx * o, pz = z + nz * o;
         if (bIdx.find(px, pz, 0.5) || roadIdx.query(px, pz, 0.3, (q) => q.ref !== r, tmp)) return;
-        const tall = r.k === 'primary' || r.k === 'secondary';
+        const tall = r.k === 'primary' || r.k === 'secondary' || r._storrs;
         push(tall ? lampsTall : lamps, px, vg ? hf.sample(px, pz) : y + lift + 0.12, pz, Math.atan2(-nx, -nz), 1, 1, 1, [1, 1, 1]);
         if (r._tc && r.n === 'High Street') push(baskets, px, y + lift + 0.12, pz, Math.atan2(-nx, -nz), 1, 1, 1, [1, 1, 1]);
       });
@@ -533,12 +589,13 @@ export function createStreetLife(features, hf, lc, roadIdx, bIdx, routeIdx, give
 
   // ---- Quarry Hill: telegraph poles + overhead wires, green direction signs
   const wirePos = [];
-  if (qh) {
-    for (const r of qh.roads) {
-      const hw = r._w / 2 + (r._pave || 0) + (r._verge || 0), side = -1;
+  const poleRoads = [...(qh ? qh.roads : []), ...(st ? st.roads : [])];
+  {
+    for (const r of poleRoads) {
+      const hw = r._w / 2 + (r._pave || 0) + (r._verge || 0), side = r._storrs ? r._paveSide : -1;
       let prev = null;
-      walk(r.p, 38, (x, y, z, tx, tz) => {
-        const nx = tz * side, nz = -tx * side, o = hw + 0.7;
+      walk(r.p, r._storrs ? 45 : 38, (x, y, z, tx, tz) => {
+        const nx = tz * side, nz = -tx * side, o = hw + (r._storrs ? 1.8 : 0.7);
         const px = x + nx * o, pz = z + nz * o;
         if (bIdx.find(px, pz, 0.6)) { prev = null; return; }
         const gy = hf.sample(px, pz);
@@ -555,7 +612,7 @@ export function createStreetLife(features, hf, lc, roadIdx, bIdx, routeIdx, give
         prev = tops;
       });
       // direction sign ~30 m before each end that meets a primary road
-      for (const end of [0, 1]) {
+      if (r._qh) for (const end of [0, 1]) {
         const pts = end ? [...r.p].reverse() : r.p;
         const q = roadIdx.query(pts[0][0], pts[0][2], 0.5, (s) => s.ref !== r && s.ref.k === 'primary' && !s.ref._qh, tmp);
         if (!q) continue;
@@ -563,6 +620,64 @@ export function createStreetLife(features, hf, lc, roadIdx, bIdx, routeIdx, give
         const nx = -pp.tz, nz = pp.tx; // approach lane is on the left of travel towards the end
         const o = hw + 0.6, px = pp.x + nx * o, pz = pp.z + nz * o;
         if (!bIdx.find(px, pz, 1)) dsigns.push(px, hf.sample(px, pz), pz, Math.atan2(-pp.tx, -pp.tz), 1, 1, 1, 1, 1, 1);
+      }
+    }
+  }
+
+  // ---- Storrs Hill Road: scrub on the far side, retaining wall + Ossett sign near the top, pylons in the fields
+  const scrub = [], pylons = [], pylonWire = [];
+  let ossett = null;
+  if (st && st.roads.length) {
+    let top = null;
+    for (const r of st.roads) {
+      const hw = r._w / 2, side = -r._paveSide, dir = r._s1 > r._s0 ? 1 : -1;
+      walk(r.p, 1.7, (x, y, z, tx, tz, s) => {
+        const nx = tz * side, nz = -tx * side;
+        for (let row = 0; row < 3; row++) {
+          const h = hash2(x * 1.7 + row, z * 1.3 - row);
+          if (row > 0 && h < 0.35) continue;
+          const o = hw + 2.2 + row * 2.6 + h * 1.5;
+          const px = x + nx * o + tx * (h - 0.5) * 1.5, pz = z + nz * o + tz * (h - 0.5) * 1.5;
+          if (roadIdx.query(px, pz, 0.8, null, tmp) || bIdx.find(px, pz, 1)) continue;
+          const sc = 1.1 + h * 1.4 + row * 0.5;
+          push(scrub, px, hf.sample(px, pz) - 0.2, pz, h * 6.28, sc * (0.9 + h * 0.4), sc * (0.75 + hash2(z, x) * 0.6), sc, [0.85 + h * 0.3, 0.9 + hash2(x, z) * 0.25, 0.75 + h * 0.2]);
+        }
+      });
+      // retaining wall near the top bend on the footway side, and the place-name sign on the scrub side
+      walk(r.p, 1.0, (x, y, z, tx, tz, s) => {
+        const rs = r._s0 + dir * s;
+        if (rs > 2925 && rs < 2995) {
+          const ps = r._paveSide, o = hw + r._pave + 0.35;
+          const px = x + tz * ps * o, pz = z - tx * ps * o;
+          push(stoneWalls, px, y - 0.1, pz, Math.atan2(tx, tz), 1, 2.1, 1.02, [1, 1, 1]);
+        }
+        if (!ossett && rs > 2955 && rs < 2975) {
+          const o = hw + 1.4, px = x + tz * side * o, pz = z - tx * side * o;
+          ossett = { x: px, y: hf.sample(px, pz), z: pz, yaw: Math.atan2(-tx * dir, -tz * dir) };
+        }
+      });
+      if (!top || Math.max(r._s0, r._s1) > top.s) top = { s: Math.max(r._s0, r._s1), r };
+    }
+    // pylon line crossing the fields roughly parallel to the climb, ~110 m out on the footway side
+    const all = st.roads.slice().sort((a, b) => Math.min(a._s0, a._s1) - Math.min(b._s0, b._s1));
+    const A0 = all[0].p[all[0]._s1 > all[0]._s0 ? 0 : all[0].p.length - 1], last = all[all.length - 1];
+    const A1 = last.p[last._s1 > last._s0 ? last.p.length - 1 : 0];
+    const dx = A1[0] - A0[0], dz = A1[2] - A0[2], L = Math.hypot(dx, dz);
+    const ux = dx / L, uz = dz / L, side = all[0]._paveSide, nx = uz * side, nz = -ux * side;
+    const tops = [];
+    for (let k = -1; k <= Math.ceil(L / 320) + 1; k++) {
+      const px = A0[0] + ux * k * 320 + nx * 115, pz = A0[2] + uz * k * 320 + nz * 115;
+      if (bIdx.find(px, pz, 6)) continue;
+      const gy = hf.sample(px, pz);
+      push(pylons, px, gy, pz, Math.atan2(ux, uz) + Math.PI / 2, 1, 1, 1, [1, 1, 1]);
+      tops.push([px, gy, pz]);
+    }
+    for (let k = 0; k + 1 < tops.length; k++) for (const arm of [-6.5, 6.5]) for (const hgt of [24, 30]) {
+      const A = tops[k], Bq = tops[k + 1], N = 16;
+      for (let q = 0; q < N; q++) {
+        const t0 = q / N, t1 = (q + 1) / N, sag = (t) => -6 * 4 * t * (1 - t);
+        const ax = (t) => [A[0] + (Bq[0] - A[0]) * t + nx * arm, A[1] + (Bq[1] - A[1]) * t + hgt - 1.2 + sag(t), A[2] + (Bq[2] - A[2]) * t + nz * arm];
+        pylonWire.push(...ax(t0), ...ax(t1));
       }
     }
   }
@@ -659,7 +774,18 @@ export function createStreetLife(features, hf, lc, roadIdx, bIdx, routeIdx, give
     mk(planterGeometry(), propMat, planters, 20, R * 0.4, true);
   }
   mk(tallLampGeometry(), propMat, lampsTall, 400 * lowF, R * 1.1, true);
-  if (qh) {
+  mk(bushGeometry(), hedgeMat, scrub, 1600 * lowF, R * 0.8, true);
+  mk(pylonGeometry(), propMat, pylons, 12, 2500, true);
+  if (pylonWire.length) {
+    const wg = new THREE.BufferGeometry(); wg.setAttribute('position', new THREE.Float32BufferAttribute(pylonWire, 3));
+    const wl = new THREE.LineSegments(wg, new THREE.LineBasicMaterial({ color: 0x2a2d31, transparent: true, opacity: 0.8 }));
+    wl.name = 'pylonwires'; group.add(wl);
+  }
+  if (ossett) {
+    const m = new THREE.Mesh(ossettGeometry(), new THREE.MeshStandardMaterial({ map: ossettTexture(), roughness: 0.6 }));
+    m.position.set(ossett.x, ossett.y, ossett.z); m.rotation.y = ossett.yaw; m.castShadow = true; group.add(m);
+  }
+  {
     mk(poleGeometry(), propMat, poles, 60, R * 1.2, true);
     mk(dirSignGeometry(), propMat, dsigns, 10, R, true);
     if (wirePos.length) {

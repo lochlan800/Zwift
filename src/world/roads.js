@@ -208,6 +208,8 @@ vec3 lin3(vec3 c) { return pow(c, vec3(2.2)); }
 float lineAA(float d, float w) { float fw = max(fwidth(d), 1e-3); return 1.0 - smoothstep(w - fw, w + fw, abs(d)); }
 void roadSurface(vec3 w) {
   float u = vRoad.x, v = vRoad.y, hw = vRoad.z; int t = int(vRoad.w + 0.5);
+  bool rural = t >= 20;
+  if (rural) t -= 20;
   bool town = t == ${RT.TOWN};
   if (town) t = 1;
   bool xing = vGw.z > 1.5;
@@ -224,10 +226,9 @@ void roadSurface(vec3 w) {
   {
     float cn = texture2D(uNoise, w.xz / 4.7).g;
     float cw = fwidth(cn) * 1.2 + 1e-4;
-    float crack = (1.0 - smoothstep(0.0, cw, abs(cn - 0.5))) * smoothstep(0.55, 0.75, n2.r) * fa;
-    float seal = (1.0 - smoothstep(0.0, 0.05 + fwidth(v), abs(v - (hw * 0.5 - 0.1) * sign(v + 1e-3)))) * step(0.5, hw) * 0.6 * fa;
-    seal = max(seal, (1.0 - smoothstep(0.0, 0.04 + fwidth(u), abs(fract(u / 47.0) - 0.5) * 47.0)) * 0.7 * fa);
-    asph *= 1.0 - 0.55 * max(crack, seal);
+    float crack = (1.0 - smoothstep(0.0, cw, abs(cn - 0.5))) * smoothstep(0.62, 0.8, n2.r) * fa * 0.6;
+    float seal = (1.0 - smoothstep(0.0, 0.025 + fwidth(u), abs(fract(u / 47.0) - 0.5) * 47.0)) * 0.5 * fa;
+    asph *= 1.0 - 0.4 * max(crack, seal);
   }
   // small rectangular patch repairs (low contrast)
   vec2 pc = floor(vec2(u / 3.5, (v + hw) / 2.2));
@@ -279,7 +280,7 @@ void roadSurface(vec3 w) {
     paint *= 1.0 - smoothstep(0.62, 0.75, n3.r) * 0.5; // worn
     rAlb = mix(rAlb, vec3(0.86), paint);
     // rural lanes without pavements: narrow grit shoulder
-    if (t >= 1 && vMark > 0.5 && hw > 1.6 && !town && vRoad.w < 2.5) {
+    if (rural && vMark > 0.5 && hw > 1.6) {
       float sh = smoothstep(hw - 0.45, hw - 0.3, abs(v));
       rAlb = mix(rAlb, lin3(vec3(0.42, 0.38, 0.32)) * (0.7 + 0.5 * n5.a), sh * 0.85);
       rBump = mix(rBump, n5.a, sh);
@@ -357,7 +358,7 @@ export async function createRoads(features, hf, lc, roadIdx, slicer, bIdx = null
     };
     const markFn = (i) => (other(i, 1.0) ? 0 : 1); // plain asphalt near junctions -> overlapping ribbons look identical
     // UK practice: no centre line on narrow lanes
-    const tt = (K.t <= 1 && (r._w < 6.0 || (!r._pave && r._w < 6.6 && (r.k === 'tertiary' || r.k === 'unclassified')))) ? RT.MINOR : K.t;
+    const tt = r._forceT !== undefined ? r._forceT : (K.t <= 1 && (r._w < 6.0 || (!r._pave && r._w < 6.6 && (r.k === 'tertiary' || r.k === 'unclassified')))) ? RT.MINOR : K.t);
     // give-way where this (minor) road ends on a road of higher rank
     const rk = RANK[r.k] || 0;
     const gwEnd = (pt, fromEnd) => {
@@ -391,7 +392,7 @@ export async function createRoads(features, hf, lc, roadIdx, slicer, bIdx = null
       if (g1 >= 0) addSign(p.length - 1 - Math.round((g1 + 1.5) / Math.max(0.5, L / (p.length - 1))), g1, 1);
     } else B.gw = null;
     B.cross = r._cross != null ? r._cross : null;
-    strip(B, p, F, -hw, hw, lift, (r._tc || r._dyl) && K.t <= 1 ? RT.TOWN : tt, hw, markFn, null);
+    strip(B, p, F, -hw, hw, lift, ((r._tc || r._dyl) && K.t <= 1 ? RT.TOWN : tt) + (!r._pave && tt <= 3 ? 20 : 0), hw, markFn, null);
     B.gw = null;
     // round caps at both ends: fill junction corners / dead ends seamlessly
     for (const e of [0, p.length - 1]) {
@@ -408,13 +409,14 @@ export async function createRoads(features, hf, lc, roadIdx, slicer, bIdx = null
     if (r._pave) {
       const pw = r._pave, vg = r._verge || 0;
       for (const side of [-1, 1]) {
+        if (r._paveSide && side !== r._paveSide) continue;
         const keep = (i) => {
           const x = p[i][0] + F.nx[i] * side * (hw + vg + pw * 0.5), z = p[i][2] + F.nz[i] * side * (hw + vg + pw * 0.5);
           const q = roadIdx.query(x, z, -pw - 0.2, (s) => s.ref !== r, tmp);
           return q === null && !(bIdx && bIdx.find(x, z));
         };
         const o0 = side > 0 ? hw + vg : -hw - vg - pw, o1 = side > 0 ? hw + vg + pw : -hw - vg;
-        strip(B, p, F, o0, o1, lift + (vg ? 0.1 : 0.12), RT.PAVE, hw + vg, null, keep);
+        strip(B, p, F, o0, o1, lift + (vg ? 0.1 : 0.12), r._paveTarmac ? RT.FOOT : RT.PAVE, hw + vg, null, keep);
         wall(B, p, F, side * hw, lift - 0.02, lift + 0.12, -side, RT.KERB, hw, keep);
 
         // town centre: pave forecourts right up to the building line

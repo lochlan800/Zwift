@@ -167,3 +167,47 @@ export function quarryPub(qh, features, tcIdx) {
   for (const r of qh.roads) for (let i = 0; i + 1 < r.p.length; i++) { const a = r.p[i], b = r.p[i + 1]; tcIdx.add(a[0], a[1], a[2], b[0], b[1], b[2], r._w / 2 + r._pave + r._verge, r); }
   return best;
 }
+
+// ---------------------------------------------------------------- Storrs Hill Road (rural climb)
+// Real road: ~6.8 m two-lane with dashed centre + edge lines, a tarmac footway on the left going
+// uphill (route direction), rough grass then open arable fields on that side, scrub on the other.
+export function markStorrs(features) {
+  const rp = features.route.pts;
+  const S = new Float64Array(rp.length);
+  for (let i = 1; i < rp.length; i++) S[i] = S[i - 1] + Math.hypot(rp[i][0] - rp[i - 1][0], rp[i][2] - rp[i - 1][2]);
+  const nearest = (x, z) => { let bi = 0, bd = 1e9; for (let i = 0; i < rp.length; i += 2) { const d = (rp[i][0] - x) ** 2 + (rp[i][2] - z) ** 2; if (d < bd) { bd = d; bi = i; } } return { i: bi, d: Math.sqrt(bd), s: S[bi] }; };
+  const roads = [];
+  for (const r of features.roads) {
+    if (r.n !== 'Storrs Hill Road' || r.tu || r.p.length < 2) continue;
+    r._w = Math.max(r._w || 6, 6.8);
+    const a = nearest(r.p[0][0], r.p[0][2]), b = nearest(r.p[r.p.length - 1][0], r.p[r.p.length - 1][2]);
+    if (a.d > 8 || b.d > 8 || Math.min(a.s, b.s) < 1945) continue; // the valley end in Horbury Bridge keeps its normal treatment
+    r._storrs = true;
+    r._forceT = 0; // centre dashes + edge lines
+    r._pave = 1.8; r._paveTarmac = true;
+    r._paveSide = b.s > a.s ? 1 : -1; // +1 = left of the polyline direction
+    r._s0 = a.s; r._s1 = b.s;
+    roads.push(r);
+  }
+  return { roads };
+}
+
+export function storrsTrees(st, hf, bIdx) {
+  const out = [];
+  for (const r of st.roads) {
+    const side = -r._paveSide, hw = r._w / 2;
+    let acc = 0;
+    for (let i = 0; i + 1 < r.p.length; i++) {
+      const a = r.p[i], b = r.p[i + 1], L = Math.hypot(b[0] - a[0], b[2] - a[2]);
+      acc += L; if (acc < 9) continue; acc = 0;
+      const tx = (b[0] - a[0]) / L, tz = (b[2] - a[2]) / L, nx = tz * side, nz = -tx * side;
+      if (hash2(a[0] * 0.3, a[2] * 0.7) > 0.55) continue;
+      const o = hw + 5 + hash2(a[2], a[0]) * 6;
+      const x = a[0] + nx * o, z = a[2] + nz * o;
+      if (bIdx.find(x, z, 2)) continue;
+      const h = 6 + hash2(x, z) * 7;
+      out.push([x, hf.sample(x, z), z, h, h * (0.42 + hash2(z, x) * 0.12)]);
+    }
+  }
+  return out;
+}

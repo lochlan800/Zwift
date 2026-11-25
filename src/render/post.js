@@ -122,7 +122,7 @@ class GradeEffect extends Effect {
         outputColor = vec4(pow(clamp(g, 0.0, 1.0), vec3(2.2)), inputColor.a);
       }`, {
       uniforms: new Map([
-        ['uExposure', new THREE.Uniform(opts.exposure ?? 1.2)],
+        ['uExposure', new THREE.Uniform(opts.exposure ?? 1.1)],
         ['uContrast', new THREE.Uniform(opts.contrast ?? 0.2)],
         ['uSat', new THREE.Uniform(opts.sat ?? 1.18)],
         ['uVig', new THREE.Uniform(opts.vignette ?? 0.2)],
@@ -166,7 +166,7 @@ export function createPost(renderer, scene, camera, cfg) {
     effects.push(godrays);
   }
 
-  const tone = new GradeEffect({ exposure: 1.2 });
+  const tone = new GradeEffect({ exposure: 1.1 });
   effects.push(tone);
   composer.addPass(new EffectPass(camera, ...effects));
 
