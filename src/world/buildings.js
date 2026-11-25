@@ -358,9 +358,9 @@ function addBuilding(G, b, rnd, tcIdx, roadIdx, bIdx) {
       const yr = base + H;
       const L0 = toXZ(-ru, 0), L1 = toXZ(ru, 0);
       for (const sd of [-1, 1]) {
-        const A = [L0[0] + O.vx * sd * 0.16, L0[1] + O.vz * sd * 0.16], Bq = [L1[0] + O.vx * sd * 0.16, L1[1] + O.vz * sd * 0.16];
-        const ids = [G.v(L0[0], yr + 0.13, L0[1], O.vx * sd * 0.7, 0.7, O.vz * sd * 0.7, -ru, 0, base, eaveAbs, cA, kind, S_RIDGE, seed),
-          G.v(L1[0], yr + 0.13, L1[1], O.vx * sd * 0.7, 0.7, O.vz * sd * 0.7, ru, 0, base, eaveAbs, cA, kind, S_RIDGE, seed),
+        const A = [L0[0] + O.vx * sd * 0.12, L0[1] + O.vz * sd * 0.12], Bq = [L1[0] + O.vx * sd * 0.12, L1[1] + O.vz * sd * 0.12];
+        const ids = [G.v(L0[0], yr + 0.08, L0[1], O.vx * sd * 0.7, 0.7, O.vz * sd * 0.7, -ru, 0, base, eaveAbs, cA, kind, S_RIDGE, seed),
+          G.v(L1[0], yr + 0.08, L1[1], O.vx * sd * 0.7, 0.7, O.vz * sd * 0.7, ru, 0, base, eaveAbs, cA, kind, S_RIDGE, seed),
           G.v(A[0], yr - 0.02, A[1], O.vx * sd * 0.7, 0.7, O.vz * sd * 0.7, -ru, 1, base, eaveAbs, cA, kind, S_RIDGE, seed),
           G.v(Bq[0], yr - 0.02, Bq[1], O.vx * sd * 0.7, 0.7, O.vz * sd * 0.7, ru, 1, base, eaveAbs, cA, kind, S_RIDGE, seed)];
         triOriented(G, ids[0], ids[1], ids[3], O.vx * sd, 1, O.vz * sd);
@@ -450,10 +450,10 @@ vec3 brickCol(int c) {
   if (c == 1) return lin3(vec3(0.50, 0.30, 0.24));
   if (c == 2) return lin3(vec3(0.43, 0.23, 0.19));   // dark engineering-ish ~#6e3b30
   if (c == 3) return lin3(vec3(0.58, 0.38, 0.28));   // buff-red
-  if (c == 4) return lin3(vec3(0.58, 0.52, 0.42));   // weathered buff gritstone
-  if (c == 5) return lin3(vec3(0.46, 0.42, 0.36));   // sooty grey-brown gritstone
+  if (c == 4) return lin3(vec3(0.55, 0.52, 0.46));   // weathered buff-grey gritstone
+  if (c == 5) return lin3(vec3(0.44, 0.42, 0.38));   // sooty grey-brown gritstone
   if (c == 8) return lin3(vec3(0.56, 0.28, 0.21));   // Victorian red brick
-  if (c == 9) return lin3(vec3(0.66, 0.58, 0.45));   // honey/buff sandstone
+  if (c == 9) return lin3(vec3(0.60, 0.56, 0.48));   // weathered buff sandstone
   if (c == 10) return lin3(vec3(0.76, 0.74, 0.68));  // limewash / render
   if (c == 11) return lin3(vec3(0.52, 0.54, 0.55));  // painted grey render
   if (c == 6) return lin3(vec3(0.70, 0.68, 0.62));   // roughcast
@@ -482,7 +482,7 @@ void buildingSurface(vec3 w, vec3 Nw) {
     bool brick = c <= 3 || c == 8 || (surf == 3);
     bool stone = (c == 4 || c == 5 || c == 9 || kind == 6) && surf != 3;
     bool dress = (c == 8 || c == 9) && surf != 3;
-    vec3 dressCol = c == 8 ? lin3(vec3(0.82, 0.81, 0.77)) : lin3(vec3(0.80, 0.70, 0.52));
+    vec3 dressCol = c == 8 ? lin3(vec3(0.80, 0.79, 0.76)) : lin3(vec3(0.68, 0.64, 0.56));
     if (kind == 6) base = lin3(vec3(0.50, 0.44, 0.34));
     vec3 col = base;
     if (industrial && surf == 0 && !shop) {
@@ -532,6 +532,7 @@ void buildingSurface(vec3 w, vec3 Nw) {
       vec3 sc = base * (0.84 + 0.26 * sh) * mix(vec3(1.0), vec3(1.04, 0.98, 0.9), sh2) * (0.9 + 0.18 * n4.g);
       // sooty weathering patches (whole blocks darkened)
       float soot = smoothstep(0.55, 0.8, n3.r * 0.7 + hb(blockId + row * 2.0) * 0.45);
+      sc *= 1.0 - 0.18 * smoothstep(0.5, 0.9, texture2D(uNoise, vec2(u * 0.35, hgt * 0.04) + seed * 0.01).b);
       sc *= mix(1.0, 0.7, soot * 0.45);
       vec3 mortar = base * 0.62;
       col = mix(mix(sc, mortar, j * 0.8), base * 0.9, aa);
@@ -743,12 +744,12 @@ void buildingSurface(vec3 w, vec3 Nw) {
         float wh = hb(bay * 1.9 + fl * 7.0 + seed);
         float wy = (lp2.y - lo.y) / max(hi.y - lo.y, 0.1), wxr = (lp2.x - lo.x) / max(hi.x - lo.x, 0.1);
         // glass: sky reflection grows at grazing angles, interior darkness otherwise
-        vec3 refl = skyLUT(reflect(-vv, Nw)) * 0.22;
+        vec3 refl = skyLUT(reflect(-vv, Nw)) * 0.3;
         float fres = 0.12 + 0.6 * pow(1.0 - ndv, 3.0);
-        vec3 inner = lin3(vec3(0.05, 0.055, 0.065));
-        if (wh < 0.35) inner = mix(inner, lin3(vec3(0.75, 0.75, 0.72)), smoothstep(0.6, 0.5, wy) * 0.85);            // net curtain
-        else if (wh < 0.6) inner = mix(inner, lin3(vec3(0.70, 0.62, 0.48)), 1.0 - smoothstep(0.3 + 0.4 * hb(wh * 9.0) - 0.02, 0.3 + 0.4 * hb(wh * 9.0), 1.0 - wy)); // blind
-        else if (wh < 0.78) inner = mix(inner, accentDoor(wh * 13.0) * 1.4, smoothstep(0.32, 0.38, abs(wxr - 0.5)) * 0.95); // curtains
+        vec3 inner = lin3(vec3(0.035, 0.04, 0.045));
+        if (wh < 0.35) inner = mix(inner, lin3(vec3(0.42, 0.42, 0.40)), smoothstep(0.6, 0.5, wy) * 0.55);            // net curtain
+        else if (wh < 0.6) inner = mix(inner, lin3(vec3(0.38, 0.34, 0.28)), (1.0 - smoothstep(0.3 + 0.4 * hb(wh * 9.0) - 0.02, 0.3 + 0.4 * hb(wh * 9.0), 1.0 - wy)) * 0.6); // blind
+        else if (wh < 0.78) inner = mix(inner, accentDoor(wh * 13.0) * 0.8, smoothstep(0.32, 0.38, abs(wxr - 0.5)) * 0.7); // curtains
         vec3 glassCol = mix(inner, refl, fres);
         vec3 doorCol = industrial ? lin3(vec3(0.45, 0.47, 0.48)) : accentDoor(seed + bay * 0.37);
         vec3 revCol = (dress || stone ? (dress ? dressCol : base) : col) * 0.55;
@@ -805,23 +806,23 @@ void buildingSurface(vec3 w, vec3 Nw) {
     bool slate = (c == 4 || c == 5 || kind == 1 || c == 2 || kind == 6 || c >= 8);
     vec3 rc = slate ? lin3(vec3(0.25, 0.26, 0.28)) : (c == 0 || c == 3) ? lin3(vec3(0.46, 0.28, 0.22)) : (c == 6) ? lin3(vec3(0.38, 0.30, 0.25)) : lin3(vec3(0.33, 0.33, 0.33));
     if (industrial) rc = lin3(vec3(0.42, 0.43, 0.44));
-    vec2 tp = slate ? vec2(ac / 0.3, down / 0.22) : vec2(ac / 0.33, down / 0.26);
+    vec2 tp = slate ? vec2(ac / 0.5, down / 0.25) : vec2(ac / 0.27, down / 0.17);
     float row = floor(tp.y);
     tp.x += mod(row, 2.0) * 0.5;
     vec2 f = fract(tp); vec2 fw = fwidth(tp);
     float aa = smoothstep(0.15, 0.5, max(fw.x, fw.y));
-    float shadow = mix(smoothstep(0.0, 0.35, f.y) * 0.4 + 0.6, 0.8, aa);
+    float shadow = mix(smoothstep(0.0, 0.3, f.y) * 0.22 + 0.78, 0.88, aa);
     float gap = mix(smoothstep(0.0, 0.06 + fw.x, min(f.x, 1.0 - f.x)), 1.0, aa);
     float th = hb(floor(tp.x) + row * 13.1 + seed);
     float th2 = hb(floor(tp.x) * 3.1 + row * 7.7 + seed * 0.3);
-    vec3 col = rc * (0.84 + 0.3 * th * (1.0 - aa)) * mix(vec3(1.0), slate ? vec3(0.9, 0.9, 0.92) : vec3(1.08, 0.95, 0.9), th2 * (1.0 - aa)) * shadow * (0.7 + 0.3 * gap);
+    vec3 col = rc * (0.9 + 0.18 * th * (1.0 - aa)) * mix(vec3(1.0), slate ? vec3(0.9, 0.9, 0.92) : vec3(1.08, 0.95, 0.9), th2 * (1.0 - aa)) * shadow * (0.7 + 0.3 * gap);
     // darker weathering towards the gutters
     col *= mix(0.72, 1.0, smoothstep(0.0, 1.2, w.y - vW.w + 0.5));
     col = mix(col, lin3(vec3(0.30, 0.33, 0.16)), smoothstep(0.58, 0.85, n3.g) * (old ? 0.4 : 0.12)); // moss / lichen
     if (old) col *= 0.88 + 0.12 * n4.r;
     bAlb = col * (0.9 + 0.15 * n4.b);
     bRough = slate ? 0.72 : 0.8;
-    bBump = shadow * 1.3 + (1.0 - gap) * 0.5;
+    bBump = shadow * 0.8 + (1.0 - gap) * 0.3;
   } else if (surf == 8) {
     vec3 fc = accentFascia(seed);
     if (old) fc = (c == 4 || c == 5 || c == 9) ? brickCol(c) * 0.82 : lin3(vec3(0.06, 0.06, 0.065));
@@ -829,7 +830,7 @@ void buildingSurface(vec3 w, vec3 Nw) {
     bAlb = fc * (0.92 + 0.08 * fj); bRough = 0.45; bAO = 1.0;
   } else if (surf == 9) {
     float rj = fract(vW.x / 0.45);
-    vec3 rcol = (c == 0 || c == 3 || c == 6) ? lin3(vec3(0.50, 0.24, 0.15)) : lin3(vec3(0.22, 0.24, 0.27));
+    vec3 rcol = (c == 0 || c == 3 || c == 6) ? lin3(vec3(0.42, 0.26, 0.20)) : lin3(vec3(0.24, 0.25, 0.26));
     bAlb = rcol * (0.75 + 0.35 * smoothstep(0.0, 0.25, rj)); bRough = 0.6; bBump = rj;
   } else if (surf == 10) {
     bAlb = lin3(vec3(0.05, 0.05, 0.055)); bRough = 0.35; bMetal = 0.0;

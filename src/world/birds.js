@@ -181,5 +181,5 @@ export function createBirds(scene, hf, lc, features, cfg) {
     mesh.count = n;
     mesh.instanceMatrix.needsUpdate = true; mesh.instanceColor.needsUpdate = true; aMisc.needsUpdate = true;
   }
-  return { update, mesh, count: () => mesh.count };
+  return { update, mesh, count: () => mesh.count, birds: B };
 }

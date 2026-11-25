@@ -382,5 +382,5 @@ export function createPeople(scene, graph, features, cfg, ctx = {}) {
     dm.mesh.count = dl;
     dm.mesh.instanceMatrix.needsUpdate = true; for (const k in aD) aD[k].needsUpdate = true;
   }
-  return { update, count: () => pm.mesh.count, dogCount: () => dm.mesh.count, meshes: [pm.mesh, dm.mesh] };
+  return { update, count: () => pm.mesh.count, dogCount: () => dm.mesh.count, meshes: [pm.mesh, dm.mesh], peds, dogs };
 }

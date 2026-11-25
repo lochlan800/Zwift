@@ -235,7 +235,7 @@ float hbPuddle(vec3 w, float edge) {
   float c = texture2D(uNoise, w.xz / 3.3).b;
   float n = a * 0.5 + b * 0.38 + c * 0.12 + edge * 0.10;
   float thr = mix(1.2, 0.585, smoothstep(0.25, 0.95, uWet));
-  return smoothstep(thr, thr + 0.035, n);
+  return smoothstep(thr, thr + 0.09, n);
 }
 void hbApplyWet(vec3 w, inout vec3 alb, inout float rough, inout float bump, float edge, float por, float pudAmt) {
   hbPud = 0.0; hbWetAmt = 0.0; hbRip = vec2(0.0);
@@ -246,7 +246,7 @@ void hbApplyWet(vec3 w, inout vec3 alb, inout float rough, inout float bump, flo
   hbWetAmt = d * (1.0 - hbPud);
   alb *= mix(1.0, 0.56, d);
   rough = mix(rough, 0.2, d * 0.8);
-  alb = mix(alb, alb * 0.62, hbPud);
+  alb = mix(alb, alb * 0.38, hbPud);
   rough = mix(rough, 0.03, hbPud);
   bump *= 1.0 - 0.85 * hbPud;
   if (uRain > 0.01 && near > 0.0) {
@@ -261,6 +261,6 @@ vec3 hbWetRefl(vec3 w, vec3 Nw) {
   float c = clamp(dot(-rd, Nw), 0.0, 1.0);
   float f = pow(1.0 - c, 4.0);
   vec3 sky = skyLUT(reflect(rd, Nw));
-  return sky * (hbPud * (0.10 + 0.55 * f) + hbWetAmt * 0.30 * f);
+  return sky * (hbPud * (0.06 + 0.30 * f) + hbWetAmt * 0.22 * f);
 }
 `;

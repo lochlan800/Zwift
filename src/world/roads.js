@@ -336,6 +336,11 @@ void roadSurface(vec3 w) {
     float fh = fract(sin(dot(floor(fl), vec2(41.3, 289.1))) * 43758.5453);
     vec3 c = lin3(vec3(0.47, 0.465, 0.45)) * (0.92 + 0.12 * fh) * (0.93 + 0.1 * n4.a) * (0.95 + 0.08 * n2.g);
     rAlb = c * (0.82 + 0.18 * jv); rRough = 0.92; rBump = jv * 0.4 + n4.a * 0.15;
+    float edgeD = abs(v) - hw;
+    rAlb *= mix(0.8, 1.0, smoothstep(0.0, 0.25, edgeD));                  // grit along the kerb line
+    rAlb *= 1.0 - 0.15 * smoothstep(0.65, 0.9, n2.r);                     // staining
+    float wj = (1.0 - jv) * step(0.97, fh) * (1.0 - smoothstep(10.0, 30.0, dist));
+    rAlb = mix(rAlb, lin3(vec3(0.22, 0.32, 0.11)), wj * 0.7);             // weeds in a few joints
     if (xing && abs(gxc) < 1.8) {
       float edge = abs(v) - hw;
       vec2 dp = fract(vec2(u, abs(v)) / 0.067) - 0.5;
@@ -349,7 +354,12 @@ void roadSurface(vec3 w) {
     float kj = smoothstep(0.0, 0.03 + fwidth(u / 0.9) * 0.9, min(fract(u / 0.9), 1.0 - fract(u / 0.9)));
     float kh = fract(sin(floor(u / 0.9) * 12.9898) * 43758.5453);
     rAlb = lin3(vec3(0.55, 0.545, 0.53)) * (0.85 + 0.15 * kh) * (0.55 + 0.45 * kj) * (0.9 + 0.15 * n4.a);
-    rAlb *= mix(0.75, 1.1, smoothstep(0.0, 0.12, v - 0.02)); rRough = 0.85; rBump = kj;
+    rAlb *= mix(0.62, 1.05, smoothstep(0.0, 0.1, v - 0.0)); // road grime at the foot of the kerb
+    rAlb *= 1.0 + 0.12 * smoothstep(0.1, 0.14, v);           // worn rounded arris catches light
+    rAlb *= 0.85 + 0.2 * texture2D(uNoise, vec2(u, v * 4.0) / 0.7).g; // chipped / stained
+    float weed = (1.0 - kj) * step(0.93, kh) * step(v, 0.08);
+    rAlb = mix(rAlb, lin3(vec3(0.20, 0.30, 0.10)), weed * 0.8);
+    rRough = 0.85; rBump = kj;
   } else if (t == ${RT.BALLAST}) {
     float sl = step(0.62, fract(u / 0.65)) * step(abs(v), 1.3);
     rAlb = mix(lin3(vec3(0.40, 0.37, 0.34)) * (0.6 + 0.6 * n4.a), lin3(vec3(0.26, 0.22, 0.18)), sl * (1.0 - smoothstep(30.0, 80.0, dist)));

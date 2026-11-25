@@ -70,39 +70,43 @@ export class LensDropsEffect extends Effect {
         float on = step(n.y * 0.9 + 0.05, amt);
         return vec2(md + droplets, trail * 0.6) * on;
       }
+      // combined drop height field (smooth: evaluated 3x for finite-difference normals, no 2x2 derivative blockiness)
+      vec2 wxH(vec2 p) {
+        float m = wxBeads(p * 0.55, uT, uAmt);
+        float trail = 0.0;
+        #ifndef LENS_LITE
+        vec2 s = wxSlide(p * 0.9, uT, uAmt);
+        m = max(m, s.x);
+        trail = s.y;
+        #endif
+        return vec2(m, trail);
+      }
       void mainUv(inout vec2 uv) {
         wxDrop = 0.0; wxDropN = vec2(0.0);
         if (uAmt < 0.01) return;
         float asp = resolution.x / resolution.y;
         vec2 p = (uv - 0.5) * vec2(asp, 1.0);
-        float m = wxBeads(p * 1.25, uT, uAmt) * 0.9;
-        #ifndef LENS_LITE
-        vec2 s = wxSlide(p * 1.5, uT, uAmt);
-        m = max(m, s.x);
-        float trail = s.y;
-        #else
-        float trail = 0.0;
-        #endif
-        float dm = max(m, trail * 0.35);
-        // derivative normal (drop surface slope) -> refraction offset, strong inside drops, faint in trails
-        vec2 n = vec2(dFdx(m + trail * 0.25), dFdy(m + trail * 0.25));
-        n *= 0.55 * resolution.y * 0.0018;
+        float e = 1.5 * texelSize.y;
+        vec2 h0 = wxH(p), hx = wxH(p + vec2(e, 0.0)), hy = wxH(p + vec2(0.0, e));
+        float f0 = h0.x + h0.y * 0.25, fx = hx.x + hx.y * 0.25, fy = hy.x + hy.y * 0.25;
+        vec2 n = vec2(fx - f0, fy - f0) / e;
         if (any(isnan(n)) || any(isinf(n))) n = vec2(0.0);
-        wxDrop = dm; wxDropN = n;
-        float inDrop = wxSS(0.02, 0.35, m);
-        // drops invert/magnify: sample a bit toward the lens centre
-        uv += (n * 6.5 + (0.5 - uv) * 0.03 * inDrop) * (1.0 / vec2(asp, 1.0)) * vec2(1.0, 1.0);
-        // faint overall mist blur is not attempted (would need extra taps)
+        float inDrop = wxSS(0.05, 0.45, h0.x);
+        wxDrop = max(h0.x, h0.y * 0.3); wxDropN = n * 0.004;
+        // refraction: bend toward the drop centre; magnified inverted view inside the drop body
+        vec2 off = n * 0.0011 + (0.5 - uv) * 0.035 * inDrop;
+        float l = length(off); if (l > 0.06) off *= 0.06 / l;
+        uv += off / vec2(asp, 1.0) * vec2(asp, 1.0);
       }
       void mainImage(const in vec4 inputColor, const in vec2 uv, out vec4 outputColor) {
         vec3 c = inputColor.rgb;
         if (wxDrop > 0.0) {
           float m = wxSS(0.02, 0.5, wxDrop);
           // slight darkening of the rim, bright glint on the upper-left of each drop
-          float rim = clamp(length(wxDropN) * 18.0, 0.0, 1.0);
-          float glint = clamp(dot(normalize(wxDropN + 1e-5), vec2(-0.6, 0.8)), 0.0, 1.0) * rim;
-          c = mix(c, c * 0.93, rim * m * 0.3);
-          c += vec3(0.9, 0.95, 1.0) * glint * glint * m * 0.22 + vec3(0.9, 0.95, 1.0) * m * 0.015;
+          float rim = clamp(length(wxDropN) * 0.9, 0.0, 1.0);
+          float glint = clamp(dot(normalize(wxDropN + 1e-6), vec2(-0.6, 0.8)), 0.0, 1.0) * rim;
+          c = mix(c, c * 0.9, rim * m * 0.25);
+          c += vec3(0.9, 0.95, 1.0) * glint * glint * glint * m * 0.35;
         }
         if (any(isnan(c))) c = inputColor.rgb;
         outputColor = vec4(c, inputColor.a);

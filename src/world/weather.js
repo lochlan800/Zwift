@@ -167,7 +167,7 @@ void main() {
       float d = length(vec2((x - tx) * 1.0, (y - ty) * 1.3));
       a += smoothstep(0.10, 0.03, d) * step(ph, 0.999) * step(0.001, ph);
     }
-    a *= (1.0 - vAge) * 0.28;
+    a *= (1.0 - vAge) * 0.16;
   }
   a *= vA;
   if (a < 0.004) discard;
@@ -660,7 +660,7 @@ export function createWeather(ctx) {
 
     // screen drops
     lensState.time = clock;
-    lensState.amount = 0.13 * lensWet * clamp01(cur.rain * 1.3) * (1 - 0.55 * clamp01(speed / 14)) * (drone ? 0.35 : 1);
+    lensState.amount = 0.34 * lensWet * clamp01(cur.rain * 1.3) * (1 - 0.55 * clamp01(speed / 14)) * (drone ? 0.35 : 1);
 
     // public info
     info.rain = cur.rain; info.wet = wet; info.storm = cur.storm; info.cloudCover = cur.cover; info.overcast = cur.over;

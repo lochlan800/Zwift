@@ -239,6 +239,12 @@ export function classifyAges(features, bIdx) {
   const area = (p) => { let a = 0; for (let i = 0; i < p.length; i++) { const q = p[i], r = p[(i + 1) % p.length]; a += q[0] * r[1] - r[0] * q[1]; } return Math.abs(a / 2); };
   const stats = { old: 0, modern: 0, render: 0, mills: 0, churches: 0 };
   const mills = [];
+  // industrial setting: next to the railway or the river/canal (Calder valley, Horbury Bridge/Junction)
+  const pts = [];
+  for (const r of features.rail || []) for (let i = 0; i < r.p.length; i += 4) pts.push([r.p[i][0], r.p[i][2]]);
+  for (const w of features.water || []) if (w.k === 'river' || w.k === 'canal') for (let i = 0; i < w.p[0].length; i += 3) pts.push([w.p[0][i][0], w.p[0][i][1]]);
+  for (const w of features.waterways || []) if (w.k === 'river' || w.k === 'canal') for (let i = 0; i < w.p.length; i += 4) pts.push([w.p[i][0], w.p[i][2]]);
+  const nearIndustry = (x, z) => { for (const q of pts) if ((q[0] - x) ** 2 + (q[1] - z) ** 2 < 220 * 220) return true; return false; };
   for (const b of features.buildings) {
     if (!b.p || b.p.length < 3) continue;
     const n = b.p.length; let cx = 0, cz = 0, x0 = 1e9, x1 = -1e9, z0 = 1e9, z1 = -1e9;
@@ -251,8 +257,8 @@ export function classifyAges(features, bIdx) {
       old = true; b.c = h < 0.6 ? 9 : 5; stats.churches++;
       if (b.r === 'flat' && A < 1200) { b.r = 'gabled'; b.e = Math.max(5, Math.min(b.h * 0.65, b.h - 2.5)); }
     }
-    if ((b.k === 'industrial' || b.k === 'other' || b.k === 'commercial') && A > 700 && A < 9000 && aspect > 1.7 && (b.h || 0) >= 8.5 && dCore < 2200) {
-      b.k = 'mill'; old = true; b.c = h < 0.55 ? 5 : (h < 0.8 ? 8 : 4); mills.push({ b, A }); stats.mills++;
+    if ((b.k === 'industrial' || b.k === 'other' || b.k === 'commercial') && A > 700 && A < 9000 && aspect > 1.7 && (b.h || 0) >= 8.5 && dCore < 2600 && nearIndustry(cx, cz)) {
+      mills.push({ b, A, h });
     }
     b._old = old;
     if (b._tc) { stats.old++; continue; }
@@ -269,6 +275,7 @@ export function classifyAges(features, bIdx) {
     }
   }
   mills.sort((a, b) => b.A - a.A);
+  for (const m of mills.slice(0, 12)) { m.b.k = 'mill'; m.b._old = true; m.b.c = m.h < 0.55 ? 5 : (m.h < 0.8 ? 8 : 4); stats.mills++; }
   for (const m of mills.slice(0, 2)) m.b._millChimney = true;
   // St Peter's (Georgian church on Church Street): tower + spire
   let best = null, bd = 1e9;

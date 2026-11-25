@@ -826,7 +826,7 @@ export function createTrees(features, hf, opts) {
         vec3 vd = normalize(vWorld - cameraPosition);
         float back = pow(max(dot(vd, uSunDir), 0.0), 4.0) * 0.6;
         float wrap = clamp(dot(n, uSunDir) * 0.5 + 0.5, 0.0, 1.0);
-        vec3 col = alb * (uSunColor * uSunI * (ndl * 0.8 + wrap * wrap * 0.2 + back) * vSun * 0.3183 * 0.95 + uSkyAmb * 0.62 * (0.4 + 0.6 * clamp(n.y * 0.5 + 0.5, 0.0, 1.0)));
+        vec3 col = alb * (uSunColor * uSunI * (ndl * 0.8 + wrap * wrap * 0.2 + back) * vSun * 0.3183 * 0.68 + uSkyAmb * 0.42 * (0.4 + 0.6 * clamp(n.y * 0.5 + 0.5, 0.0, 1.0)));
         col = applyAerial(col, vWorld);
         gl_FragColor = vec4(col, 1.0);
       }`,
