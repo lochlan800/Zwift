@@ -191,7 +191,7 @@ const SHOULDER_X = 0.158, SHOULDER_Y = 0.23;  // chest-local shoulder joint
 const HEAD_LOCAL = [0, 0.5, 0.01];         // chest-local head centre
 const HEAD_PITCH = -0.05;                  // head pitch in the world: looking slightly up the road
 const L_THIGH = 0.46, L_SHIN = 0.47, L_UP = 0.29, L_FORE = 0.28;
-const WRIST_Y = 0.95, WRIST_Z = 0.42;      // wrists on the hoods
+const WRIST_Y = 0.95, WRIST_Z = 0.45;      // wrists on the front of the hoods
 
 // bone indices (lean frame); arm/leg entries are [right, left] i.e. [s<0, s>0]
 const B = { SPINE: 0, CHEST: 1, HEAD: 2, UA: [3, 4], FA: [5, 6], HAND: [7, 8], TH: [9, 10], SH: [11, 12], SHOE: [13, 14], PEDAL: [15, 16], CRANK: [17, 18] };
