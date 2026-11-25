@@ -18,6 +18,8 @@ import { markTownCentre, markQuarryHill, quarryTrees, quarryPub, markStorrs, sto
 import { SegmentIndex, distanceCull } from './world/heightfield.js';
 import { createRider } from './ride/rider.js';
 import { createAudio } from './audio/audio.js'; // [audio hook] procedural sound, see src/audio
+import { createPeople } from './world/people.js';
+import { createBirds } from './world/birds.js';
 import { createTraffic } from './world/traffic.js'; // street life (traffic / people / birds): sky-lighting agent hook
 
 import { Route, Physics } from './ride/route.js';
@@ -229,6 +231,8 @@ async function build() {
   const route = new Route(features.route);
   world.route = route;
   try { world.traffic = createTraffic(scene, features, hf, cfg, { tc }); } catch (e) { console.error('traffic failed', e); }
+  try { world.people = createPeople(scene, world.traffic.graph, features, cfg, { traffic: world.traffic }); } catch (e) { console.error('people failed', e); }
+  try { world.birds = createBirds(scene, hf, data.landcover, features, cfg); } catch (e) { console.error('birds failed', e); }
   const rider = createRider();
   scene.add(rider.root);
   world.rider = rider;
@@ -377,7 +381,10 @@ function frame(now) {
   }
   camera.updateMatrixWorld();
   if (world.weather) world.weather.update(dt, state.mode === 'paused', state.speed, !!(world.chase && world.chase.mode)); // WEATHER
-  if (world.traffic) world.traffic.update(dt, camera.position, rider.root.position, state.heading, state.speed, state.mode === 'paused');
+  { const ps = state.mode === 'paused', rp = rider.root.position;
+    if (world.traffic) world.traffic.update(dt, camera.position, rp, state.heading, state.speed, ps);
+    if (world.people) world.people.update(dt, camera.position, rp, state.heading, state.speed, ps);
+    if (world.birds) world.birds.update(dt, camera.position, rp, state.heading, state.speed, ps); }
   world.terrain.update(camera);
   world.trees.update(camera.position);
   world.street.update(camera.position);

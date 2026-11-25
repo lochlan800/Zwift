@@ -525,6 +525,7 @@ export async function createRoads(features, hf, lc, roadIdx, slicer, bIdx = null
           normal = normalize((viewMatrix * vec4(Nw, 0.0)).xyz);
           hbNw = Nw;
         }`,
+      aomap_fragment: '$\n reflectedLight.indirectSpecular *= mix(1.0, 0.2, hbPud) * mix(1.0, 0.65, hbWetAmt); // WEATHER: replace sunny-sky IBL with graded sky reflection',
       emissivemap_fragment: '$\n totalEmissiveRadiance += hbWetRefl(vAerialWorld, hbNw); // WEATHER: sky reflection in wet road / puddles',
     },
     uniforms: {},

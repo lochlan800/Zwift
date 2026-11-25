@@ -834,7 +834,10 @@ void buildingSurface(vec3 w, vec3 Nw) {
   } else if (surf == 10) {
     bAlb = lin3(vec3(0.05, 0.05, 0.055)); bRough = 0.35; bMetal = 0.0;
   } else if (surf == 11) {
-    bAlb = (c == 9 || c == 4 || c == 5) ? brickCol(c) * 1.1 : lin3(vec3(0.72, 0.70, 0.64)); bRough = 0.85;
+    vec3 sc0 = (c == 9 || c == 4 || c == 5) ? brickCol(c) * 0.88 : lin3(vec3(0.62, 0.60, 0.56));
+    float crs = smoothstep(0.0, 0.06 + fwidth(w.y / 0.35), min(fract(w.y / 0.35), 1.0 - fract(w.y / 0.35)));
+    float st = smoothstep(0.4, 0.85, texture2D(uNoise, vec2(w.x + w.z, w.y) / 3.0).r);
+    bAlb = sc0 * (0.8 + 0.2 * crs) * (1.0 - 0.3 * st) * (0.9 + 0.15 * n4.g); bRough = 0.85; bBump = crs;
   } else if (surf == 6) {
     bAlb = lin3(vec3(0.52, 0.28, 0.18)) * (0.8 + 0.3 * n4.r); bRough = 0.85;
   } else if (surf == 4) {
