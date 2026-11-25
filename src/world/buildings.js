@@ -263,7 +263,7 @@ function addBuilding(G, b, rnd, tcIdx, roadIdx, bIdx) {
       return G.v(x, base + hfun(q[0], q[1]), z, nrm[0], nrm[1], nrm[2], q[0], q[1], base, eaveAbs, c, kind, surf, seed);
     });
     // underside (soffit) only where the roof overhangs: cheap full duplicate, slightly lowered
-    const sid = OH && surf === S_ROOF ? pl.map((q) => {
+    const sid = false && OH && surf === S_ROOF ? pl.map((q) => {
       const [x, z] = toXZ(q[0], q[1]);
       return G.v(x, base + hfun(q[0], q[1]) - 0.06, z, -nrm[0], -nrm[1], -nrm[2], q[0], q[1], base, eaveAbs, c, kind, 4, seed);
     }) : null;

@@ -305,11 +305,11 @@ function setCamMode(mode) {
   $('camLabel').textContent = mode ? 'Drone' : 'Chase';
   $('camBtn').classList.toggle('drone', !!mode);
   // ranges suited to a high viewpoint
-  world.sun.shadow.camera.far = mode ? cfg.shadowFar * 2.2 : cfg.shadowFar;
+  world.sun.shadow.camera.far = mode ? cfg.shadowFar * (cfg.tier === 'low' ? 1.3 : 2.2) : cfg.shadowFar;
   U.uBakeFade.value.set(world.sun.shadow.camera.far * 0.55, world.sun.shadow.camera.far * 0.95);
-  world.trees.setNearRadius(mode ? Math.max(cfg.treeNear, 260) : cfg.treeNear);
+  world.trees.setNearRadius(mode ? (cfg.tier === 'low' ? cfg.treeNear * 1.2 : Math.max(cfg.treeNear, 260)) : cfg.treeNear);
   world.terrain.setLodScale(mode ? cfg.lod * 1.3 : cfg.lod);
-  world.street.setRadiusScale(mode ? 1.8 : 1);
+  world.street.setRadiusScale(mode ? (cfg.tier === 'low' ? 1.1 : 1.8) : 1);
 }
 $('camBtn').addEventListener('click', () => setCamMode(world.chase.mode ? 0 : 1));
 $('pauseBtn').addEventListener('click', () => {
@@ -368,7 +368,7 @@ function frame(now) {
   if ((frameNo++ & 7) === 0) {
     const k = world.chase && world.chase.mode ? 1.6 : 1;
     distanceCull(world.roads.mesh, camera.position, 2600 * cfg.lod * k);
-    distanceCull(world.buildings.group, camera.position, (cfg.tier === 'low' ? 1500 : cfg.tier === 'medium' ? 2200 : 3500) * k);
+    distanceCull(world.buildings.group, camera.position, (cfg.tier === 'low' ? 1000 : cfg.tier === 'medium' ? 2000 : 3500) * (cfg.tier === 'low' ? Math.min(k, 1.15) : k));
     if (world.walls) distanceCull(world.walls.mesh, camera.position, (cfg.tier === 'low' ? 700 : cfg.tier === 'medium' ? 1100 : 1700) * k);
   }
   if (world.grass) world.grass.update(camera, rider.root.position);

@@ -12,7 +12,7 @@ const CRANK = 0.1725;
 const BB = [0, 0.27, -0.09];
 const RA = [0, R_WHEEL, -0.505];          // rear axle; wheelbase 0.99 m
 const FA = [0, R_WHEEL, 0.485];
-const HIP = [0, 1.07, -0.25];             // hip pivot at rest
+const HIP = [0, 1.07, -0.23];             // hip pivot at rest
 const TAU = Math.PI * 2;
 const CRANK_ARM = Math.hypot(0.05, CRANK);
 
@@ -184,14 +184,14 @@ function wheelGeo(rear) {
 }
 
 // ---------------------------------------------------------------- rider skeleton
-const PHI_REST = 0.8;                      // lower-back lean from vertical at rest (rad)
+const PHI_REST = 0.82;                     // lower-back lean from vertical at rest (rad)
 const CHEST_Y = 0.24;                      // spine height where the upper-back bone starts
 const ROUND = 0.1;                         // upper back rounded forward (rad)
 const SHOULDER_X = 0.158, SHOULDER_Y = 0.23;  // chest-local shoulder joint
 const HEAD_LOCAL = [0, 0.5, 0.01];         // chest-local head centre
 const HEAD_PITCH = -0.05;                  // head pitch in the world: looking slightly up the road
 const L_THIGH = 0.46, L_SHIN = 0.47, L_UP = 0.29, L_FORE = 0.28;
-const WRIST_Y = 0.95, WRIST_Z = 0.45;      // wrists on the front of the hoods
+const WRIST_Y = 0.93, WRIST_Z = 0.465;     // wrists on the front of the hoods
 
 // bone indices (lean frame); arm/leg entries are [right, left] i.e. [s<0, s>0]
 const B = { SPINE: 0, CHEST: 1, HEAD: 2, UA: [3, 4], FA: [5, 6], HAND: [7, 8], TH: [9, 10], SH: [11, 12], SHOE: [13, 14], PEDAL: [15, 16], CRANK: [17, 18] };
@@ -334,7 +334,7 @@ function buildBody() {
   for (let b = 0; b < NB; b++) { Bm[b].copy(W[b]); Binv[b].copy(W[b]).invert(); }
 
   // spine: pelvis and lower back
-  skinGeo(E([0, -0.02, 0], [0.126, 0.07, 0.128]), B.SPINE, { col: 'bibs', paint: paintPelvis });
+  skinGeo(E([0, -0.03, 0.02], [0.125, 0.07, 0.11]), B.SPINE, { col: 'bibs', paint: paintPelvis });
   const lower = revolve(CHEST_Y, (u) => 0.114 + 0.004 * u, 18, true, false).scale(1.2, 1, 0.92);
   skinGeo(lower, B.SPINE, { col: 'bibs', high: { bone: B.CHEST, y0: CHEST_Y - 0.07, y1: CHEST_Y } });
 
