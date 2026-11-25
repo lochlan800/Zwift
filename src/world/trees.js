@@ -22,12 +22,12 @@ const BAKE_ELEV = 12 * Math.PI / 180;
 // ------------------------------------------------------------------ species table
 // colours are linear multipliers (vertex colours)
 const SPECIES = [
-  /* 0 oak      */ { cell: 0, leaf: [1.00, 1.00, 0.84], bark: [0.30, 0.23, 0.17], birch: 0, cy: 0.60, ry: 0.36, trunkTop: 0.42, trunkR: 0.050, lobes: 6, s0: 0.23, s1: 0.38 },
-  /* 1 sycamore */ { cell: 1, leaf: [0.86, 1.02, 0.86], bark: [0.34, 0.30, 0.26], birch: 0, cy: 0.62, ry: 0.35, trunkTop: 0.44, trunkR: 0.042, lobes: 5, s0: 0.22, s1: 0.37 },
-  /* 2 ash      */ { cell: 2, leaf: [1.08, 1.12, 0.80], bark: [0.34, 0.31, 0.27], birch: 0, cy: 0.64, ry: 0.38, trunkTop: 0.44, trunkR: 0.040, lobes: 5, s0: 0.21, s1: 0.36 },
+  /* 0 oak      */ { cell: 0, leaf: [1.00, 1.00, 0.84], bark: [0.15, 0.105, 0.07], birch: 0, cy: 0.60, ry: 0.36, trunkTop: 0.42, trunkR: 0.050, lobes: 6, s0: 0.23, s1: 0.38 },
+  /* 1 sycamore */ { cell: 1, leaf: [0.86, 1.02, 0.86], bark: [0.18, 0.135, 0.10], birch: 0, cy: 0.62, ry: 0.35, trunkTop: 0.44, trunkR: 0.042, lobes: 5, s0: 0.22, s1: 0.37 },
+  /* 2 ash      */ { cell: 2, leaf: [1.08, 1.12, 0.80], bark: [0.18, 0.145, 0.105], birch: 0, cy: 0.64, ry: 0.38, trunkTop: 0.44, trunkR: 0.040, lobes: 5, s0: 0.21, s1: 0.36 },
   /* 3 birch    */ { cell: 2, leaf: [1.18, 1.18, 0.78], bark: [1.00, 1.00, 0.96], birch: 1, cy: 0.64, ry: 0.36, trunkTop: 0.50, trunkR: 0.030, lobes: 4, s0: 0.20, s1: 0.34 },
-  /* 4 beech    */ { cell: 1, leaf: [0.94, 0.98, 0.78], bark: [0.52, 0.50, 0.47], birch: 0, cy: 0.58, ry: 0.38, trunkTop: 0.36, trunkR: 0.052, lobes: 6, s0: 0.23, s1: 0.39 },
-  /* 5 conifer  */ { cell: 3, leaf: [0.38, 0.50, 0.30], bark: [0.30, 0.20, 0.14], birch: 0, cy: 0.5, ry: 0.5, trunkTop: 0.95, trunkR: 0.036, lobes: 0, s0: 0.3, s1: 0.4 },
+  /* 4 beech    */ { cell: 1, leaf: [0.94, 0.98, 0.78], bark: [0.25, 0.21, 0.17], birch: 0, cy: 0.58, ry: 0.38, trunkTop: 0.36, trunkR: 0.052, lobes: 6, s0: 0.23, s1: 0.39 },
+  /* 5 conifer  */ { cell: 3, leaf: [0.38, 0.50, 0.30], bark: [0.16, 0.085, 0.05], birch: 0, cy: 0.5, ry: 0.5, trunkTop: 0.95, trunkR: 0.036, lobes: 0, s0: 0.3, s1: 0.4 },
 ];
 
 // ------------------------------------------------------------------ atlas painter
@@ -160,10 +160,12 @@ function buildDeciduous(sp, lod, tier) {
   const sides = hi ? 7 : 5;
   const { cy, ry, trunkTop: tT, trunkR: tr } = S;
   const lean = (rnd() - 0.5) * 0.05, lean2 = (rnd() - 0.5) * 0.05;
+  // one continuous tapered trunk that runs up into the crown base and disappears inside the foliage
+  const tEnd = cy - ry * 0.15;
   segs.push([0, -0.05, 0, 0, 0.06, 0, tr * 1.6, tr * 1.1, sides, 0]);
-  segs.push([0, 0.06, 0, lean, tT * 0.5, lean2, tr * 1.1, tr * 0.85, sides, 0]);
-  segs.push([lean, tT * 0.5, lean2, lean * 1.4, tT, lean2 * 1.4, tr * 0.85, tr * 0.6, sides, 0]);
-  const top = V(lean * 1.4, tT, lean2 * 1.4);
+  segs.push([0, 0.06, 0, lean, tEnd * 0.5, lean2, tr * 1.1, tr * 0.85, sides, 0]);
+  segs.push([lean, tEnd * 0.5, lean2, lean * 1.4, tEnd, lean2 * 1.4, tr * 0.85, tr * 0.66, sides, 0]);
+  const top = V(lean * 1.4, tEnd, lean2 * 1.4);
   // crown = several big overlapping lobes (ellipsoids) -> bumpy, clumpy, painterly silhouette
   const nLobe = S.lobes;
   const lobes = [];
@@ -176,17 +178,15 @@ function buildDeciduous(sp, lod, tier) {
     const high = (i % 2 === 0) ? 0.1 : -0.18;
     lobes.push({ x: Math.cos(a) * d, y: cy + ry * (high + (rnd() - 0.5) * 0.25), z: Math.sin(a) * d, rx: lr, ry: ry * (0.66 + rnd() * 0.12), rz: lr });
   }
-  // main limbs run from the trunk top into each outer lobe
+  // limbs start inside the crown (hidden by foliage) and fan out to each outer lobe
   for (let i = 1; i < lobes.length; i++) {
     const L = lobes[i];
-    const sy = tT * (0.7 + rnd() * 0.28);
-    const st = V(top.x * (sy / tT), sy, top.z * (sy / tT));
-    const mid = V(L.x * 0.5, sy + (L.y - sy) * 0.4, L.z * 0.5);
-    const lr = tr * 0.66;
+    const st = V(top.x, top.y + ry * 0.05, top.z);
+    const mid = V(L.x * 0.5, st.y + (L.y - st.y) * 0.5, L.z * 0.5);
+    const lr = tr * 0.5;
     segs.push([st.x, st.y, st.z, mid.x, mid.y, mid.z, lr, lr * 0.7, hi ? 5 : 4, 0]);
-    segs.push([mid.x, mid.y, mid.z, L.x * 0.9, L.y - L.ry * 0.25, L.z * 0.9, lr * 0.7, lr * 0.35, hi ? 5 : 4, 0]);
+    segs.push([mid.x, mid.y, mid.z, L.x * 0.85, L.y, L.z * 0.85, lr * 0.7, lr * 0.35, hi ? 5 : 4, 0]);
   }
-  segs.push([top.x, top.y, top.z, 0, cy + ry * 0.2, 0, tr * 0.6, tr * 0.2, 5, 0]);
   // opaque dark cores so the crown never shows sky through it
   for (const L of lobes) blobs.push({ c: V(L.x, L.y, L.z), rx: L.rx * 0.68, ry: L.ry * 0.68, rz: L.rz * 0.68, detail: hi ? 1 : 0 });
   const inside = (p, k, skip) => { let n = 0; for (let i = 0; i < lobes.length; i++) { if (i === skip) continue; const L = lobes[i]; const q = ((p.x - L.x) / L.rx) ** 2 + ((p.y - L.y) / L.ry) ** 2 + ((p.z - L.z) / L.rz) ** 2; if (q < k * k) n++; } return n; };
@@ -469,7 +469,10 @@ const DITHER = 'float ign(vec2 p) { return fract(52.9829189 * fract(dot(p, vec2(
 const WIND_VERT = /* glsl */`
   float sx = length(instanceMatrix[0].xyz), sy = length(instanceMatrix[1].xyz);
   vec3 off = position - aC;
-  transformed = aC + off * vec3(1.0, sx / sy, 1.0);
+  // street trees: stretch the trunk and push the crown up (aTint.w = lift as a fraction of height)
+  float Ls = aTint.w, yc = aC.y;
+  float ym = yc < 0.25 ? yc * (0.25 + Ls) / 0.25 : 0.25 + Ls + (yc - 0.25) * (0.75 - Ls) / 0.75;
+  transformed = vec3(aC.x, ym, aC.z) + off * vec3(1.0, sx / sy, 1.0);
   vec3 ip = instanceMatrix[3].xyz;
   float ph = ip.x * 0.13 + ip.z * 0.17;
   {
@@ -491,6 +494,7 @@ export function createTrees(features, hf, opts) {
   const tx = new Float32Array(N), ty = new Float32Array(N), tz = new Float32Array(N), th = new Float32Array(N), tr = new Float32Array(N);
   const tsp = new Uint8Array(N);
   const ttint = new Float32Array(N * 3);
+  const tlift = new Float32Array(N);
   const noise2 = (x, z, s) => {
     const gx = Math.floor(x / s), gz = Math.floor(z / s);
     let fx = x / s - gx, fz = z / s - gz; fx = fx * fx * (3 - 2 * fx); fz = fz * fz * (3 - 2 * fz);
@@ -527,6 +531,34 @@ export function createTrees(features, hf, opts) {
     }
     ttint[i * 3] = r0; ttint[i * 3 + 1] = g0; ttint[i * 3 + 2] = b0;
   }
+  // roadside trees get a clear stem (~4 m under the canopy) like real street trees
+  {
+    const RC = 32, rg = new Map();
+    const segs = [];
+    for (const r of features.roads || []) {
+      if (r.tu || r.k === 'footway' || r.k === 'path' || r.k === 'steps' || r.k === 'cycleway' || r.k === 'track') continue;
+      const hw = (r.w || 6) / 2 + 7;
+      for (let k = 0; k + 1 < r.p.length; k++) {
+        const a = r.p[k], b = r.p[k + 1];
+        const si = segs.length; segs.push(a[0], a[2], b[0], b[2], hw);
+        const x0 = Math.floor((Math.min(a[0], b[0]) - hw) / RC), x1 = Math.floor((Math.max(a[0], b[0]) + hw) / RC);
+        const z0 = Math.floor((Math.min(a[2], b[2]) - hw) / RC), z1 = Math.floor((Math.max(a[2], b[2]) + hw) / RC);
+        for (let cz = z0; cz <= z1; cz++) for (let cx = x0; cx <= x1; cx++) { const key = cx * 100003 + cz; let l = rg.get(key); if (!l) rg.set(key, l = []); l.push(si); }
+      }
+    }
+    for (let i = 0; i < N; i++) {
+      const l = rg.get(Math.floor(tx[i] / RC) * 100003 + Math.floor(tz[i] / RC));
+      if (!l) continue;
+      let near = false;
+      for (let q = 0; q < l.length && !near; q++) {
+        const o = l[q], ax = segs[o], az = segs[o + 1], bx = segs[o + 2], bz = segs[o + 3];
+        const dx = bx - ax, dz = bz - az, L2 = dx * dx + dz * dz;
+        let t = L2 > 0 ? ((tx[i] - ax) * dx + (tz[i] - az) * dz) / L2 : 0; t = t < 0 ? 0 : t > 1 ? 1 : t;
+        if (Math.hypot(ax + dx * t - tx[i], az + dz * t - tz[i]) < segs[o + 4]) near = true;
+      }
+      if (near && tsp[i] !== 5) tlift[i] = Math.min(0.3, Math.max(0, (4.2 - 0.28 * th[i]) / th[i]));
+    }
+  }
   // spatial grid
   const CELLW = 64;
   const gx = Math.ceil(hf.width / CELLW) + 1, gz = Math.ceil(hf.depth / CELLW) + 1;
@@ -557,10 +589,10 @@ export function createTrees(features, hf, opts) {
     const mat = new THREE.MeshStandardMaterial({ map: leafTex, alphaTest: 0.42, side: THREE.DoubleSide, roughness: 1.0, metalness: 0, envMapIntensity: 0.5, color: 0xffffff, vertexColors: true });
     patchMaterial(mat, {
       key: 'treesL' + lod, uniforms: { uNear, uD0 },
-      vertexPars: `attribute vec2 aT; attribute vec3 aC; attribute vec3 aTint; varying vec2 vT; varying vec3 vTint; varying float vIDist; uniform float uTime; uniform float uNear; uniform vec2 uWind;`,
+      vertexPars: `attribute vec2 aT; attribute vec3 aC; attribute vec4 aTint; varying vec2 vT; varying vec3 vTint; varying float vIDist; uniform float uTime; uniform float uNear; uniform vec2 uWind;`,
       vertex: {
         begin_vertex: `$
-          vT = aT; vTint = aTint;
+          vT = aT; vTint = aTint.rgb;
           ${WIND_VERT}
           vIDist = distance(ip, cameraPosition);`,
       },
@@ -575,7 +607,7 @@ export function createTrees(features, hf, opts) {
             {
               // wide screen-door fade for foliage close to the camera / between camera and rider
               vec3 cv = vAerialWorld - cameraPosition;
-              float nf = smoothstep(3.0, 9.0, length(cv));
+              float nf = smoothstep(3.5, 11.0, length(cv));
               vec3 cr = uRiderPos + vec3(0.0, 1.0, 0.0) - cameraPosition;
               float Lr = length(cr); vec3 dr = cr / max(Lr, 1e-3); float tr_ = dot(cv, dr);
               if (tr_ > 0.0 && tr_ < Lr - 1.0) nf = min(nf, smoothstep(1.4, 3.4, length(cv - dr * tr_)));
@@ -615,7 +647,7 @@ export function createTrees(features, hf, opts) {
   depthMat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, { uTime: U.uTime, uWind: U.uWind });
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nattribute vec2 aT; attribute vec3 aC; uniform float uTime; uniform vec2 uWind;')
+      .replace('#include <common>', '#include <common>\nattribute vec2 aT; attribute vec3 aC; attribute vec4 aTint; uniform float uTime; uniform vec2 uWind;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\n' + WIND_VERT);
   };
 
@@ -623,7 +655,7 @@ export function createTrees(features, hf, opts) {
   const mkMesh = (geo, mat) => {
     const m = new THREE.InstancedMesh(geo, mat, MAXN);
     m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-    const ta = new THREE.InstancedBufferAttribute(new Float32Array(MAXN * 3), 3);
+    const ta = new THREE.InstancedBufferAttribute(new Float32Array(MAXN * 4), 4);
     ta.setUsage(THREE.DynamicDrawUsage);
     geo.setAttribute('aTint', ta);
     m.userData.tint = ta;
@@ -633,7 +665,7 @@ export function createTrees(features, hf, opts) {
     group.add(m);
     return m;
   };
-  const meshes0 = geo0.map((g) => mkMesh(g, mat0));
+  const meshes0 = geo0.map((g) => { const m = mkMesh(g, mat0); m.castShadow = false; return m; });
   const meshes1 = geo1.map((g) => mkMesh(g, mat1));
 
   // --- far impostors (all trees)
@@ -767,13 +799,13 @@ export function createTrees(features, hf, opts) {
     e[o + 8] = r * sn; e[o + 9] = 0; e[o + 10] = r * cs; e[o + 11] = 0;
     e[o + 12] = tx[i]; e[o + 13] = ty[i] - 0.3; e[o + 14] = tz[i]; e[o + 15] = 1;
     const ta = m.userData.tint.array;
-    ta[n * 3] = ttint[i * 3]; ta[n * 3 + 1] = ttint[i * 3 + 1]; ta[n * 3 + 2] = ttint[i * 3 + 2];
+    ta[n * 4] = ttint[i * 3]; ta[n * 4 + 1] = ttint[i * 3 + 1]; ta[n * 4 + 2] = ttint[i * 3 + 2]; ta[n * 4 + 3] = tlift[i];
   }
   function rebuild(cam) {
     cnt0.fill(0); cnt1.fill(0);
     let gn = 0;
     const R = uNear.value + 5, R2 = R * R;
-    const d0 = uD0.value, in0 = (d0 + 12) * (d0 + 12), in1 = Math.max(0, d0 - 12) * Math.max(0, d0 - 12);
+    const d0 = uD0.value, in0 = (d0 + 12) * (d0 + 12), in1 = 0; // LOD1 also holds the near trees: it is the shadow caster for all of them (LOD0 casts none -> fewer draw calls)
     const cx0 = Math.max(0, Math.floor((cam.x - R - hf.x0) / CELLW)), cx1 = Math.min(gx - 1, Math.floor((cam.x + R - hf.x0) / CELLW));
     const cz0 = Math.max(0, Math.floor((cam.z - R - hf.z0) / CELLW)), cz1 = Math.min(gz - 1, Math.floor((cam.z + R - hf.z0) / CELLW));
     for (let cz = cz0; cz <= cz1; cz++) for (let cx = cx0; cx <= cx1; cx++) {
@@ -795,7 +827,7 @@ export function createTrees(features, hf, opts) {
         m.count = n; m.visible = n > 0;
         m.instanceMatrix.clearUpdateRanges(); m.instanceMatrix.addUpdateRange(0, n * 16); m.instanceMatrix.needsUpdate = true;
         const ta = m.userData.tint;
-        ta.clearUpdateRanges(); ta.addUpdateRange(0, n * 3); ta.needsUpdate = true;
+        ta.clearUpdateRanges(); ta.addUpdateRange(0, n * 4); ta.needsUpdate = true;
       }
     }
   }

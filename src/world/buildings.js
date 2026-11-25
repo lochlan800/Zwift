@@ -120,6 +120,15 @@ function addBuilding(G, b, rnd, tcIdx, roadIdx, bIdx) {
   if (poly.length < 3) return;
   const A = polyArea(poly);
   if (Math.abs(A) < 4) return;
+  {
+    // tiny per-building inset so walls that coincide with a neighbour's wall never z-fight
+    let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+    for (const q of poly) { x0 = Math.min(x0, q[0]); x1 = Math.max(x1, q[0]); z0 = Math.min(z0, q[1]); z1 = Math.max(z1, q[1]); }
+    const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, ext = Math.max(x1 - x0, z1 - z0) / 2;
+    const eps = 0.02 + 0.07 * hash2b(cx * 0.37, cz * 0.53);
+    const k = Math.max(0.9, 1 - eps / Math.max(ext, 1));
+    poly = poly.map((q) => [cx + (q[0] - cx) * k, cz + (q[1] - cz) * k]);
+  }
   const outSign = A > 0 ? 1 : -1; // see notes: A>0 => clockwise from above => outward = (dz,-dx)
   const kind = Math.max(0, KINDS.indexOf(b.k));
   const base = b.b;

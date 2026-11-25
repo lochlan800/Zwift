@@ -11,11 +11,11 @@ import { hash2, mulberry32 } from './heightfield.js';
 const CELL = 6;
 // landcover class -> [probability, type, height (m), flower chance]
 const CLS = {
-  0: [0.9, 0, 0.30, 0.04],   // grass / pasture
-  6: [1.0, 0, 0.22, 0.03],   // park / pitch
-  9: [1.0, 0, 0.26, 0.03],   // cemetery
-  3: [0.85, 0, 0.20, 0.03],  // residential ground (lawns, verges)
-  8: [0.7, 0, 0.30, 0.03],   // allotments / gardens
+  0: [0.9, 0, 0.18, 0.04],   // grass / pasture
+  6: [1.0, 0, 0.13, 0.03],   // park / pitch
+  9: [1.0, 0, 0.15, 0.03],   // cemetery
+  3: [0.85, 0, 0.14, 0.03],  // residential ground (lawns, verges)
+  8: [0.7, 0, 0.18, 0.03],   // allotments / gardens
   7: [1.0, 1, 0.62, 0.35],   // scrub / rough
   2: [0.35, 1, 0.55, 0.20],  // woodland understorey
   1: [0.0, 0, 0.0, 0.0],     // farmland: bare/stubble, none
@@ -94,7 +94,7 @@ export function createGrass(hf, lc, roadIdx, bIdx, cfg) {
   const K = Math.round(105 * cfg.grass);
   const total = M * M * K;
   const low = cfg.tier === 'low';
-  const geo = clumpGeometry(low ? 8 : 12, low ? 3 : 4, low ? 1 : 2);
+  const geo = clumpGeometry(low ? 9 : 15, low ? 3 : 4, low ? 1 : 2);
   const inst = new Float32Array(total * 4);
   const attr = new THREE.InstancedBufferAttribute(inst, 4);
   attr.setUsage(THREE.DynamicDrawUsage);
@@ -133,14 +133,16 @@ export function createGrass(hf, lc, roadIdx, bIdx, cfg) {
         vec3 p = position;
         p.xz = mat2(cs, -sn, sn, cs) * p.xz;
         // blade widths: rough tufts are wider/fuller than the fine lawn
-        float wide = rough ? 1.5 : 1.0;
+        float wide = rough ? 1.5 : 0.78;
         p.xz *= wide * mix(0.8, 1.0, min(1.0, s * 3.0));
+        if (!rough) { p.xz = mix(p.xz, p.xz * 0.7, 1.0); }
         p.y *= s;
         float hgt = uv.y;
         if (kind > 0.5 && kind < 1.5) hgt = uv.y;
         float ph = aI.x * 0.31 + aI.z * 0.27;
         float wv = sin(uTime * 1.7 + ph) * 0.5 + sin(uTime * 3.1 + ph * 2.3 + aK.y * 4.0) * 0.25 + 0.3;
         float wy = (kind > 1.5) ? 1.0 : hgt * hgt;
+        if (!rough) wy *= 0.6;
         p.xz += uWind * wv * (rough ? 0.5 : 0.28) * wy * min(1.0, s * 1.5) * (0.6 + aK.y * 0.6);
         vec3 w = aI.xyz + p;
         vWorld = w; vT = (kind > 1.5) ? 1.0 : uv.y;

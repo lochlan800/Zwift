@@ -20,6 +20,7 @@ uniform float uTime;
 uniform float uSunDisc;
 uniform vec3 uGround;
 uniform float uDesat;
+uniform vec3 uTint;
 uniform vec3 uZenith;
 uniform vec3 uHorizon;
 
@@ -58,7 +59,7 @@ vec3 skyColor(vec3 d) {
   float hz;
   vec3 col = skyBase(d, hz) * uScale;
   float sl = dot(col, vec3(0.2126, 0.7152, 0.0722));
-  col = mix(col, vec3(sl), uDesat);
+  col = mix(col, vec3(sl), uDesat) * uTint;
   return col;
 }
 `;
@@ -155,6 +156,7 @@ function skyMaterial({ lut, cloudOct, cloudLit }) {
       uSunDisc: { value: 1 },
       uGround: { value: new THREE.Color(0.06, 0.07, 0.045) },
       uDesat: { value: 0 },
+      uTint: { value: new THREE.Color(1, 1, 1) },
       uZenith: { value: new THREE.Color(0.03, 0.17, 0.66) },
       uHorizon: { value: new THREE.Color(0.36, 0.62, 0.96) },
       uWind: { value: new THREE.Vector2(0.008, 0.0025) },
@@ -232,7 +234,7 @@ export function createSky(renderer) {
   // faces pick up blue from above and warm green from below
   const pmrem = new THREE.PMREMGenerator(renderer);
   const envLut = lutRT.clone();
-  lu.uDesat.value = 0.78; lu.uGround.value.setRGB(0.24, 0.27, 0.15); lu.uScale.value = 2.8;
+  lu.uDesat.value = 0.93; lu.uTint.value.setRGB(0.99, 1.0, 1.03); lu.uGround.value.setRGB(0.24, 0.27, 0.15); lu.uScale.value = 3.3;
   renderer.setRenderTarget(envLut); renderer.render(sc, cam); renderer.setRenderTarget(null);
   const envRT = pmrem.fromEquirectangular(envLut.texture);
   pmrem.dispose();

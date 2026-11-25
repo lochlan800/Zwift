@@ -111,6 +111,7 @@ class GradeEffect extends Effect {
         float greenW = clamp((g.g - max(g.r, g.b)) * 5.0, 0.0, 1.0);
         float k = uSat * (1.0 + (1.0 - s) * 0.25) + greenW * 0.14;
         float lum = dot(g, vec3(0.2126, 0.7152, 0.0722));
+        k = mix(0.82, k, smoothstep(0.08, 0.5, lum)); // keep shadows near-neutral: no saturation boost in the dark
         g = max(mix(vec3(lum), g, k), 0.0);
         // vignette
         vec2 q = uv - 0.5;

@@ -184,12 +184,12 @@ function wheelGeo(rear) {
 }
 
 // ---------------------------------------------------------------- rider skeleton
-const PHI_REST = 0.82;                     // lower-back lean from vertical at rest (rad)
+const PHI_REST = 0.98;                     // lower-back lean from vertical at rest (rad)
 const CHEST_Y = 0.24;                      // spine height where the upper-back bone starts
-const ROUND = 0.1;                         // upper back rounded forward (rad)
+const ROUND = 0.16;                        // upper back rounded forward (rad)
 const SHOULDER_X = 0.158, SHOULDER_Y = 0.23;  // chest-local shoulder joint
-const HEAD_LOCAL = [0, 0.5, 0.01];         // chest-local head centre
-const HEAD_PITCH = -0.05;                  // head pitch in the world: looking slightly up the road
+const HEAD_LOCAL = [0, 0.53, 0.02];         // chest-local head centre
+const HEAD_PITCH = -0.12;                  // head pitch in the world: looking slightly up the road
 const L_THIGH = 0.46, L_SHIN = 0.47, L_UP = 0.29, L_FORE = 0.28;
 const WRIST_Y = 0.93, WRIST_Z = 0.465;     // wrists on the front of the hoods
 
@@ -334,7 +334,9 @@ function buildBody() {
   for (let b = 0; b < NB; b++) { Bm[b].copy(W[b]); Binv[b].copy(W[b]).invert(); }
 
   // spine: pelvis and lower back
-  skinGeo(E([0, -0.03, 0.02], [0.125, 0.07, 0.11]), B.SPINE, { col: 'bibs', paint: paintPelvis });
+  skinGeo(E([0, -0.03, 0.02], [0.115, 0.06, 0.09]), B.SPINE, { col: 'bibs', paint: paintPelvis });
+  // rounded glutes that sit on the saddle (placed so they land just above/behind the saddle in the lean frame)
+  for (const s of [-1, 1]) skinGeo(E([s * 0.06, -0.062, 0.014], [0.082, 0.078, 0.092], 16), B.SPINE, { col: 'bibs' });
   const lower = revolve(CHEST_Y, (u) => 0.114 + 0.004 * u, 18, true, false).scale(1.2, 1, 0.92);
   skinGeo(lower, B.SPINE, { col: 'bibs', high: { bone: B.CHEST, y0: CHEST_Y - 0.07, y1: CHEST_Y } });
 
