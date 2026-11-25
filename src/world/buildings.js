@@ -464,7 +464,9 @@ vec3 accentDoor(float s) { float h = hb(s * 5.31 + 2.0);
   return h < 0.2 ? lin3(vec3(0.06, 0.10, 0.28)) : h < 0.38 ? lin3(vec3(0.06, 0.22, 0.12)) : h < 0.56 ? lin3(vec3(0.40, 0.05, 0.08)) : h < 0.72 ? lin3(vec3(0.05, 0.05, 0.06)) : h < 0.86 ? lin3(vec3(0.70, 0.10, 0.08)) : lin3(vec3(0.90, 0.90, 0.87)); }
 vec3 accentFascia(float s) { float h = hb(s * 7.7 + 3.0); return h < 0.55 ? lin3(vec3(0.94, 0.94, 0.91)) : h < 0.75 ? lin3(vec3(0.90, 0.85, 0.72)) : h < 0.9 ? lin3(vec3(0.08, 0.08, 0.09)) : lin3(vec3(0.07, 0.20, 0.12)); }
 void buildingSurface(vec3 w, vec3 Nw) {
-  int c = int(vB.x + 0.5), kind = int(vB.y + 0.5), surf = int(vB.z + 0.5);
+  int craw = int(vB.x + 0.5), kind = int(vB.y + 0.5), surf = int(vB.z + 0.5);
+  bool old = craw >= 16; int c = old ? craw - 16 : craw;
+  bool mill = kind == 13;
   float seed = vB.w;
   vec4 n3 = texture2D(uNoise, w.xz / 5.0 + w.y / 9.0);
   vec4 n4 = texture2D(uNoise, vec2(w.x + w.z, w.y) / 1.1);
@@ -493,17 +495,19 @@ void buildingSurface(vec3 w, vec3 Nw) {
       bBump = hgt < 1.8 ? 0.0 : rib * 0.4;
       bMetal = hgt < 1.8 ? 0.0 : 0.3; bRough = hgt < 1.8 ? 0.85 : 0.5;
     } else if (brick) {
-      vec2 bp = vec2(u / 0.225, hgt / 0.075);
+      vec2 bp = vec2(u / 0.27, hgt / 0.09);
       float row = floor(bp.y);
       bp.x += mod(row, 2.0) * 0.5;
       vec2 f = fract(bp); vec2 fw = fwidth(bp);
       float mortar = (1.0 - smoothstep(0.0, 0.06 + fw.x, min(f.x, 1.0 - f.x) * 1.0)) ;
       mortar = max(mortar, 1.0 - smoothstep(0.0, 0.14 + fw.y, min(f.y, 1.0 - f.y)));
-      float aa = smoothstep(0.12, 0.45, max(fw.x, fw.y));
+      float aa = smoothstep(0.4, 1.1, max(fw.x, fw.y));
       float bh = hb(floor(bp.x) + row * 31.7 + seed);
       vec3 bc = base * (0.82 + 0.3 * bh) * (0.9 + 0.2 * n4.r);
       vec3 mc = lin3(vec3(0.62, 0.58, 0.52));
-      col = mix(mix(bc, mc, mortar * 0.85), mix(base, mc, 0.18), aa);
+      // keep a faint coursing even when individual bricks are sub-pixel
+      float course = 0.5 + 0.5 * sin(hgt / 0.09 * 6.2831);
+      col = mix(mix(bc, mc, mortar * 0.85), mix(base, mc, 0.18) * (0.94 + 0.08 * course * (1.0 - smoothstep(1.2, 2.5, fw.y))), aa);
       bBump = (1.0 - mortar) * (1.0 - aa);
     } else if (stone) {
       // coursed sandstone: course heights 0.20-0.30 m, random block lengths 0.4-0.9 m
@@ -522,7 +526,7 @@ void buildingSurface(vec3 w, vec3 Nw) {
       float jx = jl * (1.0 - smoothstep(0.0, 0.035 + fw.x, f.x)) + (1.0 - smoothstep(0.0, 0.035 + fw.x, 1.0 - f.x)) * step(0.45, hb((cell + 1.0) * 0.71 + row * 9.3 + seed));
       float jy = 1.0 - smoothstep(0.0, 0.05 + fw.y, min(f.y, 1.0 - f.y));
       float j = max(jx, jy);
-      float aa = smoothstep(0.12, 0.45, max(fw.x, fw.y));
+      float aa = smoothstep(0.35, 1.0, max(fw.x, fw.y));
       float sh = hb(blockId * 1.37 + row * 17.3 + seed);
       float sh2 = hb(blockId * 5.1 + row * 3.7);
       vec3 sc = base * (0.84 + 0.26 * sh) * mix(vec3(1.0), vec3(1.04, 0.98, 0.9), sh2) * (0.9 + 0.18 * n4.g);
@@ -533,8 +537,10 @@ void buildingSurface(vec3 w, vec3 Nw) {
       col = mix(mix(sc, mortar, j * 0.8), base * 0.9, aa);
       bBump = (1.0 - j) * (1.0 - aa) * (0.7 + 0.3 * sh);
     } else {
-      col = base * (0.92 + 0.1 * n3.b) * (1.0 - 0.15 * smoothstep(0.6, 0.9, n3.r));
-      bRough = 0.9;
+      vec4 n5 = texture2D(uNoise, vec2(w.x + w.z, w.y) / 0.21);
+      float pebble = n5.a * 0.6 + n4.b * 0.4;
+      col = base * (0.86 + 0.22 * pebble) * (1.0 - 0.12 * smoothstep(0.6, 0.9, n3.r));
+      bRough = 0.95; bBump = pebble * 1.4;
     }
     // grime: darker near ground, streaks under windows
     col *= 0.88 + 0.12 * smoothstep(0.0, 1.2, hgt);
@@ -551,6 +557,22 @@ void buildingSurface(vec3 w, vec3 Nw) {
       col = mix(col, pc * (0.85 + 0.15 * pj) * (0.9 + 0.15 * n4.g), plinth);
       col = mix(col, pc * 1.35, (1.0 - smoothstep(0.0, 0.04 + pfw, abs(hgt - 0.52))) * 0.8); // weathered top edge
       bBump = mix(bBump, pj * 0.5, plinth);
+    }
+    // date-stone plaque on some old terraces
+    if (old && kind == 1 && surf == 0 && L > 8.0 && hb(seed * 1.7 + L) < 0.3) {
+      vec2 fwp = vec2(fwidth(u), fwidth(hgt));
+      vec2 pc = vec2(L * 0.5, eave - 0.75);
+      float pl = boxAA(vec2(u, hgt), pc - vec2(0.42, 0.24), pc + vec2(0.42, 0.24), fwp);
+      float digits = step(0.45, fract((u - pc.x + 0.3) / 0.15)) * step(abs(u - pc.x), 0.3) * step(abs(hgt - pc.y), 0.08);
+      col = mix(col, mix(lin3(vec3(0.78, 0.70, 0.55)), lin3(vec3(0.25, 0.22, 0.18)), digits), pl);
+    }
+    // age: soot-darkened gritstone (stronger on gables and stacks), dirtier brick
+    if (old && !shop) {
+      float gable = smoothstep(eave - 0.3, eave + 0.8, hgt);
+      float sootN = smoothstep(0.35, 0.85, n3.r * 0.6 + texture2D(uNoise, vec2(u * 0.13, hgt * 0.11) + seed * 0.01).g * 0.6);
+      float k = stone ? (0.25 + 0.35 * gable + 0.25 * sootN) : (0.1 + 0.15 * gable + 0.12 * sootN);
+      if (surf == 3) k += 0.2;
+      col *= 1.0 - clamp(k, 0.0, 0.62) * (c == 9 ? 0.55 : 1.0);
     }
     // baked AO (inside corners, neighbours)
     col *= mix(0.62, 1.0, vAO);
@@ -638,8 +660,8 @@ void buildingSurface(vec3 w, vec3 Nw) {
     if ((surf == 0 || (shop && hgt > 3.6)) && L > 1.8 && hgt < eave - 0.25 && hgt > 0.0) {
       float hOff = shop ? 3.6 : 0.0;
       bool arched = kind == 6 || kind == 11;
-      float fh = industrial ? 4.2 : (arched ? 7.0 : 2.75);
-      float nb = max(1.0, floor(L / (industrial ? 5.5 : 3.1) + 0.5));
+      float fh = industrial ? 4.2 : (arched ? 7.0 : (mill ? 3.5 : 2.75));
+      float nb = max(1.0, floor(L / (industrial ? 5.5 : (mill ? 2.6 : 3.1)) + 0.5));
       float bw = L / nb;
       float bay = floor(u / bw);
       float lu = u - bay * bw;
@@ -647,7 +669,8 @@ void buildingSurface(vec3 w, vec3 Nw) {
       float lh = shop ? (hgt - hOff) - (fl - 1.0) * fh : hgt - fl * fh;
       float bayH = hb(bay * 3.7 + seed * 1.3 + L);
       vec2 fw = vec2(fwidth(u), fwidth(hgt)) * 0.75;
-      float winW = industrial ? min(bw * 0.7, 3.5) : (arched ? 1.1 : min(bw * 0.48, 1.35));
+      bool mullioned = old && stone && !shop && !arched && !mill && hb(seed * 0.71) < 0.55;
+      float winW = industrial ? min(bw * 0.7, 3.5) : (arched ? 1.1 : (mill ? 1.3 : (mullioned ? min(bw * 0.62, 1.9) : min(bw * 0.48, 1.35))));
       float winB = industrial ? 2.2 : (arched ? 1.2 : 0.85), winT = industrial ? 3.4 : (arched ? max(3.2, eave - 1.0) : 2.2);
       if (fl == 0.0 && !industrial && !arched) { winB = 0.9; winT = 2.15; }
       float topLimit = eave - 0.2 - (shop ? hOff + (fl - 1.0) * fh : fl * fh);
@@ -688,6 +711,17 @@ void buildingSurface(vec3 w, vec3 Nw) {
         // glazing bars (at the frame plane)
         float gb = door ? 0.0 : (1.0 - smoothstep(0.022, 0.022 + fw.x, abs(lp2.x - bw * 0.5))) * glass;
         if (!door && !industrial) gb = max(gb, (1.0 - smoothstep(0.03, 0.03 + fw.y, abs(lp2.y - (lo.y + hi.y) * 0.5))) * glass);
+        if (!door && (old || mill) && !industrial) {
+          // small-pane timber sashes / mill glazing
+          float wq = hi.x - lo.x, hq = hi.y - lo.y;
+          float nx = mill ? 4.0 : (mullioned ? 2.0 : 3.0) * max(1.0, floor(wq / 1.0 + 0.5)) / (mullioned ? 1.0 : 1.0);
+          float ny = mill ? 4.0 : 4.0;
+          vec2 pq = vec2((lp2.x - lo.x) / wq * nx, (lp2.y - lo.y) / hq * ny);
+          vec2 fq = abs(fract(pq) - 0.5) * vec2(wq / nx, hq / ny);
+          vec2 fwq = fwidth(pq) * vec2(wq / nx, hq / ny);
+          float bars = max(1.0 - smoothstep(wq / nx * 0.5 - 0.018 - fwq.x, wq / nx * 0.5 - 0.018 + fwq.x, fq.x), 1.0 - smoothstep(hq / ny * 0.5 - 0.018 - fwq.y, hq / ny * 0.5 - 0.018 + fwq.y, fq.y));
+          gb = max(gb, bars * glass * (1.0 - smoothstep(0.3, 0.8, max(fwq.x, fwq.y) * 10.0)));
+        }
         float fade = 1.0 - smoothstep(250.0, 700.0, dist);
         vec3 frameCol = shop ? lin3(vec3(0.93, 0.93, 0.9)) : accentFrame(seed + (c >= 6 ? 0.5 : 0.0));
         float wh = hb(bay * 1.9 + fl * 7.0 + seed);
@@ -725,6 +759,17 @@ void buildingSurface(vec3 w, vec3 Nw) {
         col = mix(col, dressing * (0.95 + 0.08 * n4.r), max(max(sill, lintel), step0) * fade);
         float underSill = boxAA(lp, vec2(lo.x - 0.13, lo.y - 0.24), vec2(hi.x + 0.13, lo.y - 0.16), fw) * (door ? 0.0 : 1.0);
         col *= 1.0 - 0.45 * underSill * fade;
+        if (mullioned && !door) {
+          float wq = hi.x - lo.x; float nl = max(2.0, floor(wq / 0.6 + 0.5));
+          float mp = abs(fract((lp.x - lo.x) / wq * nl + 0.5) - 0.5) * wq / nl;
+          float mul = (1.0 - smoothstep(0.06 - fw.x, 0.06 + fw.x, mp)) * open * step(lo.x + 0.1, lp.x) * step(lp.x, hi.x - 0.1);
+          col = mix(col, dressing * 0.85, mul * fade);
+        }
+        if (door && old && (stone || brick) && !industrial) {
+          float sur = clamp(boxAA(lp, vec2(lo.x - 0.2, lo.y), vec2(hi.x + 0.2, hi.y + 0.3), fw) - open, 0.0, 1.0);
+          float key = boxAA(lp, vec2((lo.x + hi.x) * 0.5 - 0.11, hi.y), vec2((lo.x + hi.x) * 0.5 + 0.11, hi.y + 0.38), fw);
+          col = mix(col, dressing * (stone ? 0.95 : 1.0), max(sur, key) * fade);
+        }
         float surround = dress && c == 9 ? clamp(boxAA(lp, lo - 0.2, hi + 0.2, fw) - open, 0.0, 1.0) : 0.0;
         col = mix(col, dressCol, surround * fade);
         bBump = mix(bBump, 0.0, open);
@@ -756,12 +801,14 @@ void buildingSurface(vec3 w, vec3 Nw) {
     vec3 col = rc * (0.78 + 0.45 * th * (1.0 - aa)) * mix(vec3(1.0), slate ? vec3(0.9, 0.9, 0.92) : vec3(1.08, 0.95, 0.9), th2 * (1.0 - aa)) * shadow * (0.7 + 0.3 * gap);
     // darker weathering towards the gutters
     col *= mix(0.72, 1.0, smoothstep(0.0, 1.2, w.y - vW.w + 0.5));
-    col = mix(col, lin3(vec3(0.30, 0.33, 0.18)), smoothstep(0.62, 0.85, n3.g) * 0.15); // moss
+    col = mix(col, lin3(vec3(0.30, 0.33, 0.16)), smoothstep(0.58, 0.85, n3.g) * (old ? 0.4 : 0.12)); // moss / lichen
+    if (old) col *= 0.88 + 0.12 * n4.r;
     bAlb = col * (0.9 + 0.15 * n4.b);
     bRough = slate ? 0.72 : 0.8;
     bBump = shadow * 1.3 + (1.0 - gap) * 0.5;
   } else if (surf == 8) {
     vec3 fc = accentFascia(seed);
+    if (old) fc = (c == 4 || c == 5 || c == 9) ? brickCol(c) * 0.82 : lin3(vec3(0.06, 0.06, 0.065));
     float fj = smoothstep(0.0, 0.03 + fwidth(vW.x), min(fract(vW.x * 0.0 + (w.x + w.z) / 2.4), 1.0 - fract((w.x + w.z) / 2.4)));
     bAlb = fc * (0.92 + 0.08 * fj); bRough = 0.45; bAO = 1.0;
   } else if (surf == 9) {
