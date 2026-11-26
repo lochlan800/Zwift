@@ -245,7 +245,7 @@ async function build() {
   post = createPost(renderer, scene, camera, cfg);
   dynres = new DynamicResolution(renderer, resize, cfg);
   // WEATHER: state machine + rain/splash/leaf/lightning particles; drives sky/fog/light via shared uniforms
-  world.weather = createWeather({ scene, camera, renderer, sun: world.sun, sky: world.sky, cfg, hf, heightTex, getPost: () => post });
+  world.weather = createWeather({ scene, camera, renderer, sun: world.sun, sky: world.sky, cfg, hf, heightTex, features, getPost: () => post });
   world.audio?.bindWeather({ onWeatherEvent }); // [audio hook] thunder from lightning events
   resize();
   placeRider(0, 0);

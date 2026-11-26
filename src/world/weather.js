@@ -114,8 +114,8 @@ void main() {
 const SPLASH_VS = /* glsl */`
 attribute vec4 aS; attribute float aPart;
 uniform float uT; uniform float uR; uniform sampler2D uHeight;
-uniform vec2 uGridOrigin; uniform vec2 uGridSize; uniform float uGridRes;
-varying vec2 vUv; varying float vPart; varying float vAge; varying float vA;
+uniform vec2 uGridOrigin; uniform vec2 uGridSize; uniform float uGridRes; uniform sampler2D uRoad;
+varying vec2 vUv; varying float vPart; varying float vAge; varying float vA; varying float vHard;
 float h11(float p) { p = fract(p * 0.1031); p *= p + 33.33; p *= p + p; return fract(p); }
 void main() {
   float per = 0.55 + 0.5 * aS.w;
@@ -129,6 +129,7 @@ void main() {
   float fade = 1.0 - smoothstep(0.55, 1.0, dd);
   vec2 tg = clamp((wxz - uGridOrigin) / uGridRes, vec2(0.0), uGridSize - 1.0);
   float gh = texelFetch(uHeight, ivec2(tg + 0.5), 0).r + 0.25;
+  vHard = texture2D(uRoad, ((wxz - uGridOrigin) / uGridRes + 0.5) / uGridSize).r;
   float sz = 0.9 + 0.8 * h11(aS.x * 7.0 + cyc);
   vec3 wp;
   vec2 q = position.xy;                          // -0.5..0.5
@@ -146,15 +147,14 @@ void main() {
 }`;
 const SPLASH_FS = /* glsl */`
 uniform vec3 uCol; uniform float uFlash;
-varying vec2 vUv; varying float vPart; varying float vAge; varying float vA;
+varying vec2 vUv; varying float vPart; varying float vAge; varying float vA; varying float vHard;
 void main() {
   float a = 0.0;
   if (vPart < 0.5) {
     float r = length(vUv);
     float R = mix(0.12, 0.95, sqrt(vAge));
-    float w = mix(0.16, 0.06, vAge);
-    a = smoothstep(w * 0.6, 0.0, abs(r - R)) * pow(1.0 - vAge, 1.6) * 0.6;
-    a += smoothstep(0.05, 0.0, abs(r - R * 0.55)) * (1.0 - vAge) * 0.35 * step(0.25, vAge);
+    float w = mix(0.10, 0.04, vAge);
+    a = smoothstep(w * 0.6, 0.0, abs(r - R)) * pow(1.0 - vAge, 2.2) * 0.38 * vHard;   // rings only on hard surfaces
   } else {
     // crown: a few droplets thrown up on parabolic arcs
     float y = vUv.y * 0.5 + 0.5;
@@ -167,7 +167,7 @@ void main() {
       float d = length(vec2((x - tx) * 1.0, (y - ty) * 1.3));
       a += smoothstep(0.10, 0.03, d) * step(ph, 0.999) * step(0.001, ph);
     }
-    a *= (1.0 - vAge) * 0.16;
+    a *= (1.0 - vAge) * (0.05 + 0.13 * vHard);
   }
   a *= vA;
   if (a < 0.004) discard;
@@ -327,6 +327,30 @@ export function createWeather(ctx) {
   rain.frustumCulled = false; rain.renderOrder = 1010; rain.visible = false; rain.name = 'wxRain';
   scene.add(rain);
 
+  // road/pavement mask (1 byte per heightfield node) so splash rings only appear on hard surfaces
+  const roadMask = (() => {
+    const cols = hf.cols, rows = hf.rows, data = new Uint8Array(cols * rows);
+    for (const r of (ctx.features && ctx.features.roads) || []) {
+      if (r.tu || !r.p || r.p.length < 2) continue;
+      const hw = (r._w || r.w || 4) / 2 + (r._pave || 0) + 0.3, rc = Math.ceil(hw / hf.res);
+      for (let i = 0; i + 1 < r.p.length; i++) {
+        const a = r.p[i], b = r.p[i + 1], n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[2] - a[2]) / (hf.res * 0.5)));
+        for (let k = 0; k <= n; k++) {
+          const x = a[0] + (b[0] - a[0]) * k / n, z = a[2] + (b[2] - a[2]) * k / n;
+          const ci = Math.round((x - hf.x0) / hf.res), cj = Math.round((z - hf.z0) / hf.res);
+          for (let dj = -rc; dj <= rc; dj++) for (let di = -rc; di <= rc; di++) {
+            const ii = ci + di, jj = cj + dj;
+            if (ii < 0 || jj < 0 || ii >= cols || jj >= rows) continue;
+            if (Math.hypot(ii * hf.res + hf.x0 - x, jj * hf.res + hf.z0 - z) <= hw) data[jj * cols + ii] = 255;
+          }
+        }
+      }
+    }
+    const t = new THREE.DataTexture(data, cols, rows, THREE.RedFormat, THREE.UnsignedByteType);
+    t.minFilter = t.magFilter = THREE.LinearFilter; t.generateMipmaps = false; t.needsUpdate = true;
+    return t;
+  })();
+
   // ---------------------------------------------------------------- splashes (ring + crown, one draw call)
   const splashGeo = (() => {
     const g = new THREE.InstancedBufferGeometry();
@@ -348,7 +372,7 @@ export function createWeather(ctx) {
   const splashMat = new THREE.ShaderMaterial({
     vertexShader: SPLASH_VS, fragmentShader: SPLASH_FS, transparent: true, depthWrite: false, side: THREE.DoubleSide, toneMapped: false,
     polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3,
-    uniforms: { uT: U.uWxTime, uR: { value: tier === 'low' ? 9 : 12 }, uHeight: { value: heightTex }, uGridOrigin: U.uGridOrigin, uGridSize: U.uGridSize, uGridRes: U.uGridRes, uCol: { value: new THREE.Color(0.8, 0.85, 0.92) }, uFlash: U.uLightning },
+    uniforms: { uT: U.uWxTime, uR: { value: tier === 'low' ? 9 : 12 }, uHeight: { value: heightTex }, uRoad: { value: roadMask }, uGridOrigin: U.uGridOrigin, uGridSize: U.uGridSize, uGridRes: U.uGridRes, uCol: { value: new THREE.Color(0.8, 0.85, 0.92) }, uFlash: U.uLightning },
   });
   const splash = new THREE.Mesh(splashGeo, splashMat);
   splash.frustumCulled = false; splash.renderOrder = 1011; splash.visible = false; splash.name = 'wxSplash';
@@ -660,7 +684,7 @@ export function createWeather(ctx) {
 
     // screen drops
     lensState.time = clock;
-    lensState.amount = 0.34 * lensWet * clamp01(cur.rain * 1.3) * (1 - 0.55 * clamp01(speed / 14)) * (drone ? 0.35 : 1);
+    lensState.amount = 0.14 * lensWet * clamp01(cur.rain * 1.3) * (1 - 0.55 * clamp01(speed / 14)) * (drone ? 0.35 : 1);
 
     // public info
     info.rain = cur.rain; info.wet = wet; info.storm = cur.storm; info.cloudCover = cur.cover; info.overcast = cur.over;

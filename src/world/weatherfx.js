@@ -64,9 +64,7 @@ export class LensDropsEffect extends Effect {
         float trail = wxSS(0.23 * r, 0.15 * r * r, cd);
         float trailFront = wxSS(-0.02, 0.02, st.y - y);
         trail *= trailFront * r * r;
-        float yy = fract(UV.y * 10.0) + (st.y - 0.5);
-        float dd = length(st - vec2(x, yy));
-        float droplets = wxSS(0.3, 0.0, dd) * r * trailFront;
+        float droplets = 0.0;
         float on = step(n.y * 0.9 + 0.05, amt);
         return vec2(md + droplets, trail * 0.6) * on;
       }
@@ -94,7 +92,7 @@ export class LensDropsEffect extends Effect {
         float inDrop = wxSS(0.05, 0.45, h0.x);
         wxDrop = max(h0.x, h0.y * 0.3); wxDropN = n * 0.004;
         // refraction: bend toward the drop centre; magnified inverted view inside the drop body
-        vec2 off = n * 0.0011 + (0.5 - uv) * 0.035 * inDrop;
+        vec2 off = n * 0.0011;
         float l = length(off); if (l > 0.035) off *= 0.035 / l;
         uv += off / vec2(asp, 1.0) * vec2(asp, 1.0);
       }
@@ -103,9 +101,9 @@ export class LensDropsEffect extends Effect {
         if (wxDrop > 0.0) {
           float m = wxSS(0.02, 0.5, wxDrop);
           // slight darkening of the rim, bright glint on the upper-left of each drop
-          float rim = clamp(length(wxDropN) * 0.9, 0.0, 1.0);
+          float rim = clamp(length(wxDropN) * 0.9, 0.0, 1.0) * clamp(-wxDropN.y * 40.0, 0.0, 1.0);
           float glint = clamp(dot(normalize(wxDropN + 1e-6), vec2(-0.6, 0.8)), 0.0, 1.0) * rim;
-          c = mix(c, c * 0.95, rim * m * 0.15);
+          c = mix(c, c * 0.9, rim * m * 0.3);
           c += vec3(0.9, 0.95, 1.0) * glint * glint * glint * m * 0.35;
         }
         if (any(isnan(c))) c = inputColor.rgb;

@@ -244,7 +244,7 @@ void hbApplyWet(vec3 w, inout vec3 alb, inout float rough, inout float bump, flo
   float near = 1.0 - smoothstep(25.0, 110.0, distance(w, cameraPosition));
   hbPud = hbPuddle(w, edge) * pudAmt * smoothstep(0.3, 0.8, uWet);
   hbWetAmt = d * (1.0 - hbPud);
-  alb *= mix(1.0, 0.56, d);
+  alb *= mix(1.0, 0.42, d);
   rough = mix(rough, 0.2, d * 0.8);
   alb = mix(alb, alb * 0.38, hbPud);
   rough = mix(rough, 0.03, hbPud);
@@ -261,6 +261,6 @@ vec3 hbWetRefl(vec3 w, vec3 Nw) {
   float c = clamp(dot(-rd, Nw), 0.0, 1.0);
   float f = pow(1.0 - c, 4.0);
   vec3 sky = skyLUT(reflect(rd, Nw));
-  return sky * (hbPud * (0.06 + 0.30 * f) + hbWetAmt * 0.22 * f);
+  return sky * (hbPud * (0.03 + 0.28 * f) + hbWetAmt * 0.10 * f);
 }
 `;
