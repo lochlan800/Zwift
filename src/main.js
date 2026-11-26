@@ -7,7 +7,7 @@ import { U, makeNoiseTexture } from './world/shared.js';
 import { createSky } from './world/sky.js';
 import { createTerrain, makeHeightTexture, makeNormalTexture, makeSplatTextures } from './world/terrain.js';
 import { annotateRoads, buildRoadIndex, conformTerrain, createRoads, roadInfo } from './world/roads.js';
-import { createBuildings, shopUnits, pubFronts } from './world/buildings.js';
+import { createBuildings, shopUnits, pubFronts, BLD } from './world/buildings.js';
 import { createTrees } from './world/trees.js';
 import { createWater, carveWater } from './world/water.js';
 import { createGrass } from './world/grass.js';
@@ -200,6 +200,7 @@ async function build() {
 
 
   progress(0.62, 'Raising buildings');
+  BLD.lite = cfg.tier === 'low';
   const buildings = await createBuildings(features, slicer, (f) => progress(0.62 + f * 0.2, `Raising buildings ${Math.round(f * 100)}%`), tc.tcIdx, roadIdx, bIdx, hf);
   scene.add(buildings.group);
   world.buildings = buildings;
@@ -391,7 +392,7 @@ function frame(now) {
   if ((frameNo++ & 7) === 0) {
     const k = world.chase && world.chase.mode ? 1.6 : 1;
     distanceCull(world.roads.mesh, camera.position, 2600 * cfg.lod * k);
-    distanceCull(world.buildings.group, camera.position, (cfg.tier === 'low' ? 1000 : cfg.tier === 'medium' ? 2000 : 3500) * (cfg.tier === 'low' ? Math.min(k, 1.15) : k));
+    distanceCull(world.buildings.group, camera.position, (cfg.tier === 'low' ? 850 : cfg.tier === 'medium' ? 2000 : 3500) * (cfg.tier === 'low' ? Math.min(k, 1.15) : k));
     if (world.walls) distanceCull(world.walls.mesh, camera.position, (cfg.tier === 'low' ? 700 : cfg.tier === 'medium' ? 1100 : 1700) * k);
   }
   if (world.grass) world.grass.update(camera, rider.root.position);

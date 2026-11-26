@@ -7,6 +7,7 @@ export const frontEnds = []; // front-edge endpoints of town-centre buildings (f
 export const pubFronts = [];
 // shop units found while building facades (used to place awnings, A-boards, the clock)
 export const shopUnits = [];
+export const BLD = { lite: false }; // low tier: skip small decorative geometry
 const S_WALL = 0, S_ROOF = 1, S_FLAT = 2, S_CHIM = 3, S_SHOP = 5, S_POT = 6, S_BAY = 7, S_FASCIA = 8, S_RIDGE = 9, S_DARK = 10, S_CAP = 11, S_METAL = 12;
 const CELL = 600;
 
@@ -126,7 +127,7 @@ function expandTerraces(list, hf, roadIdx) {
     } else pieces.push(b);
     for (const pc of pieces) out.push(pc);
     // rear outshuts
-    if (b._old) {
+    if (b._old && !BLD.lite) {
       for (let k = 0; k < n; k++) {
         if (hash2b(b.p[0][0] + k * 3.1, b.p[0][1] - k) > 0.55) continue;
         const uc = -O.hl + (2 * O.hl * (k + 0.5)) / n, w = Math.min(2.6, (2 * O.hl) / n - 0.6), d = 2.8;
@@ -400,7 +401,7 @@ function addBuilding(G, b, rnd, tcIdx, roadIdx, bIdx) {
       }
     }
     // downpipes at the ends of the longest eave (houses / terraces / town centre)
-    if (longest && (kind <= 2 || b._tc)) {
+    if (longest && (kind <= 2 || b._tc) && !BLD.lite) {
       for (const end of [0.25, longest.l - 0.25]) {
         const px = longest.A[0] + longest.ex * end - longest.nx * (OH - 0.07), pz = longest.A[1] + longest.ez * end - longest.nz * (OH - 0.07);
         const w = 0.045, P0 = [px - longest.ex * w, pz - longest.ez * w], P1 = [px + longest.ex * w, pz + longest.ez * w];
@@ -456,9 +457,9 @@ function addBuilding(G, b, rnd, tcIdx, roadIdx, bIdx) {
       const yb = base + roofH(u, 0.5) - 0.6;
       prism(u, 0, 0.45, 0.7, yb, top, S_CHIM, S_FLAT);
       prism(u, 0, 0.52, 0.77, top - 0.2, top + 0.02, S_CAP, S_CAP);
-      const np = 2 + (rnd() < 0.4 ? 1 : 0);
+      const np = BLD.lite ? 0 : 2 + (rnd() < 0.4 ? 1 : 0);
       for (let k = 0; k < np; k++) prism(u, (k - (np - 1) / 2) * 0.42, 0.1, 0.1, top - 0.02, top + 0.32 + rnd() * 0.12, S_POT, S_POT);
-      const ra = rnd();
+      const ra = BLD.lite ? 1 : rnd();
       if (ra < 0.3) { // TV aerial strapped to the stack
         prism(u + 0.35, 0.5, 0.02, 0.02, top - 0.6, top + 1.7, S_DARK, S_DARK);
         prism(u + 0.35, 0.5, 0.5, 0.012, top + 1.45, top + 1.48, S_DARK, S_DARK);
