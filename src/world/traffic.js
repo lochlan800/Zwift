@@ -333,7 +333,7 @@ export function createTraffic(scene, features, hf, cfg, ctx = {}) {
       // U-turn at dead ends flips lane
       const uturn = pickN.e === e;
       v.e = pickN.e; v.dir = pickN.dir; v.s = Math.min(over, 4);
-      if (uturn) v.off = -v.off;
+      void uturn; // lane offset stays on the left of the NEW travel direction
       place(v, 0, true);
       v.bx = ox - v.x; v.bz = oz - v.z;
       let dy = oyaw - v.yaw; while (dy > Math.PI) dy -= Math.PI * 2; while (dy < -Math.PI) dy += Math.PI * 2;

@@ -68,7 +68,7 @@ function birdGeometry() {
 
 export function createBirds(scene, hf, lc, features, cfg) {
   const nFlock = cfg.tier === 'low' ? 1 : cfg.tier === 'medium' ? 2 : 3;
-  const perFlock = cfg.tier === 'low' ? 8 : cfg.tier === 'medium' ? 10 : 13;
+  const perFlock = cfg.tier === 'low' ? 10 : cfg.tier === 'medium' ? 18 : 26;
   const nCross = cfg.tier === 'low' ? 2 : cfg.tier === 'medium' ? 3 : 5;
   const nPig = cfg.tier === 'low' ? 5 : cfg.tier === 'medium' ? 9 : 14;
   const N = nFlock * perFlock + nCross + nPig;
@@ -172,7 +172,10 @@ export function createBirds(scene, hf, lc, features, cfg) {
       if (b.y < -900) continue;
       if (Math.hypot(b.x - camPos.x, b.z - camPos.z) > 1100) continue;
       const k = 0.5;
-      setPose(arr, n * 16, b.x, b.y + (b.kind === 2 && b.state === 0 ? 0.11 * b.sc * k : 0), b.z, b.yaw, 0, b.sc * (b.kind === 2 ? 0.75 : 1) * 1.0, b.sc * (b.kind === 2 ? 0.75 : 1), b.sc * (b.kind === 2 ? 0.75 : 1));
+      // flock/crossing birds are ~0.6 m span (crow/starling-ish) but grow with distance so they stay a few pixels wide
+      const dd = Math.hypot(b.x - camPos.x, b.y - camPos.y, b.z - camPos.z);
+      const sz = b.sc * (b.kind === 2 ? 0.75 : 0.42 * Math.min(3.2, Math.max(1, dd / 60)));
+      setPose(arr, n * 16, b.x, b.y + (b.kind === 2 && b.state === 0 ? 0.11 * b.sc * k : 0), b.z, b.yaw, 0, sz, sz, sz);
       col[n * 3] = b.col.r; col[n * 3 + 1] = b.col.g; col[n * 3 + 2] = b.col.b;
       am[n * 3] = b.ph; am[n * 3 + 1] = b.flap; am[n * 3 + 2] = 0;
       n++;

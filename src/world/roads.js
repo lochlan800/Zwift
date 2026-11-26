@@ -305,15 +305,16 @@ void roadSurface(vec3 w) {
       float zz = 0.0;
       if (ax > 3.0 && ax < 14.0) {
         // sharp zig-zags: triangle wave, thickness measured perpendicular to each leg
-        float P = 1.9, A = 0.32;
+        float P = 1.8, A = 0.25;
         float ph = fract((ax - 3.0) / P);
         float tri = abs(ph - 0.5) * 2.0;             // 1 -> 0 -> 1
         float slope = 4.0 * A / P;
         float k = 1.0 / sqrt(1.0 + slope * slope);
-        float dK = abs(abs(v) - (hw - 0.3 - A * tri)) * k;     // kerb-side zig-zag
-        float dC = abs(v - (A * (tri - 0.5) * 2.0)) * k;      // centre zig-zag
-        float fwz = fwidth(v) * 0.7 + 0.01;
-        zz = max(1.0 - smoothstep(0.05 - fwz, 0.05 + fwz, dK), 1.0 - smoothstep(0.05 - fwz, 0.05 + fwz, dC));
+        float kk = 1.0 / sqrt(1.0 + pow(8.0 * A / P, 2.0));
+        float dK = abs(abs(v) - (hw - 0.15 - 2.0 * A * tri)) * kk; // kerb-side zig-zag, 0.15-0.65 m off the kerb
+        float dC = abs(v - A * (tri - 0.5) * 2.0) * k;        // centre zig-zag (+-0.25 m)
+        float fwz = fwidth(v) * 0.7 + 0.005;
+        zz = max(1.0 - smoothstep(0.045 - fwz, 0.045 + fwz, dK), 1.0 - smoothstep(0.045 - fwz, 0.045 + fwz, dC));
       }
       paint = max(paint, max(bars, max(gwl, zz)));
     }
