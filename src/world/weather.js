@@ -137,7 +137,7 @@ void main() {
     float rad = (0.07 + 0.30 * sqrt(age)) * sz;
     wp = vec3(wxz.x + q.x * 2.0 * rad, gh + 0.01, wxz.y + q.y * 2.0 * rad);
   } else {
-    float hh = 0.26 * sz;
+    float hh = (aS.w > 0.5 ? 0.0 : 0.13) * sz;   // half the instances get no crown, the rest are small
     float yv = q.y + 0.5;
     vec2 off = aPart < 1.5 ? vec2(q.x * 2.0 * hh, 0.0) : vec2(0.0, q.x * 2.0 * hh);
     wp = vec3(wxz.x + off.x, gh + yv * hh * 1.6, wxz.y + off.y);
@@ -167,7 +167,7 @@ void main() {
       float d = length(vec2((x - tx) * 1.0, (y - ty) * 1.3));
       a += smoothstep(0.10, 0.03, d) * step(ph, 0.999) * step(0.001, ph);
     }
-    a *= (1.0 - vAge) * (0.05 + 0.13 * vHard);
+    a *= (1.0 - vAge) * (0.03 + 0.07 * vHard);
   }
   a *= vA;
   if (a < 0.004) discard;
@@ -190,7 +190,7 @@ void main() {
   vec3 off = vec3(box.x * 0.5, 2.0, box.z * 0.5);
   vec3 rel = mod(p0 - cameraPosition + off, box) - off;
   float rr = length(rel.xz) / (box.x * 0.5);
-  float sz = (0.12 + 0.14 * h2) * (1.0 - smoothstep(0.65, 1.0, rr)) * smoothstep(0.8, 2.5, length(rel));
+  float sz = (0.12 + 0.14 * h2) * (1.0 - smoothstep(0.65, 1.0, rr)) * smoothstep(2.0, 5.0, length(rel));
   // tumbling
   vec3 ax = normalize(vec3(h1 - 0.5, h2 - 0.5 + 0.3, h3 - 0.5) + 1e-3);
   float ang = t * (2.0 + 5.0 * h3) + h1 * 6.283;
@@ -684,7 +684,7 @@ export function createWeather(ctx) {
 
     // screen drops
     lensState.time = clock;
-    lensState.amount = 0.14 * lensWet * clamp01(cur.rain * 1.3) * (1 - 0.55 * clamp01(speed / 14)) * (drone ? 0.35 : 1);
+    lensState.amount = (tier === 'high' ? 0.07 : 0.05) * lensWet * clamp01(cur.rain * 1.3) * (1 - 0.55 * clamp01(speed / 14)) * (drone ? 0.35 : 1);
 
     // public info
     info.rain = cur.rain; info.wet = wet; info.storm = cur.storm; info.cloudCover = cur.cover; info.overcast = cur.over;
