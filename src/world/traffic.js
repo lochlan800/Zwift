@@ -356,7 +356,7 @@ export function createTraffic(scene, features, hf, cfg, ctx = {}) {
       }
       // zebra crossings with someone on them
       if (v.ghost <= 0) for (const c of crossings) {
-        if (c.timer <= 0) continue;
+        if (c.timer <= 0 && !c.hold) continue;
         const dx = c.x - v.x, dz = c.z - v.z;
         const along = dx * fx + dz * fz;
         if (along < 1 || along > 30) continue;
@@ -416,5 +416,12 @@ export function createTraffic(scene, features, hf, cfg, ctx = {}) {
     for (const v of veh) if (v.on && Math.hypot(v.x - x, v.z - z) < r) return true;
     return false;
   }
-  return { mesh, update, carNear, crossings, graph, count: () => mesh.count, vehicles: veh };
+  // API for the pedestrian system: crossings are indexed like ctx.tc.crossings (see buildCrossings).
+  //   requestStop(i, true)  -> cars approaching crossing i brake to a halt before it; requestStop(i, false) releases them
+  //   requestStop(i, true, seconds) -> auto-release after `seconds` (refresh each frame while someone is on the crossing)
+  function requestStop(i, on, seconds = 0) {
+    const c = crossings[i]; if (!c) return;
+    if (on && seconds > 0) { c.timer = seconds; c.hold = false; } else { c.hold = !!on; if (!on) c.timer = 0; }
+  }
+  return { mesh, update, carNear, requestStop, crossings, graph, count: () => mesh.count, vehicles: veh };
 }

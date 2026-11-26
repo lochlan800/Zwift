@@ -744,8 +744,8 @@ void buildingSurface(vec3 w, vec3 Nw) {
         float wh = hb(bay * 1.9 + fl * 7.0 + seed);
         float wy = (lp2.y - lo.y) / max(hi.y - lo.y, 0.1), wxr = (lp2.x - lo.x) / max(hi.x - lo.x, 0.1);
         // glass: sky reflection grows at grazing angles, interior darkness otherwise
-        vec3 refl = skyLUT(reflect(-vv, Nw)) * 0.3;
-        float fres = 0.12 + 0.6 * pow(1.0 - ndv, 3.0);
+        vec3 refl = skyLUT(reflect(-vv, Nw)) * 0.14;
+        float fres = 0.1 + 0.25 * pow(1.0 - ndv, 3.0);
         vec3 inner = lin3(vec3(0.035, 0.04, 0.045));
         if (wh < 0.35) inner = mix(inner, lin3(vec3(0.42, 0.42, 0.40)), smoothstep(0.6, 0.5, wy) * 0.55);            // net curtain
         else if (wh < 0.6) inner = mix(inner, lin3(vec3(0.38, 0.34, 0.28)), (1.0 - smoothstep(0.3 + 0.4 * hb(wh * 9.0) - 0.02, 0.3 + 0.4 * hb(wh * 9.0), 1.0 - wy)) * 0.6); // blind
@@ -768,7 +768,7 @@ void buildingSurface(vec3 w, vec3 Nw) {
         } else {
           col = mix(col, glassCol, glass * fade);
           col = mix(col, frameCol, gb * fade);
-          bRough = mix(bRough, 0.06, glass * fade * (1.0 - gb));
+          bRough = mix(bRough, 0.18, glass * fade * (1.0 - gb));
           bMetal = mix(bMetal, 0.0, glass * fade);
         }
         // protruding sill / lintel / step (lighter, with a dark underside line)
