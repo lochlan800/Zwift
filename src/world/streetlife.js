@@ -778,20 +778,20 @@ export function createStreetLife(features, hf, lc, roadIdx, bIdx, routeIdx, give
   mk(signGeometry(), propMat, signs, 200, R * 0.6, false);
   if (tc) {
     mk(basketGeometry(), propMat, baskets, 100, R * 0.6, false);
-    mk(beaconPoleGeometry(), propMat, beacons, 16, R * 0.7, true);
+    mk(beaconPoleGeometry(), propMat, beacons, 16, R * 0.7, false) /* perf: tiny prop, no shadow pass */;
     const globeMat = patchMaterial(new THREE.MeshStandardMaterial({ color: 0xffa21a, emissive: 0xff8a00, emissiveIntensity: 2.2, roughness: 0.3 }), { key: 'globe' });
     const globe = new THREE.SphereGeometry(0.17, 14, 10); globe.translate(0, 2.62, 0);
     mk(globe, globeMat, beacons, 16, R * 0.7, false);
-    mk(bollardGeometry(), propMat, bollards, 40, R * 0.5, true);
+    mk(bollardGeometry(), propMat, bollards, 40, R * 0.5, false) /* perf: tiny prop, no shadow pass */;
     mk(railGeometry(), propMat, rails, 60, R * 0.5, true);
-    mk(aboardGeometry(), propMat, aboards, 60, R * 0.4, true);
+    mk(aboardGeometry(), propMat, aboards, 60, R * 0.4, false) /* perf: tiny prop, no shadow pass */;
     mk(awningGeometry(), patchMaterial(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, side: THREE.DoubleSide }), { key: 'awning', fragmentPars: OCC_GLSL, fragment: OCC_FRAG }), awnings, 120, R * 0.6, true);
-    mk(projSignGeometry(), propMat, psigns, 80, R * 0.5, true);
+    mk(projSignGeometry(), propMat, psigns, 80, R * 0.5, false) /* perf: tiny prop, no shadow pass */;
     mk(coursedWallGeometry(), boundaryStoneMat(), stoneWalls, 1500, R * 0.6, true);
     mk(pillarGeometry(), boundaryStoneMat(), pillars, 400, R * 0.6, true);
     mk(railingGeometry(), propMat, railings, 800, R * 0.4, false);
     mk(pubBoardGeometry(), propMat, pubBoards, 10, R * 0.6, false);
-    mk(planterGeometry(), propMat, planters, 20, R * 0.4, true);
+    mk(planterGeometry(), propMat, planters, 20, R * 0.4, false) /* perf: tiny prop, no shadow pass */;
   }
   mk(tallLampGeometry(), propMat, lampsTall, 400 * lowF, R * 1.1, true);
   mk(scrubGeometry(), leafMaterial('gleafS'), scrub, 1600 * lowF, R * 0.8, true);
@@ -824,7 +824,7 @@ export function createStreetLife(features, hf, lc, roadIdx, bIdx, routeIdx, give
   }
   {
     mk(poleGeometry(), propMat, poles, 60, R * 1.2, true);
-    mk(dirSignGeometry(), propMat, dsigns, 10, R, true);
+    mk(dirSignGeometry(), propMat, dsigns, 10, R, false) /* perf: tiny prop, no shadow pass */;
     if (wirePos.length) {
       const wg = new THREE.BufferGeometry(); wg.setAttribute('position', new THREE.Float32BufferAttribute(wirePos, 3));
       const wl = new THREE.LineSegments(wg, new THREE.LineBasicMaterial({ color: 0x15171a, transparent: true, opacity: 0.85 }));

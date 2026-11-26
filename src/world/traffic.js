@@ -12,13 +12,13 @@ import { buildVehicles, TYPE_DEFS } from './vehicleGeo.js';
 // ---------------------------------------------------------------------------------------------
 
 const GLSL_PARS = /* glsl */`
-uniform vec4 uWheel[${TYPE_DEFS.length}];
-attribute vec4 aInst;    // type, travelled distance, 0, 0
+uniform vec4 uWheel;     // half track, z front, z rear, radius
+attribute vec4 aInst;    // unused, travelled distance, far-LOD flag, 0
 attribute vec3 aBody;
 attribute vec3 aAcc;
-attribute float aType;
 attribute float aMat;
 attribute float aWheel;
+attribute float aDetail;
 varying vec3 vMatCol;
 varying float vRough;
 varying float vMetal;
@@ -26,8 +26,7 @@ varying float vMetal;
 const GLSL_NORMAL = /* glsl */`
 vec3 objectNormal = vec3( normal );
 if (aWheel > -0.5) {
-  int ty = int(aInst.x + 0.5);
-  float ang = aInst.y / uWheel[ty].w;
+  float ang = aInst.y / uWheel.w;
   float ca = cos(ang), sa = sin(ang);
   objectNormal.yz = vec2(ca * objectNormal.y - sa * objectNormal.z, sa * objectNormal.y + ca * objectNormal.z);
 }
@@ -35,9 +34,8 @@ if (aWheel > -0.5) {
 const GLSL_BEGIN = /* glsl */`
 vec3 transformed = position;
 {
-  int ty = int(aInst.x + 0.5);
   if (aWheel > -0.5) {
-    vec4 w = uWheel[ty];
+    vec4 w = uWheel;
     int wi = int(aWheel + 0.5);
     float sx = (wi == 1 || wi == 3) ? 1.0 : -1.0;
     float zc = wi < 2 ? w.y : w.z;
@@ -46,9 +44,8 @@ vec3 transformed = position;
     vec3 p = position;
     p.yz = vec2(ca * p.y - sa * p.z, sa * p.y + ca * p.z);
     transformed = vec3(p.x * w.w + sx * w.x, p.y * w.w + w.w, p.z * w.w + zc);
-  } else if (abs(aType - aInst.x) > 0.5) {
-    transformed = vec3(0.0);            // other vehicle types: collapse to a point
   }
+  if (aDetail > 0.5 && aInst.z > 0.5) transformed = vec3(0.0);   // far LOD: drop plates, mirrors, rims, spokes, door lines
   float m = aMat;
   vec3 col = m < 0.5 ? aBody : m < 1.5 ? vec3(0.03, 0.04, 0.05) : m < 2.5 ? vec3(0.015) : m < 3.5 ? vec3(0.9, 0.88, 0.8) : m < 4.5 ? vec3(0.45, 0.02, 0.02)
     : m < 5.5 ? aAcc : m < 6.5 ? vec3(0.85) : m < 7.5 ? vec3(0.8, 0.6, 0.05) : m < 9.5 ? vec3(0.018) : m < 10.5 ? vec3(0.42, 0.43, 0.45) : vec3(0.035);
@@ -70,31 +67,34 @@ export function createTraffic(scene, features, hf, cfg, ctx = {}) {
   const N = nCars + nBus;
   const R_SPAWN = [110, 380], R_DESPAWN = 470;
 
-  // ---- instanced mesh
-  const geo = buildVehicles();
-  const mesh = new THREE.InstancedMesh(geo, null, N);
-  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-  const aInst = new THREE.InstancedBufferAttribute(new Float32Array(N * 4), 4); aInst.setUsage(THREE.DynamicDrawUsage);
-  const aBody = new THREE.InstancedBufferAttribute(new Float32Array(N * 3), 3);
-  const aAcc = new THREE.InstancedBufferAttribute(new Float32Array(N * 3), 3);
-  geo.setAttribute('aInst', aInst); geo.setAttribute('aBody', aBody); geo.setAttribute('aAcc', aAcc);
-  const uWheel = TYPE_DEFS.map((t) => new THREE.Vector4(...t.wheel));
-  const uniforms = { uWheel: { value: uWheel } };
-  const mat = new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.3, metalness: 0.3, clearcoat: 0.8, clearcoatRoughness: 0.06, envMapIntensity: 1.3 });
-  patchMaterial(mat, {
-    key: 'traffic', uniforms,
-    vertexPars: GLSL_PARS,
-    vertex: { beginnormal_vertex: GLSL_NORMAL, begin_vertex: GLSL_BEGIN },
-    fragmentPars: 'varying vec3 vMatCol; varying float vRough; varying float vMetal;',
-    fragment: { lights_physical_fragment: '$\n material.clearcoat *= (vRough < 0.35 ? 1.0 : 0.0);', color_fragment: 'diffuseColor.rgb *= vMatCol;', roughnessmap_fragment: 'float roughnessFactor = vRough;', metalnessmap_fragment: 'float metalnessFactor = vMetal;' },
+  // ---- one InstancedMesh per vehicle type: only that type's real vertices are processed
+  const geos = buildVehicles();
+  const caps = TYPE_DEFS.map((t, ti) => (t.bus ? nBus : nCars)); // capacity per type (cars share nCars)
+  const meshes = geos.map((geo, ti) => {
+    const cap = caps[ti];
+    const mesh = new THREE.InstancedMesh(geo, null, cap);
+    mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    const aInst = new THREE.InstancedBufferAttribute(new Float32Array(cap * 4), 4); aInst.setUsage(THREE.DynamicDrawUsage);
+    const aBody = new THREE.InstancedBufferAttribute(new Float32Array(cap * 3), 3); aBody.setUsage(THREE.DynamicDrawUsage);
+    const aAcc = new THREE.InstancedBufferAttribute(new Float32Array(cap * 3), 3); aAcc.setUsage(THREE.DynamicDrawUsage);
+    geo.setAttribute('aInst', aInst); geo.setAttribute('aBody', aBody); geo.setAttribute('aAcc', aAcc);
+    const uniforms = { uWheel: { value: new THREE.Vector4(...TYPE_DEFS[ti].wheel) } };
+    const mat = new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.3, metalness: 0.3, clearcoat: 0.8, clearcoatRoughness: 0.06, envMapIntensity: 1.3 });
+    patchMaterial(mat, {
+      key: 'traffic', uniforms,
+      vertexPars: GLSL_PARS,
+      vertex: { beginnormal_vertex: GLSL_NORMAL, begin_vertex: GLSL_BEGIN },
+      fragmentPars: 'varying vec3 vMatCol; varying float vRough; varying float vMetal;',
+      fragment: { lights_physical_fragment: '$\n material.clearcoat *= (vRough < 0.35 ? 1.0 : 0.0);', color_fragment: 'diffuseColor.rgb *= vMatCol;', roughnessmap_fragment: 'float roughnessFactor = vRough;', metalnessmap_fragment: 'float metalnessFactor = vMetal;' },
+    });
+    mesh.material = mat;
+    mesh.customDepthMaterial = depthMaterialFor(GLSL_PARS, GLSL_BEGIN, GLSL_NORMAL, uniforms);
+    mesh.frustumCulled = false; mesh.castShadow = true; mesh.receiveShadow = true;
+    mesh.name = 'traffic-' + TYPE_DEFS[ti].name; mesh.count = 0;
+    scene.add(mesh);
+    return { mesh, aInst, aBody, aAcc, cap };
   });
-  mesh.material = mat;
-  mesh.customDepthMaterial = depthMaterialFor(GLSL_PARS, GLSL_BEGIN, GLSL_NORMAL, uniforms);
-  mesh.frustumCulled = false;
-  mesh.castShadow = true; mesh.receiveShadow = true;
-  mesh.name = 'traffic';
-  mesh.count = 0;
-  scene.add(mesh);
+  const mesh = meshes[0].mesh; // (exposed for debugging)
 
   // ---- vehicles (pool)
   const rnd = mulberry32(4242);
@@ -159,9 +159,7 @@ export function createTraffic(scene, features, hf, cfg, ctx = {}) {
       v.len = TYPE_DEFS[v.type].L; v.hw = TYPE_DEFS[v.type].W / 2; v.vf = 0.82 + rnd() * 0.3;
     }
     const cols = v.bus ? BUS_BODY : v.type === 3 ? VAN_COLS[(rnd() * VAN_COLS.length) | 0] : CAR_COLS[(rnd() * CAR_COLS.length) | 0];
-    const i = v.idx;
-    aBody.setXYZ(i, cols[0], cols[1], cols[2]);
-    aAcc.setXYZ(i, BUS_ACC[0], BUS_ACC[1], BUS_ACC[2]);
+    v.cr = cols[0]; v.cg = cols[1]; v.cb = cols[2];
     v.px = undefined;
     place(v, 0, true);
     return true;
@@ -224,25 +222,24 @@ export function createTraffic(scene, features, hf, cfg, ctx = {}) {
       if (dt > 0) step(v, dt);
       if (Math.hypot(v.x - camP.x, v.z - camP.z) > R_DESPAWN) { v.on = false; continue; }
     }
-    // upload
-    const arr = mesh.instanceMatrix.array, ai = aInst.array;
-    for (let n = 0; n < N; n++) {
-      const v = veh[n];
-      if (!v.on) continue;
-      setPose(arr, live * 16, v.x, v.y, v.z, v.yaw, v.pitch);
-      ai[live * 4] = v.type; ai[live * 4 + 1] = v.spin;
-      // colours are per pool slot; copy to live slot
-      aBody.array[live * 3] = aBodyStore[v.idx * 3]; aBody.array[live * 3 + 1] = aBodyStore[v.idx * 3 + 1]; aBody.array[live * 3 + 2] = aBodyStore[v.idx * 3 + 2];
-      aAcc.array[live * 3] = BUS_ACC[0]; aAcc.array[live * 3 + 1] = BUS_ACC[1]; aAcc.array[live * 3 + 2] = BUS_ACC[2];
-      live++;
+    // upload: compact each type into its own mesh
+    for (let t = 0; t < meshes.length; t++) {
+      const M = meshes[t], arr = M.mesh.instanceMatrix.array, ai = M.aInst.array, ab = M.aBody.array, aa = M.aAcc.array;
+      let k = 0;
+      for (let n = 0; n < N && k < M.cap; n++) {
+        const v = veh[n];
+        if (!v.on || v.type !== t) continue;
+        setPose(arr, k * 16, v.x, v.y, v.z, v.yaw, v.pitch);
+        const dx = v.x - camP.x, dz = v.z - camP.z;
+        ai[k * 4] = 0; ai[k * 4 + 1] = v.spin; ai[k * 4 + 2] = dx * dx + dz * dz > 120 * 120 ? 1 : 0; ai[k * 4 + 3] = 0;
+        ab[k * 3] = v.cr; ab[k * 3 + 1] = v.cg; ab[k * 3 + 2] = v.cb;
+        aa[k * 3] = BUS_ACC[0]; aa[k * 3 + 1] = BUS_ACC[1]; aa[k * 3 + 2] = BUS_ACC[2];
+        k++;
+      }
+      M.mesh.count = k; live += k;
+      M.mesh.instanceMatrix.needsUpdate = true; M.aInst.needsUpdate = true; M.aBody.needsUpdate = true; M.aAcc.needsUpdate = true;
     }
-    mesh.count = live;
-    mesh.instanceMatrix.needsUpdate = true; aInst.needsUpdate = true; aBody.needsUpdate = true; aAcc.needsUpdate = true;
   }
-  // body colours: kept in a separate store keyed by pool index (instance slots are compacted every frame)
-  const aBodyStore = new Float32Array(N * 3);
-  const _setBody = aBody.setXYZ.bind(aBody);
-  aBody.setXYZ = (i, x, y, z) => { aBodyStore[i * 3] = x; aBodyStore[i * 3 + 1] = y; aBodyStore[i * 3 + 2] = z; void _setBody; };
 
   function step(v, dt) {
     const e = v.e;
@@ -353,5 +350,5 @@ export function createTraffic(scene, features, hf, cfg, ctx = {}) {
     const c = crossings[i]; if (!c) return;
     if (on && seconds > 0) { c.timer = seconds; c.hold = false; } else { c.hold = !!on; if (!on) c.timer = 0; }
   }
-  return { mesh, update, carNear, requestStop, crossings, graph, count: () => mesh.count, vehicles: veh };
+  return { mesh, meshes: meshes.map((m) => m.mesh), update, carNear, requestStop, crossings, graph, count: () => meshes.reduce((a, m) => a + m.mesh.count, 0), vehicles: veh };
 }

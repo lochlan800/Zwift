@@ -14,18 +14,18 @@ import * as THREE from 'three';
 // ---------------------------------------------------------------------------------------------
 
 export const TYPE_DEFS = [
-  { name: 'hatch', L: 3.99, W: 1.77, sill: 0.22, wheel: [0.74, 1.22, -1.18, 0.31],
+  { name: 'hatch', L: 3.99, W: 1.77, sill: 0.22, wheel: [0.74, 1.22, -1.18, 0.335],
     top: [[1.995, 0.66], [1.6, 0.79], [1.0, 0.9], [0.62, 0.935], [-0.9, 0.935], [-1.7, 0.92], [-1.995, 0.86]],
-    gh: { belt: 0.93, top: [[0.62, 0.93], [0.2, 1.40], [-0.2, 1.46], [-0.95, 1.44], [-1.45, 1.22], [-1.88, 0.93]], taper: 0.74, n: 3, roof: [0.1, -1.0], pillars: [-0.25, -1.3], mirrorZ: 0.42, doors: [0.5, -0.25, -1.25] } },
-  { name: 'saloon', L: 4.62, W: 1.83, sill: 0.22, wheel: [0.77, 1.45, -1.4, 0.32],
+    gh: { belt: 0.93, top: [[0.74, 0.93], [0.0, 1.42], [-0.3, 1.455], [-1.05, 1.45], [-1.55, 1.32], [-1.92, 0.93]], taper: 0.88, n: 5, roof: [0.0, -1.2], pillars: [-0.3, -1.35], mirrorZ: 0.5, doors: [0.55, -0.3, -1.3] } },
+  { name: 'saloon', L: 4.62, W: 1.83, sill: 0.22, wheel: [0.77, 1.45, -1.4, 0.34],
     top: [[2.31, 0.66], [1.9, 0.8], [1.2, 0.92], [0.82, 0.95], [-1.2, 0.95], [-1.9, 1.0], [2.31 * -1, 0.95]],
-    gh: { belt: 0.95, top: [[0.82, 0.95], [0.25, 1.42], [-0.1, 1.47], [-0.9, 1.45], [-1.35, 1.27], [-1.68, 0.98]], taper: 0.74, n: 3, roof: [0.18, -1.0], pillars: [-0.2, -1.28], mirrorZ: 0.6, doors: [0.62, -0.2, -1.25] } },
-  { name: 'suv', L: 4.55, W: 1.92, sill: 0.3, wheel: [0.83, 1.4, -1.35, 0.37],
+    gh: { belt: 0.95, top: [[0.92, 0.95], [0.05, 1.44], [-0.2, 1.47], [-0.95, 1.46], [-1.45, 1.3], [-1.74, 0.98]], taper: 0.88, n: 5, roof: [0.05, -1.1], pillars: [-0.25, -1.3], mirrorZ: 0.62, doors: [0.7, -0.25, -1.3] } },
+  { name: 'suv', L: 4.55, W: 1.92, sill: 0.3, wheel: [0.83, 1.4, -1.35, 0.39],
     top: [[2.275, 0.88], [1.9, 1.0], [1.3, 1.1], [0.9, 1.12], [-1.8, 1.12], [-2.275, 1.1]],
-    gh: { belt: 1.12, top: [[0.9, 1.12], [0.4, 1.68], [0.0, 1.74], [-1.5, 1.72], [-2.0, 1.5], [-2.22, 1.15]], taper: 0.8, n: 3, roof: [0.35, -1.7], pillars: [-0.2, -1.6], mirrorZ: 0.7, doors: [0.7, -0.2, -1.55] } },
-  { name: 'van', L: 5.35, W: 2.0, sill: 0.3, wheel: [0.88, 1.6, -1.55, 0.35],
+    gh: { belt: 1.12, top: [[1.0, 1.12], [0.25, 1.7], [-0.1, 1.75], [-1.6, 1.74], [-2.08, 1.55], [-2.22, 1.15]], taper: 0.9, n: 5, roof: [0.2, -1.8], pillars: [-0.2, -1.65], mirrorZ: 0.75, doors: [0.75, -0.2, -1.6] } },
+  { name: 'van', L: 5.35, W: 2.0, sill: 0.3, wheel: [0.88, 1.6, -1.55, 0.37],
     top: [[2.675, 0.9], [2.2, 1.0], [1.7, 1.12], [1.15, 1.18], [0.32, 1.2], [0.3, 2.05], [-2.675, 2.05]],
-    gh: { belt: 1.18, top: [[1.15, 1.18], [0.8, 1.9], [0.5, 2.04], [0.3, 2.05]], taper: 0.82, n: 3, roof: [0.78, 0.3], pillars: [], mirrorZ: 0.95, doors: [0.8, 0.3] } },
+    gh: { belt: 1.18, top: [[1.15, 1.18], [0.8, 1.9], [0.5, 2.04], [0.3, 2.05]], taper: 0.9, n: 5, roof: [0.78, 0.3], pillars: [], mirrorZ: 0.95, doors: [0.8, 0.3] } },
   { name: 'bus', L: 10.8, W: 2.5, sill: 0.3, wheel: [1.0, 3.3, -3.4, 0.5], bus: true,
     top: [[5.4, 0.95], [5.0, 1.0], [-5.0, 1.0], [-5.4, 1.0]],
     gh: { belt: 1.0, top: [[5.3, 1.0], [5.22, 2.75], [5.0, 2.88], [-5.0, 2.88], [-5.22, 2.75], [-5.3, 1.0]], taper: 0.95, n: 7, roof: [5.0, -5.0], pillars: [3.9, 2.0, 0.1, -1.8, -3.6], mirrorZ: 5.2, doors: [4.6, 2.9, -3.2] } },
@@ -45,15 +45,15 @@ function interp(pts, z) { // pts sorted by z desc or asc: piecewise linear
 }
 
 class Builder {
-  constructor() { this.P = []; this.N = []; this.T = []; this.M = []; this.Wh = []; this.I = []; }
-  push(geo, type, mat, wheel = -1, xf = null) {
+  constructor() { this.P = []; this.N = []; this.T = []; this.M = []; this.Wh = []; this.D = []; this.I = []; }
+  push(geo, type, mat, wheel = -1, xf = null, detail = 0) {
     if (xf) geo.applyMatrix4(xf);
     if (!geo.attributes.normal) geo.computeVertexNormals();
     const pos = geo.attributes.position.array, nor = geo.attributes.normal.array, o = this.P.length / 3;
     const idx = geo.index ? geo.index.array : null;
     for (let i = 0; i < pos.length; i += 3) {
       this.P.push(pos[i], pos[i + 1], pos[i + 2]); this.N.push(nor[i], nor[i + 1], nor[i + 2]);
-      this.T.push(type); this.M.push(Array.isArray(mat) ? mat[i / 3] : mat); this.Wh.push(wheel);
+      this.T.push(type); this.M.push(Array.isArray(mat) ? mat[i / 3] : mat); this.Wh.push(wheel); this.D.push(detail);
     }
     if (idx) for (const k of idx) this.I.push(o + k); else for (let k = 0; k < pos.length / 3; k++) this.I.push(o + k);
   }
@@ -64,6 +64,7 @@ class Builder {
     g.setAttribute('aType', new THREE.Float32BufferAttribute(this.T, 1));
     g.setAttribute('aMat', new THREE.Float32BufferAttribute(this.M, 1));
     g.setAttribute('aWheel', new THREE.Float32BufferAttribute(this.Wh, 1));
+    g.setAttribute('aDetail', new THREE.Float32BufferAttribute(this.D, 1));
     g.setIndex(this.I);
     return g;
   }
@@ -103,13 +104,14 @@ function wheelGeometry() {
   }
   const tg = new THREE.BufferGeometry(); tg.setAttribute('position', new THREE.Float32BufferAttribute(tp, 3)); tg.setIndex(ti); tg.computeVertexNormals();
   B.push(tg, 99, 9);
+  const DET = 1;
   for (const s of [-1, 1]) {
     // dark brake disc / well behind the spokes
     const disc = new THREE.CircleGeometry(0.76, SEG); disc.rotateY(s * Math.PI / 2); disc.translate(s * 0.22, 0, 0);
-    B.push(disc, 99, 11);
+    B.push(disc, 99, 11, -1, null, DET);
     // alloy outer ring (rim lip)
     const ring = new THREE.RingGeometry(0.62, 0.78, SEG); ring.rotateY(s * Math.PI / 2); ring.translate(s * 0.3, 0, 0);
-    B.push(ring, 99, 10);
+    B.push(ring, 99, 10, -1, null, DET);
     // five spokes
     for (let k = 0; k < 5; k++) {
       const a = (k / 5) * Math.PI * 2 + 0.2;
@@ -120,18 +122,20 @@ function wheelGeometry() {
       sp.setAttribute('position', new THREE.Float32BufferAttribute(v.flat(), 3));
       sp.setIndex(s > 0 ? [0, 1, 2, 0, 2, 3] : [0, 2, 1, 0, 3, 2]);
       sp.computeVertexNormals();
-      B.push(sp, 99, 10);
+      B.push(sp, 99, 10, -1, null, DET);
     }
     const hub = new THREE.CircleGeometry(0.15, 12); hub.rotateY(s * Math.PI / 2); hub.translate(s * 0.285, 0, 0);
-    B.push(hub, 99, 10);
+    B.push(hub, 99, 10, -1, null, DET);
   }
   return B;
 }
 
 export function buildVehicles() {
-  const B = new Builder();
   const wheelB = wheelGeometry();
+  const wgeo = wheelB.build();
+  const result = [];
   TYPE_DEFS.forEach((T, ti) => {
+    const B = new Builder();
     const { L, W, sill } = T, hl = L / 2, hw = W / 2;
     const bus = !!T.bus;
     // ----- plan rounding: nearly flat ends (plates fit), rounded corners
@@ -142,7 +146,7 @@ export function buildVehicles() {
     const zs = [];
     for (let i = 0; i <= M; i++) { const s = (i / M) * 2 - 1; zs.push(hl * Math.sign(s) * Math.pow(Math.abs(s), 0.82)); }
     zs.reverse(); // front (+z) first
-    const nTop = bus ? 8 : 3.2, nBot = bus ? 10 : 8;
+    const nTop = bus ? 8 : 4.6, nBot = bus ? 10 : 8;
     const st = zs.map((z) => ({ z, w: wAt(z), yt: interp(T.top, z) }));
     const bodyRing = (s, f) => {
       const a = f * Math.PI * 2, c = Math.cos(a), sn = Math.sin(a);
@@ -196,11 +200,11 @@ export function buildVehicles() {
     const nose = interp(T.top, zf - 0.02), tail = interp(T.top, zr + 0.02);
     // plates: white at the front, yellow at the back
     if (!bus) {
-      B.push(box(0.52, 0.11, 0.012, 0, sill + 0.28, zf + 0.004), ti, 6);
-      B.push(box(0.52, 0.11, 0.012, 0, Math.max(sill + 0.3, tail - 0.3), zr - 0.004), ti, 7);
+      B.push(box(0.52, 0.11, 0.012, 0, sill + 0.28, zf + 0.004), ti, 6, -1, null, 1);
+      B.push(box(0.52, 0.11, 0.012, 0, Math.max(sill + 0.3, tail - 0.3), zr - 0.004), ti, 7, -1, null, 1);
     } else {
-      B.push(box(0.52, 0.11, 0.012, 0, 0.55, zf + 0.004), ti, 6);
-      B.push(box(0.52, 0.11, 0.012, 0, 0.7, zr - 0.004), ti, 7);
+      B.push(box(0.52, 0.11, 0.012, 0, 0.55, zf + 0.004), ti, 6, -1, null, 1);
+      B.push(box(0.52, 0.11, 0.012, 0, 0.7, zr - 0.004), ti, 7, -1, null, 1);
       B.push(box(1.4, 0.2, 0.02, 0, 2.62, zf - 0.07), ti, 3);   // destination display
     }
     // head and tail lamps on the corners
@@ -211,20 +215,20 @@ export function buildVehicles() {
       B.push(box(bus ? 0.2 : 0.3, 0.09, 0.05, s * Math.max(0.2, wAt(zr + 0.03) - 0.16), Math.max(sill + 0.45, tail - 0.18), zr + 0.03), ti, 4);
     }
     // black lower grille/bumper strips
-    B.push(box(Math.min(1.1, W * 0.55), 0.09, 0.035, 0, sill + 0.18, zf - 0.005), ti, 2);
-    B.push(box(W * 0.62, 0.07, 0.035, 0, sill + 0.16, zr + 0.005), ti, 2);
+    B.push(box(Math.min(1.1, W * 0.55), 0.09, 0.035, 0, sill + 0.18, zf - 0.005), ti, 2, -1, null, 1);
+    B.push(box(W * 0.62, 0.07, 0.035, 0, sill + 0.16, zr + 0.005), ti, 2, -1, null, 1);
     // door shut lines + sill trim on both sides
     const wMidY = (sill + g.belt) / 2;
     for (const s of [-1, 1]) {
       for (const dz of g.doors) {
         const x = wAt(dz) * 0.99 * Math.pow(Math.max(0, 1 - Math.pow(Math.abs((wMidY - (interp(T.top, dz) + sill) / 2) / ((interp(T.top, dz) - sill) / 2)), 8)), 1 / 8);
-        B.push(box(0.012, g.belt - sill - 0.22, 0.012, s * (x + 0.002), wMidY + 0.04, dz), ti, 2);
+        B.push(box(0.012, g.belt - sill - 0.22, 0.012, s * (x + 0.002), wMidY + 0.04, dz), ti, 2, -1, null, 1);
       }
-      B.push(box(0.014, 0.07, L * (bus ? 0.78 : 0.6), s * (wAt(0) * 0.985 + 0.001), sill + 0.1, -L * 0.04), ti, 2);
+      B.push(box(0.014, 0.07, L * (bus ? 0.78 : 0.6), s * (wAt(0) * 0.985 + 0.001), sill + 0.1, -L * 0.04), ti, 2, -1, null, 1);
       // wing mirror: stalk + housing
       const mx = wAt(g.mirrorZ) - 0.02;
-      B.push(box(0.1, 0.06, 0.05, s * (mx + 0.04), g.belt + 0.06, g.mirrorZ), ti, 2);
-      B.push(box(0.07, 0.11, 0.17, s * (mx + 0.12), g.belt + 0.1, g.mirrorZ - 0.03), ti, bus ? 2 : 0);
+      B.push(box(0.1, 0.06, 0.05, s * (mx + 0.04), g.belt + 0.06, g.mirrorZ), ti, 2, -1, null, 1);
+      B.push(box(0.07, 0.11, 0.17, s * (mx + 0.12), g.belt + 0.1, g.mirrorZ - 0.03), ti, bus ? 2 : 0, -1, null, 1);
       // wheel arches: dark discs just proud of the body side behind each wheel
     }
     const [wx, wzf, wzr, wr] = T.wheel;
@@ -238,17 +242,15 @@ export function buildVehicles() {
       const d = new THREE.CircleGeometry(wr * 1.13, 22); d.rotateY(s * Math.PI / 2); d.translate(s * (bodyX(zc) + 0.004), wr, zc);
       return d;
     };
-    for (const zc of [wzf, wzr]) for (const s of [-1, 1]) B.push(archAt(zc, s), ti, 2);
+    for (const zc of [wzf, wzr]) for (const s of [-1, 1]) B.push(archAt(zc, s), ti, 2, -1, null, 1);
+    // four wheel slots (shared wheel geometry) so each type is a self-contained mesh
+    const wp = wgeo.attributes.position.array, wn = wgeo.attributes.normal.array, wm = wgeo.attributes.aMat.array, wd = wgeo.attributes.aDetail.array, wi = wgeo.index.array;
+    for (let w = 0; w < 4; w++) {
+      const o = B.P.length / 3;
+      for (let i = 0; i < wp.length; i += 3) { B.P.push(wp[i], wp[i + 1], wp[i + 2]); B.N.push(wn[i], wn[i + 1], wn[i + 2]); B.T.push(ti); B.M.push(wm[i / 3]); B.Wh.push(w); B.D.push(wd[i / 3]); }
+      for (const k of wi) B.I.push(o + k);
+    }
+    result.push(B.build());
   });
-  // wheels: shared geometry (type 99 = always visible), 4 slots
-  const wgeo = wheelB.build();
-  const out = new Builder();
-  out.P = B.P; out.N = B.N; out.T = B.T; out.M = B.M; out.Wh = B.Wh; out.I = B.I;
-  const wp = wgeo.attributes.position.array, wn = wgeo.attributes.normal.array, wt = wgeo.attributes.aMat.array, wi = wgeo.index.array;
-  for (let w = 0; w < 4; w++) {
-    const o = out.P.length / 3;
-    for (let i = 0; i < wp.length; i += 3) { out.P.push(wp[i], wp[i + 1], wp[i + 2]); out.N.push(wn[i], wn[i + 1], wn[i + 2]); out.T.push(99); out.M.push(wt[i / 3]); out.Wh.push(w); }
-    for (const k of wi) out.I.push(o + k);
-  }
-  return out.build();
+  return result;
 }

@@ -312,7 +312,7 @@ void roadSurface(vec3 w) {
         float k = 1.0 / sqrt(1.0 + slope * slope);
         float kk = 1.0 / sqrt(1.0 + pow(8.0 * A / P, 2.0));
         float dK = abs(abs(v) - (hw - 0.15 - 2.0 * A * tri)) * kk; // kerb-side zig-zag, 0.15-0.65 m off the kerb
-        float dC = abs(v - A * (tri - 0.5) * 2.0) * k;        // centre zig-zag (+-0.25 m)
+        float dC = abs(v - 0.6 * A * (tri - 0.5) * 2.0) * k;  // centre zig-zag (+-0.15 m)
         float fwz = fwidth(v) * 0.7 + 0.005;
         zz = max(1.0 - smoothstep(0.045 - fwz, 0.045 + fwz, dK), 1.0 - smoothstep(0.045 - fwz, 0.045 + fwz, dC));
       }
@@ -586,7 +586,7 @@ export async function createRoads(features, hf, lc, roadIdx, slicer, bIdx = null
   });
   const mesh = new THREE.Group();
   mesh.name = 'roads';
-  for (const g of splitByCell(geo, 500)) {
+  for (const g of splitByCell(geo, 1000) /* perf: fewer, larger road meshes (draw calls) */) {
     const m = new THREE.Mesh(g, mat);
     m.receiveShadow = true; m.castShadow = false; m.matrixAutoUpdate = false;
     mesh.add(m);

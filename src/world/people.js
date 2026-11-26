@@ -218,7 +218,7 @@ export function createPeople(scene, graph, features, cfg, ctx = {}) {
     mesh.material = mat;
     mesh.customDepthMaterial = depthMaterialFor(pars, beg, nrm, {});
     mat.side = THREE.DoubleSide;
-    mesh.frustumCulled = false; mesh.castShadow = shadow; mesh.receiveShadow = true; mesh.count = 0; mesh.name = key;
+    mesh.frustumCulled = false; mesh.castShadow = shadow && key === 'people'; mesh.receiveShadow = true; mesh.count = 0; mesh.name = key;
     scene.add(mesh);
     return { mesh, attrs };
   }

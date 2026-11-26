@@ -216,7 +216,7 @@ void terrainSurface(vec3 w) {
 
   // steep slopes: exposed earth
   float steep = smoothstep(0.86, 0.70, N.y);
-  alb = mix(alb, lin(0.33, 0.27, 0.19) * (0.8 + 0.3 * n3.r), steep * 0.75);
+  alb = mix(alb, lin(0.22, 0.185, 0.13) * (0.8 + 0.3 * n3.r), steep * 0.5);  // banks: mostly vegetated, earth only in patches
 
   // world-space bump from detail noise
   vec3 dpdx = dFdx(w), dpdy = dFdy(w);
