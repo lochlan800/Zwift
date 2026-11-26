@@ -178,9 +178,9 @@ void terrainSurface(vec3 w) {
     float r = rows(w.xz, ang, 0.7);
     vec3 c;
     float rb = 0.0;
-    if (h < 0.32) { c = mix(lin(0.66, 0.55, 0.30), lin(0.58, 0.47, 0.26), n2.b); c *= 0.9 + 0.16 * r; rb = r * 0.4; }
+    if (h < 0.32) { c = mix(lin(0.50, 0.43, 0.25), lin(0.44, 0.37, 0.22), n2.b); c *= 0.9 + 0.16 * r; rb = r * 0.4; }
     else if (h < 0.58) { c = mix(lin(0.25, 0.33, 0.10), lin(0.31, 0.38, 0.12), n2.b); c *= 0.86 + 0.22 * r; rb = r * 0.35; }
-    else if (h < 0.80) { c = mix(lin(0.36, 0.27, 0.18), lin(0.30, 0.22, 0.15), n3.g); c *= 0.88 + 0.2 * r; rb = r * 0.5; }
+    else if (h < 0.80) { c = mix(lin(0.27, 0.21, 0.15), lin(0.23, 0.18, 0.13), n3.g); c *= 0.88 + 0.2 * r; rb = r * 0.5; }
     else { c = mix(grass, lin(0.42, 0.48, 0.20), 0.4); rb = grassB; }
     c *= 0.9 + 0.2 * n3.r;
     float margin = smoothstep(0.012, 0.035, v.z);
@@ -192,13 +192,16 @@ void terrainSurface(vec3 w) {
   vec3 lawn = mix(lin(0.20, 0.285, 0.085), lin(0.26, 0.345, 0.105), n2.g) * (0.95 + 0.08 * n4.b);
   lawn = mix(lawn, lin(0.15, 0.23, 0.07), smoothstep(0.55, 0.8, n3.r) * 0.35);
   lawn = mix(lawn, lin(0.31, 0.29, 0.15), smoothstep(0.7, 0.92, n3.b * 0.5 + n2.r * 0.55) * 0.5);
+  lawn *= 0.88;
   vec3 resid = lawn;
   // tarmac / concrete hardstanding: smooth, low-contrast
   vec3 hard = mix(lin(0.34, 0.335, 0.33), lin(0.30, 0.30, 0.295), n2.g) * (0.95 + 0.08 * n4.a);
   hard = mix(hard, lin(0.27, 0.27, 0.265), smoothstep(0.7, 0.9, n2.r) * 0.3);
   float stripe = step(0.5, fract(w.x / 9.0 + n1.r * 0.05));
-  vec3 mown = mix(lin(0.21, 0.30, 0.09), lin(0.265, 0.355, 0.11), stripe * 0.6 + n3.b * 0.3) * (0.95 + 0.08 * n4.b);
-  vec3 scrub = mix(lin(0.34, 0.33, 0.17), lin(0.16, 0.19, 0.07), smoothstep(0.45, 0.6, n3.b)) * (0.85 + 0.3 * n4.a);
+  vec3 mown = mix(lin(0.21, 0.30, 0.09), lin(0.265, 0.355, 0.11), stripe * 0.6 + n3.b * 0.3) * (0.95 + 0.08 * n4.b) * 0.88;
+  vec3 scrub = mix(lin(0.17, 0.19, 0.075), lin(0.11, 0.15, 0.05), smoothstep(0.45, 0.6, n3.b)) * (0.85 + 0.3 * n4.a);
+  scrub = mix(scrub, lin(0.12, 0.2, 0.055), smoothstep(0.55, 0.8, n2.b) * 0.5);                       // nettles / rank grass
+  scrub = mix(scrub, lin(0.20, 0.155, 0.095), smoothstep(0.72, 0.9, n4.a * 0.6 + n3.g * 0.5) * 0.6); // leaf litter, little bare earth
   vec3 mud = lin(0.22, 0.19, 0.13);
   vec2 plot = floor(w.xz / vec2(6.0, 11.0));
   float ph = h12(plot);

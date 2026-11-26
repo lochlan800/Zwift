@@ -99,6 +99,7 @@ export async function createWalls(features, slicer, castShadow = true, roadIdx =
           vec3 tint = mix(vec3(0.80, 0.84, 0.70), vec3(1.15, 1.08, 0.82), mix(l3, vWl.w, 0.5));
           vec4 fs = foliageSurface(w, vec2(0.0, 0.1111), 0.55, tint * vec3(0.6, 0.62, 0.55));
           float cav = fs.a;
+          if (fs.a < 0.1) discard; // ragged, leafy silhouette: gaps show the inside of the hedge
           c = fs.rgb * mix(0.35, 1.05, smoothstep(0.0, 0.75, vWl.y)) * mix(0.8, 1.15, smoothstep(0.3, 0.7, vWl.y * l3 + vWl.y * 0.3));
           wBump = cav;
         }

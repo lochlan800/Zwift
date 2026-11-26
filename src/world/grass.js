@@ -158,7 +158,7 @@ export function createGrass(hf, lc, roadIdx, bIdx, cfg) {
           // sun-dried tips on some blades
           float dry = (aK.y > 0.55 ? 0.6 : 0.2) * smoothstep(0.55, 1.0, uv.y) * (0.4 + n1.r);
           a = mix(a, lin(0.46, 0.40, 0.19), clamp(dry, 0.0, 0.7));
-          col = a * (0.88 + 0.24 * aK.y);
+          col = a * (0.88 + 0.24 * aK.y) * 0.88;
         } else {
           vec3 gr = mix(lin(0.18, 0.28, 0.06), lin(0.26, 0.36, 0.09), n2.g);
           vec3 straw = mix(lin(0.48, 0.40, 0.16), lin(0.62, 0.52, 0.24), n3.b);

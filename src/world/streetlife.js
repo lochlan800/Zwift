@@ -4,6 +4,7 @@ import { patchMaterial, GRID_GLSL, OCC_GLSL } from './shared.js';
 const OCC_FRAG = { alphatest_fragment: '$\n if (ign(gl_FragCoord.xy) > occFade(vAerialWorld)) discard;' };
 import { hash2, mulberry32 } from './heightfield.js';
 import { foliageTexture, FOLIAGE_GLSL } from './trees.js';
+import { scrubGeometry, clippedHedgeGeometry, leafMaterial } from './vegbush.js';
 
 // ------------------------------------------------------------------ helpers
 const fract = (x) => x - Math.floor(x);
@@ -771,7 +772,7 @@ export function createStreetLife(features, hf, lc, roadIdx, bIdx, routeIdx, give
   };
   const lowF = cfg.tier === 'low' ? 0.5 : 1;
   mk(unitBox, boundaryMat, walls, 3000 * lowF, R * 0.7, true);
-  mk(hedgeGeo, hedgeMat, hedges, 2000 * lowF, R * 0.7, true);
+  mk(clippedHedgeGeometry(), leafMaterial('gleafH'), hedges, 2000 * lowF, R * 0.7, true);
   mk(lampGeometry(), propMat, lamps, 600 * lowF, R, true);
   mk(carGeometry(), carMat, cars, 900 * lowF, R * 0.8, true);
   mk(signGeometry(), propMat, signs, 200, R * 0.6, false);
@@ -793,7 +794,7 @@ export function createStreetLife(features, hf, lc, roadIdx, bIdx, routeIdx, give
     mk(planterGeometry(), propMat, planters, 20, R * 0.4, true);
   }
   mk(tallLampGeometry(), propMat, lampsTall, 400 * lowF, R * 1.1, true);
-  mk(bushGeometry(), hedgeMat, scrub, 1600 * lowF, R * 0.8, true);
+  mk(scrubGeometry(), leafMaterial('gleafS'), scrub, 1600 * lowF, R * 0.8, true);
   mk(pylonGeometry(), propMat, pylons, 12, 2500, true);
   if (pylonWire.length) {
     const wg = new THREE.BufferGeometry(); wg.setAttribute('position', new THREE.Float32BufferAttribute(pylonWire, 3));

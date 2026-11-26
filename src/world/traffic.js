@@ -50,7 +50,7 @@ vec3 transformed = position;
     transformed = vec3(0.0);            // other vehicle types: collapse to a point
   }
   float m = aMat;
-  vec3 col = m < 0.5 ? aBody : m < 1.5 ? vec3(0.012, 0.018, 0.025) : m < 2.5 ? vec3(0.015) : m < 3.5 ? vec3(0.9, 0.88, 0.8) : m < 4.5 ? vec3(0.45, 0.02, 0.02)
+  vec3 col = m < 0.5 ? aBody : m < 1.5 ? vec3(0.03, 0.04, 0.05) : m < 2.5 ? vec3(0.015) : m < 3.5 ? vec3(0.9, 0.88, 0.8) : m < 4.5 ? vec3(0.45, 0.02, 0.02)
     : m < 5.5 ? aAcc : m < 6.5 ? vec3(0.85) : m < 7.5 ? vec3(0.8, 0.6, 0.05) : m < 9.5 ? vec3(0.018) : m < 10.5 ? vec3(0.42, 0.43, 0.45) : vec3(0.035);
   vMatCol = col;
   vRough = m < 0.5 ? 0.26 : m < 1.5 ? 0.03 : m < 2.5 ? 0.55 : m < 3.5 ? 0.12 : m < 4.5 ? 0.2 : m < 5.5 ? 0.3 : m < 7.5 ? 0.5 : m < 9.5 ? 0.85 : m < 10.5 ? 0.4 : 0.8;

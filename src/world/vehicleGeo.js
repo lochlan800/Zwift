@@ -180,8 +180,9 @@ export function buildVehicles() {
     };
     const ghMat = (s, f) => {
       const sn = Math.sin(f * Math.PI * 2), vp = (Math.pow(Math.abs(sn), 2 / g.n) * Math.sign(sn) + 1) / 2;
-      if (s.pill) return 2;
-      if (s.roof && vp > 0.86) return bus ? 5 : 0;
+      if (s.pill) return bus ? 0 : 2;
+      if (bus && vp > 0.7) return 5;           // painted roof band above the windows
+      if (s.roof && vp > 0.86) return 0;
       if (vp < 0.18) return 2;                 // sill line blends into trim
       if (T.name === 'van' && !s.roof && vp > 0.86) return 0;
       return 1;
@@ -227,10 +228,14 @@ export function buildVehicles() {
       // wheel arches: dark discs just proud of the body side behind each wheel
     }
     const [wx, wzf, wzr, wr] = T.wheel;
-    const archAt = (zc, s) => {
+    const bodyX = (zc) => {
       const yt = interp(T.top, zc), hh = (yt - sill) / 2, ym = (yt + sill) / 2, vv = Math.max(-0.99, Math.min(0.99, (wr - ym) / hh));
-      const x = wAt(zc) * Math.pow(Math.max(0, 1 - Math.pow(Math.abs(vv), nBot)), 1 / nBot);
-      const d = new THREE.CircleGeometry(wr * 1.2, 20); d.rotateY(s * Math.PI / 2); d.translate(s * (x + 0.006), wr, zc);
+      return wAt(zc) * Math.pow(Math.max(0, 1 - Math.pow(Math.abs(vv), nBot)), 1 / nBot);
+    };
+    // wheels sit just proud of the body side, in front of a dark arch disc
+    T.wheel[0] = bodyX(wzf) + 0.025 - 0.31 * wr;
+    const archAt = (zc, s) => {
+      const d = new THREE.CircleGeometry(wr * 1.13, 22); d.rotateY(s * Math.PI / 2); d.translate(s * (bodyX(zc) + 0.004), wr, zc);
       return d;
     };
     for (const zc of [wzf, wzr]) for (const s of [-1, 1]) B.push(archAt(zc, s), ti, 2);
