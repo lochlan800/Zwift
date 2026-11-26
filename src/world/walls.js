@@ -97,7 +97,7 @@ export async function createWalls(features, slicer, castShadow = true, roadIdx =
           // hawthorn / blackthorn / privet: small painted leaves on twiggy dark interior
           float l3 = texture2D(uNoise, w.xz / 3.5 + w.y * 0.2).g;
           vec3 tint = mix(vec3(0.80, 0.84, 0.70), vec3(1.15, 1.08, 0.82), mix(l3, vWl.w, 0.5));
-          vec4 fs = foliageSurface(w, vec2(0.0, 0.1111), 0.8, tint);
+          vec4 fs = foliageSurface(w, vec2(0.0, 0.1111), 0.55, tint * 0.85);
           float cav = fs.a;
           c = fs.rgb * mix(0.35, 1.05, smoothstep(0.0, 0.75, vWl.y)) * mix(0.8, 1.15, smoothstep(0.3, 0.7, vWl.y * l3 + vWl.y * 0.3));
           wBump = cav;

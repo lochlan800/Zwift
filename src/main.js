@@ -163,7 +163,7 @@ async function build() {
   U.uNoise.value = makeNoiseTexture(256);
   world.sky = sky;
 
-  const sun = new SunLight(0xffffff, 8.2);
+  const sun = new SunLight(0xffffff, 6.6);
   sun.color.copy(sky.sunColor);
   U.uSunI.value = sun.intensity;
   sun.position.copy(sky.sunDir);

@@ -19,7 +19,7 @@ if (aWing > 0.5) {
   float side = sign(position.x), ax = abs(position.x);
   float fl = aMisc.y;
   float th = (sin(aMisc.x) * 0.85 + 0.15) * fl;
-  float bend = th * (0.55 + ax * 1.9);          // wing tips lag and flex more than the root
+  float bend = th * (0.30 + ax * 0.95);          // wing tips lag and flex more than the root
   transformed.x = side * ax * mix(0.18, cos(bend), fl);
   transformed.y += ax * sin(bend) * fl + (1.0 - fl) * 0.02;
   transformed.z += -0.05 * ax * sin(aMisc.x - 0.6) * fl;

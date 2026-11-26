@@ -732,7 +732,7 @@ export function createStreetLife(features, hf, lc, roadIdx, bIdx, routeIdx, give
           vec3 inst = diffuseColor.rgb;
           vec3 tint = mix(vec3(0.78, 0.84, 0.68), vec3(1.12, 1.06, 0.84), m.g) * (0.8 + 0.3 * inst.g);
           // mix of small privet-like and broad bramble/elder leaves by position
-          vec4 fs = foliageSurface(w, m.b > 0.5 ? vec2(0.5, 0.5556) : vec2(0.0, 0.1111), 0.9, tint);
+          vec4 fs = foliageSurface(w, m.b > 0.5 ? vec2(0.5, 0.5556) : vec2(0.0, 0.1111), 0.6, tint * 0.82);
           diffuseColor.rgb = fs.rgb;
         }`,
     },

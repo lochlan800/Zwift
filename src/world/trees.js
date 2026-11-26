@@ -206,9 +206,9 @@ vec4 foliageTri(vec3 w, vec3 n, vec2 org, float scale) {
   vec2 sz = vec2(0.5, 0.4444);
   vec4 c = vec4(0.0);
   vec2 u0 = w.zy / scale, u1 = w.xz / scale, u2 = w.xy / scale;
-  c += an.x * textureGrad(uFoliage, org + (0.02 + 0.96 * fract(u0)) * sz, dFdx(u0) * sz, dFdy(u0) * sz);
-  c += an.y * textureGrad(uFoliage, org + (0.02 + 0.96 * fract(u1)) * sz, dFdx(u1) * sz, dFdy(u1) * sz);
-  c += an.z * textureGrad(uFoliage, org + (0.02 + 0.96 * fract(u2)) * sz, dFdx(u2) * sz, dFdy(u2) * sz);
+  c += an.x * textureGrad(uFoliage, org + (0.22 + 0.56 * fract(u0)) * sz, dFdx(u0) * sz, dFdy(u0) * sz);
+  c += an.y * textureGrad(uFoliage, org + (0.22 + 0.56 * fract(u1)) * sz, dFdx(u1) * sz, dFdy(u1) * sz);
+  c += an.z * textureGrad(uFoliage, org + (0.22 + 0.56 * fract(u2)) * sz, dFdx(u2) * sz, dFdy(u2) * sz);
   return c;
 }
 // photoreal leafy surface: returns linear albedo, coverage in .a (gaps show dark twigs/interior)
@@ -216,10 +216,10 @@ vec4 foliageSurface(vec3 w, vec2 org, float scale, vec3 tint) {
   vec3 n = normalize(cross(dFdx(w), dFdy(w)));
   vec4 a = foliageTri(w, n, org, scale);
   vec4 b = foliageTri(w + vec3(0.37, 0.21, 0.53), n, org, scale * 0.42);
-  float cov = clamp(a.a * 0.7 + b.a * 0.55, 0.0, 1.0);
+  float cov = clamp(a.a * 0.8 + b.a * 0.5, 0.0, 1.0);
   vec3 leaf = mix(a.rgb, b.rgb, 0.35 * b.a) * tint;
   vec3 gap = vec3(0.012, 0.013, 0.007);
-  return vec4(mix(gap, leaf, smoothstep(0.25, 0.7, cov)), cov);
+  return vec4(mix(gap, leaf, smoothstep(0.2, 0.55, cov)), cov);
 }`;
 
 // ------------------------------------------------------------------ model description

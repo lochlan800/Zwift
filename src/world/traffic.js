@@ -140,7 +140,7 @@ function buildGeometry() {
 
 const CAR_COLS = [[0.8, 0.8, 0.8], [0.5, 0.52, 0.55], [0.04, 0.04, 0.05], [0.07, 0.14, 0.34], [0.5, 0.05, 0.04], [0.28, 0.28, 0.3], [0.1, 0.22, 0.14], [0.62, 0.58, 0.5], [0.85, 0.85, 0.86], [0.04, 0.04, 0.05], [0.3, 0.05, 0.08], [0.75, 0.55, 0.1]];
 const VAN_COLS = [[0.8, 0.8, 0.8], [0.8, 0.8, 0.8], [0.45, 0.46, 0.5], [0.1, 0.2, 0.45], [0.7, 0.7, 0.72]];
-const BUS_BODY = [0.9, 0.34, 0.04], BUS_ACC = [0.62, 0.05, 0.05];
+const BUS_BODY = [0.62, 0.12, 0.035], BUS_ACC = [0.42, 0.03, 0.03]; // original red-orange livery, no operator branding
 
 export function createTraffic(scene, features, hf, cfg, ctx = {}) {
   const graph = buildGraph(features);
