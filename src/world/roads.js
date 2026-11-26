@@ -20,6 +20,10 @@ const KIND = {
 const URBAN = new Set([3, 5, 10, 6, 8, 9]);
 const RANK = { primary: 5, secondary: 4, tertiary: 3, unclassified: 2, residential: 1, service: 0.5 };
 
+export function isDriveway(u, side, hw) {
+  const x = Math.sin((Math.floor(u / 6) + side * 0.37 + hw * 1.7) * 12.9898) * 43758.5453;
+  return x - Math.floor(x) < 0.14;
+}
 export function roadInfo(r) { return KIND[r.k] || null; }
 export function roadWidth(r) { const K = KIND[r.k]; return Math.max(1.2, r.w || (K ? K.w : 4)); }
 
@@ -172,10 +176,11 @@ function strip(B, p, F, o0, o1, dy, type, hw, markFn, keepFn) {
   for (let i = 0; i < p.length; i++) {
     const keep = keepFn ? keepFn(i) : true;
     if (!keep) { prev = null; continue; }
-    const x = p[i][0], y = p[i][1] + dy, z = p[i][2];
+    const x = p[i][0], z = p[i][2];
+    const ya = p[i][1] + (typeof dy === 'function' ? dy(i, o0) : dy), yb = p[i][1] + (typeof dy === 'function' ? dy(i, o1) : dy);
     const m = markFn ? markFn(i) : 1;
-    const a = B.vert(x + F.nx[i] * o0, y, z + F.nz[i] * o0, 0, 1, 0, F.L[i], o0, hw, type, m);
-    const b = B.vert(x + F.nx[i] * o1, y, z + F.nz[i] * o1, 0, 1, 0, F.L[i], o1, hw, type, m);
+    const a = B.vert(x + F.nx[i] * o0, ya, z + F.nz[i] * o0, 0, 1, 0, F.L[i], o0, hw, type, m);
+    const b = B.vert(x + F.nx[i] * o1, yb, z + F.nz[i] * o1, 0, 1, 0, F.L[i], o1, hw, type, m);
     if (prev) {
       // prev.a, prev.b, a, b; o1 > o0 means b is to the left
       B.idx.push(prev[0], a, prev[1], prev[1], a, b);
@@ -493,8 +498,12 @@ export async function createRoads(features, hf, lc, roadIdx, slicer, bIdx = null
         const o0 = side > 0 ? hw + vg : -hw - vg - pw, o1 = side > 0 ? hw + vg + pw : -hw - vg;
         const mid = p[p.length >> 1], dCore = Math.hypot(mid[0] + 100, mid[2] - 150);
         const paveT = r._paveTarmac ? RT.FOOT : (r._tc || dCore < 750 || r._qh) ? RT.PAVE : RT.FOOT;
-        strip(B, p, F, o0, o1, lift + (vg ? 0.1 : 0.12), paveT, hw + vg, null, keep);
-        wall(B, p, F, side * hw, lift - 0.02, lift + 0.12, -side, RT.KERB, hw, keep);
+        // dropped kerbs at driveways (same deterministic cells as the garden-wall gaps in streetlife.js)
+        const drive = (i) => !vg && !r._tc && r.k === 'residential' && isDriveway(F.L[i], side, r._w / 2);
+        const pdy = (i, o) => lift + (vg ? 0.1 : 0.12) - (drive(i) && Math.abs(Math.abs(o) - hw) < 0.05 ? 0.08 : 0);
+        strip(B, p, F, o0, o1, pdy, paveT, hw + vg, null, keep);
+        wall(B, p, F, side * hw, lift - 0.02, lift + 0.12, -side, RT.KERB, hw, (i) => keep(i) && !drive(i));
+        wall(B, p, F, side * hw, lift - 0.02, lift + 0.04, -side, RT.KERB, hw, (i) => keep(i) && drive(i));
 
         // town centre: pave forecourts right up to the building line
         if (r._tc && bIdx) {

@@ -201,6 +201,7 @@ async function build() {
 
   progress(0.62, 'Raising buildings');
   BLD.lite = cfg.tier === 'low';
+  BLD.uInterior.value = cfg.tier === 'low' ? 0 : 1;
   const buildings = await createBuildings(features, slicer, (f) => progress(0.62 + f * 0.2, `Raising buildings ${Math.round(f * 100)}%`), tc.tcIdx, roadIdx, bIdx, hf);
   scene.add(buildings.group);
   world.buildings = buildings;

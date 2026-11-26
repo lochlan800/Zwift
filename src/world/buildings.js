@@ -7,7 +7,7 @@ export const frontEnds = []; // front-edge endpoints of town-centre buildings (f
 export const pubFronts = [];
 // shop units found while building facades (used to place awnings, A-boards, the clock)
 export const shopUnits = [];
-export const BLD = { lite: false }; // low tier: skip small decorative geometry
+export const BLD = { lite: false, uInterior: { value: 1 } }; // low tier: skip small decorative geometry
 const S_WALL = 0, S_ROOF = 1, S_FLAT = 2, S_CHIM = 3, S_SHOP = 5, S_POT = 6, S_BAY = 7, S_FASCIA = 8, S_RIDGE = 9, S_DARK = 10, S_CAP = 11, S_METAL = 12;
 const CELL = 600;
 
@@ -505,7 +505,7 @@ const BLD_FRAG = /* glsl */`
 ${GRID_GLSL}
 varying vec4 vW; flat varying vec4 vB; varying float vAO;
 uniform sampler2D uNoise;
-vec3 bAlb; float bRough; float bMetal; float bBump; float bAO; float hbSun;
+vec3 bAlb; float bRough; float bMetal; float bBump; float bAO; float hbSun; vec3 bEmis; uniform float uInterior;
 vec3 lin3(vec3 c) { return pow(c, vec3(2.2)); }
 float hb(float n) { return fract(sin(n * 127.1) * 43758.5453); }
 float boxAA(vec2 p, vec2 lo, vec2 hi, vec2 fw) {
@@ -539,7 +539,7 @@ void buildingSurface(vec3 w, vec3 Nw) {
   vec4 n3 = texture2D(uNoise, w.xz / 5.0 + w.y / 9.0);
   vec4 n4 = texture2D(uNoise, vec2(w.x + w.z, w.y) / 1.1);
   float dist = distance(w, cameraPosition);
-  bRough = 0.85; bMetal = 0.0; bBump = 0.0; bAO = 1.0;
+  bRough = 0.85; bMetal = 0.0; bBump = 0.0; bAO = 1.0; bEmis = vec3(0.0);
   bool industrial = (kind == 3 || kind == 4 || kind == 5);
   if (surf == 0 || surf == 3 || surf == 5 || surf == 7) {
     bool shop = surf == 5, bayW = surf == 7;
@@ -826,6 +826,46 @@ void buildingSurface(vec3 w, vec3 Nw) {
         else if (wh < 0.6) inner = mix(inner, lin3(vec3(0.38, 0.34, 0.28)), (1.0 - smoothstep(0.3 + 0.4 * hb(wh * 9.0) - 0.02, 0.3 + 0.4 * hb(wh * 9.0), 1.0 - wy)) * 0.6); // blind
         else if (wh < 0.78) inner = mix(inner, accentDoor(wh * 13.0) * 0.8, smoothstep(0.32, 0.38, abs(wxr - 0.5)) * 0.7); // curtains
         vec3 glassCol = mix(inner, refl, fres);
+        vec3 roomE = vec3(0.0);
+        if (uInterior > 0.5 && !door) {
+          // ---- interior mapping: ray into a virtual room behind the glass
+          vec3 rd = -vv;
+          vec3 rl = vec3(dot(rd, T), rd.y, max(-dot(rd, Nw), 0.05));     // x along wall, y up, z into room
+          float Wr = max(3.2, (hi.x - lo.x) * 2.2), Hr = 2.6, Dr = 3.0 + 2.0 * hb(seed + bay * 1.3 + fl);
+          float floorY = lo.y - 0.9;
+          vec3 ro = vec3(lp2.x - (lo.x + hi.x) * 0.5, lp2.y - floorY, 0.0);
+          float tx = ((rl.x > 0.0 ? Wr * 0.5 : -Wr * 0.5) - ro.x) / (abs(rl.x) < 1e-4 ? 1e-4 : rl.x);
+          float ty = ((rl.y > 0.0 ? Hr : 0.0) - ro.y) / (abs(rl.y) < 1e-4 ? 1e-4 : rl.y);
+          float tz = Dr / rl.z;
+          float tm = min(tx, min(ty, tz));
+          vec3 hp = ro + rl * tm;
+          float rh = hb(seed * 3.3 + bay * 7.1 + fl * 1.9);
+          vec3 wallC = rh < 0.3 ? lin3(vec3(0.78, 0.72, 0.62)) : rh < 0.55 ? lin3(vec3(0.70, 0.74, 0.76)) : rh < 0.75 ? lin3(vec3(0.74, 0.66, 0.58)) : lin3(vec3(0.62, 0.66, 0.58));
+          vec3 rc;
+          if (tm == ty && rl.y < 0.0) rc = (rh < 0.5 ? lin3(vec3(0.36, 0.24, 0.15)) : lin3(vec3(0.32, 0.30, 0.34))) * (0.8 + 0.2 * step(0.5, fract(hp.x * 3.0)));  // floor
+          else if (tm == ty) rc = lin3(vec3(0.85, 0.84, 0.80));                       // ceiling
+          else if (tm == tz) {                                                          // back wall + furniture / picture / door
+            rc = wallC;
+            float fx = hb(rh * 13.0);
+            if (fx < 0.55 && hp.y < 0.85 && abs(hp.x - (fx - 0.27) * Wr) < 0.9) rc = lin3(vec3(0.18, 0.14, 0.12)) * (0.7 + 0.6 * fx);   // sofa / sideboard
+            if (fx > 0.6 && abs(hp.x) < 0.45 && hp.y < 2.05) rc = lin3(vec3(0.42, 0.34, 0.26));                                 // door
+            if (abs(hp.x + 0.6 * (fx - 0.5)) < 0.3 && abs(hp.y - 1.6) < 0.22) rc = lin3(vec3(0.25, 0.3, 0.4)) * (0.6 + fx);    // picture
+          } else rc = wallC * 0.82;                                                      // side walls
+          // light falls off into the room; warm/cool tint
+          float lit = mix(1.0, 0.45, clamp(hp.z / Dr, 0.0, 1.0)) * (0.75 + 0.5 * hb(rh * 5.0));
+          vec3 tint = rh < 0.5 ? vec3(1.05, 0.98, 0.9) : vec3(0.95, 1.0, 1.05);
+          roomE = rc * tint * lit * 0.16;
+          // curtains / nets / blinds stay in front of the room
+          float cov = 0.0; vec3 covC = vec3(0.0);
+          if (wh < 0.35) { cov = smoothstep(0.6, 0.5, wy) * 0.65; covC = lin3(vec3(0.85, 0.85, 0.82)); }
+          else if (wh < 0.6) { cov = (1.0 - smoothstep(0.3 + 0.4 * hb(wh * 9.0) - 0.02, 0.3 + 0.4 * hb(wh * 9.0), 1.0 - wy)); covC = lin3(vec3(0.75, 0.68, 0.55)); }
+          else if (wh < 0.78) { cov = smoothstep(0.32, 0.38, abs(wxr - 0.5)); covC = accentDoor(wh * 13.0) * 1.3; }
+          roomE = mix(roomE, covC * 0.16, cov);
+          float ndvR = clamp(dot(vv, Nw), 0.0, 1.0);
+          float fr = 0.04 + 0.96 * pow(1.0 - ndvR, 5.0);
+          roomE *= 1.0 - fr;
+          glassCol = lin3(vec3(0.015, 0.016, 0.018));
+        }
         vec3 doorCol = industrial ? lin3(vec3(0.45, 0.47, 0.48)) : accentDoor(seed + bay * 0.37);
         vec3 revCol = (dress || stone ? (dress ? dressCol : base) : col) * 0.55;
         // shade the reveals: top in shadow, sides mid, bottom lit
@@ -842,6 +882,7 @@ void buildingSurface(vec3 w, vec3 Nw) {
           bRough = mix(bRough, 0.35, glass * fade);
         } else {
           col = mix(col, glassCol, glass * fade);
+          bEmis += roomE * glass * fade * (1.0 - gb);
           col = mix(col, frameCol, gb * fade);
           bRough = mix(bRough, 0.18, glass * fade * (1.0 - gb));
           bMetal = mix(bMetal, 0.0, glass * fade);
@@ -991,7 +1032,7 @@ export async function createBuildings(features, slicer, onProgress, tcIdx = null
   const lightsBegin = THREE.ShaderChunk.lights_fragment_begin.replace(
     'getSunLightInfo( sunLight, directLight );', 'getSunLightInfo( sunLight, directLight ); directLight.color *= hbSun;');
   patchMaterial(mat, {
-    key: 'buildings',
+    key: 'buildings', uniforms: { uInterior: BLD.uInterior },
     vertexPars: 'attribute vec4 aW; attribute vec4 aB; attribute vec4 aN4; varying vec4 vW; flat varying vec4 vB; varying float vAO;',
     vertex: { begin_vertex: '$\n vW = aW; vB = aB; vAO = aN4.w;' },
     fragmentPars: BLD_FRAG,
@@ -1014,6 +1055,7 @@ export async function createBuildings(features, slicer, onProgress, tcIdx = null
         }`,
       lights_fragment_begin: lightsBegin,
       aomap_fragment: 'reflectedLight.indirectDiffuse *= bAO; reflectedLight.indirectSpecular *= bAO;',
+      emissivemap_fragment: '$\n totalEmissiveRadiance += bEmis;',
     },
   });
   const group = new THREE.Group();

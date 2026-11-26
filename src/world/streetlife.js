@@ -3,6 +3,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { patchMaterial, GRID_GLSL, OCC_GLSL } from './shared.js';
 const OCC_FRAG = { alphatest_fragment: '$\n if (ign(gl_FragCoord.xy) > occFade(vAerialWorld)) discard;' };
 import { hash2, mulberry32 } from './heightfield.js';
+import { isDriveway } from './roads.js';
 import { foliageTexture, FOLIAGE_GLSL } from './trees.js';
 import { scrubGeometry, clippedHedgeGeometry, leafMaterial } from './vegbush.js';
 
@@ -442,7 +443,7 @@ export function createStreetLife(features, hf, lc, roadIdx, bIdx, routeIdx, give
         for (const d of [3, 5.5, 8, 11]) { b = bIdx.find(px + nx * d, pz + nz * d); if (b) break; }
         if (!b || !(b.k === 'house' || b.k === 'terrace' || b.k === 'residential')) return;
         if (roadIdx.query(px, pz, 1.0, (q) => q.ref !== r, tmp)) return;
-        if (hash2(Math.floor(s / 6) + side * 0.37, x * 0.01 + z * 0.013) < 0.14) return; // driveway gaps
+        if (isDriveway(s, side, hw)) return; // driveway gaps (match dropped kerbs in roads.js)
         const gy = hf.sample(px, pz);
         const yaw = Math.atan2(tx, tz);
         if ((b.c % 3) === 0) {
