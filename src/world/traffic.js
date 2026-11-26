@@ -340,9 +340,10 @@ export function createTraffic(scene, features, hf, cfg, ctx = {}) {
     let gap = 1e9, bv = 0, blockRider = false;
     const fx = v.tx, fz = v.tz;
     const lookRange = 14 + v.v * 1.8;
-    if (v.ghost <= 0) {
+    {
       for (let n = -1; n < N; n++) {
         let ox, oz, ov, ohw, olen, isRider = false;
+        if (v.ghost > 0 && n >= 0) continue; // ghost mode (deadlock breaker) only ignores other vehicles, never the rider
         if (n < 0) { ox = rider.x; oz = rider.z; ov = rider.v; ohw = rider.hw; olen = rider.len; isRider = true; }
         else { const o = veh[n]; if (o === v || !o.on) continue; ox = o.x; oz = o.z; ov = o.v; ohw = o.hw; olen = o.len; }
         const dx = ox - v.x, dz = oz - v.z;
@@ -354,7 +355,7 @@ export function createTraffic(scene, features, hf, cfg, ctx = {}) {
         if (g < gap) { gap = g; bv = ov; blockRider = isRider; }
       }
       // zebra crossings with someone on them
-      for (const c of crossings) {
+      if (v.ghost <= 0) for (const c of crossings) {
         if (c.timer <= 0) continue;
         const dx = c.x - v.x, dz = c.z - v.z;
         const along = dx * fx + dz * fz;

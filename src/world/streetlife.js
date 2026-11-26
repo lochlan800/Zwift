@@ -357,7 +357,7 @@ function bushGeometry() {
     const p = g.attributes.position;
     for (let i = 0; i < p.count; i++) {
       const a = p.getX(i), b = p.getY(i), c = p.getZ(i);
-      const n = 1 + 0.12 * Math.sin(a * 13.1 + k + b * 7.3) * Math.cos(c * 11.7 - b * 5.1) + 0.06 * Math.sin(a * 31.0 + c * 27.0);
+      const n = 1 + 0.2 * Math.sin(a * 13.1 + k + b * 7.3) * Math.cos(c * 11.7 - b * 5.1) + 0.12 * Math.sin(a * 31.0 + c * 27.0 + b * 19.0) + 0.06 * Math.sin(a * 57.0 - c * 43.0);
       p.setXYZ(i, a * n + x, Math.max(-0.05, b * n * 0.85 + y), c * n + z);
     }
     // soft spherical normals (leafy volume, no facets)
@@ -732,7 +732,7 @@ export function createStreetLife(features, hf, lc, roadIdx, bIdx, routeIdx, give
           vec3 inst = diffuseColor.rgb;
           vec3 tint = mix(vec3(0.78, 0.84, 0.68), vec3(1.12, 1.06, 0.84), m.g) * (0.8 + 0.3 * inst.g);
           // mix of small privet-like and broad bramble/elder leaves by position
-          vec4 fs = foliageSurface(w, m.b > 0.5 ? vec2(0.5, 0.5556) : vec2(0.0, 0.1111), 0.6, tint * 0.82);
+          vec4 fs = foliageSurface(w, m.b > 0.5 ? vec2(0.5, 0.5556) : vec2(0.0, 0.1111), 0.6, tint * vec3(0.55, 0.56, 0.5));
           diffuseColor.rgb = fs.rgb;
         }`,
     },
