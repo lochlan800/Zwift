@@ -355,7 +355,7 @@ void roadSurface(vec3 w) {
   } else if (t == ${RT.FOOT} || t == ${RT.CYCLE}) {
     rAlb = asph * (t == ${RT.CYCLE} ? vec3(1.35, 0.85, 0.8) : vec3(1.1));
   } else if (t == ${RT.PATH}) {
-    rAlb = lin3(vec3(0.46, 0.39, 0.29)) * (0.75 + 0.4 * n4.a) * (0.85 + 0.3 * n3.g); rRough = 0.97; rBump = n4.a;
+    rAlb = mix(lin3(vec3(0.27, 0.225, 0.16)), lin3(vec3(0.14, 0.18, 0.065)), clamp(smoothstep(0.3, 0.65, n3.g) * 0.75 + 0.15, 0.0, 1.0)) * (0.75 + 0.4 * n4.a); rRough = 0.97; rBump = n4.a; // worn path: grass, leaf litter, little bare earth
   } else if (t == ${RT.PAVE}) {
     // paving flags 0.6 x 0.9
     vec2 fl = vec2(u / 0.9, (abs(v) - hw) / 0.6);
