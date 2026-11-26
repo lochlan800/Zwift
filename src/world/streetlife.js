@@ -784,7 +784,7 @@ export function createStreetLife(features, hf, lc, roadIdx, bIdx, routeIdx, give
     const globe = new THREE.SphereGeometry(0.17, 14, 10); globe.translate(0, 2.62, 0);
     mk(globe, globeMat, beacons, 16, R * 0.7, false);
     mk(bollardGeometry(), propMat, bollards, 40, R * 0.5, false) /* perf: tiny prop, no shadow pass */;
-    mk(railGeometry(), propMat, rails, 60, R * 0.5, true);
+    mk(railGeometry(), propMat, rails, 60, R * 0.5, false) /* perf: no shadow pass */;
     mk(aboardGeometry(), propMat, aboards, 60, R * 0.4, false) /* perf: tiny prop, no shadow pass */;
     mk(awningGeometry(), patchMaterial(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, side: THREE.DoubleSide }), { key: 'awning', fragmentPars: OCC_GLSL, fragment: OCC_FRAG }), awnings, 120, R * 0.6, true);
     mk(projSignGeometry(), propMat, psigns, 80, R * 0.5, false) /* perf: tiny prop, no shadow pass */;
