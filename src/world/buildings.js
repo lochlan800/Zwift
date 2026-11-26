@@ -770,6 +770,7 @@ void buildingSurface(vec3 w, vec3 Nw) {
           col = mix(col, frameCol, gb * fade);
           bRough = mix(bRough, 0.18, glass * fade * (1.0 - gb));
           bMetal = mix(bMetal, 0.0, glass * fade);
+          bAO *= mix(1.0, 0.3, glass * fade); // windows reflect the street opposite, not open sky
         }
         // protruding sill / lintel / step (lighter, with a dark underside line)
         vec3 dressing = dress ? dressCol : (stone ? base * 1.12 : lin3(vec3(0.82, 0.80, 0.75)));
