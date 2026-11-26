@@ -20,6 +20,33 @@ const KIND = {
 const URBAN = new Set([3, 5, 10, 6, 8, 9]);
 const RANK = { primary: 5, secondary: 4, tertiary: 3, unclassified: 2, residential: 1, service: 0.5 };
 
+// ---- photo-scanned asphalt (Poly Haven, CC0), inlined into the single-file build
+import asDiffUrl from '../textures/asphalt_07_diff_1k.jpg';
+import asNorUrl from '../textures/asphalt_07_nor_1k.jpg';
+import asRoughUrl from '../textures/asphalt_07_rough_1k.jpg';
+export const ASPHALT = { uAsD: { value: null }, uAsN: { value: null }, uAsR: { value: null }, uAsOn: { value: 0 }, uAsNormal: { value: 1 }, uAsMean: { value: 0.2 } };
+export function loadAsphalt(renderer, normals = true) {
+  const loader = new THREE.TextureLoader();
+  const aniso = renderer.capabilities.getMaxAnisotropy();
+  const setup = (t, srgb) => { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace; t.anisotropy = aniso; t.generateMipmaps = true; t.minFilter = THREE.LinearMipmapLinearFilter; t.needsUpdate = true; return t; };
+  ASPHALT.uAsNormal.value = normals ? 1 : 0;
+  let n = 0;
+  const done = () => { if (++n === 3) ASPHALT.uAsOn.value = 1; };
+  ASPHALT.uAsD.value = loader.load(asDiffUrl, (t) => {
+    setup(t, true);
+    // mean linear luminance, so the photo only contributes detail around our calibrated albedo
+    try {
+      const c = document.createElement('canvas'); c.width = c.height = 32;
+      const g = c.getContext('2d'); g.drawImage(t.image, 0, 0, 32, 32);
+      const px = g.getImageData(0, 0, 32, 32).data; let acc = 0;
+      for (let i = 0; i < px.length; i += 4) { const l = (0.2126 * px[i] + 0.7152 * px[i + 1] + 0.0722 * px[i + 2]) / 255; acc += Math.pow(l, 2.2); }
+      ASPHALT.uAsMean.value = acc / (px.length / 4);
+    } catch (e) { /* keep default */ }
+    done();
+  });
+  ASPHALT.uAsN.value = normals ? loader.load(asNorUrl, (t) => { setup(t, false); done(); }) : (done(), new THREE.Texture());
+  ASPHALT.uAsR.value = loader.load(asRoughUrl, (t) => { setup(t, false); done(); });
+}
 export function isDriveway(u, side, hw) {
   const x = Math.sin((Math.floor(u / 6) + side * 0.37 + hw * 1.7) * 12.9898) * 43758.5453;
   return x - Math.floor(x) < 0.14;
@@ -208,6 +235,20 @@ function wall(B, p, F, o, y0, y1, face, type, hw, keepFn) {
 const ROAD_FRAG = /* glsl */`
 varying vec4 vRoad; varying float vMark; varying vec3 vGw;
 uniform sampler2D uNoise;
+uniform sampler2D uAsD; uniform sampler2D uAsN; uniform sampler2D uAsR;
+uniform float uAsOn; uniform float uAsNormal; uniform float uAsMean;
+vec3 rNrm = vec3(0.0, 0.0, 1.0); float rPhotoF = 0.0; float rPaintAmt = 0.0;
+// two decorrelated planar samples of the photo-scanned asphalt (2.7 m and 7.3 m, rotated 37 deg)
+void asphaltPhoto(vec2 xz, float scl, out vec3 d, out float rough, out vec3 nrm) {
+  const mat2 R = mat2(0.7986, 0.6018, -0.6018, 0.7986);
+  vec2 u1 = xz / (2.7 * scl), u2 = (R * xz) / (7.3 * scl);
+  vec3 d1 = texture2D(uAsD, u1).rgb, d2 = texture2D(uAsD, u2).rgb;
+  d = mix(d1, d2, 0.4);
+  rough = mix(texture2D(uAsR, u1).g, texture2D(uAsR, u2).g, 0.4);
+  vec3 n1 = texture2D(uAsN, u1).xyz * 2.0 - 1.0, n2 = texture2D(uAsN, u2).xyz * 2.0 - 1.0;
+  n2.xy = transpose(R) * n2.xy;
+  nrm = normalize(vec3(n1.xy + n2.xy * 0.6, n1.z));
+}
 vec3 rAlb; float rRough; float rBump;
 vec3 lin3(vec3 c) { return pow(c, vec3(2.2)); }
 float lineAA(float d, float w) { float fw = max(fwidth(d), 1e-3); return 1.0 - smoothstep(w - fw, w + fw, abs(d)); }
@@ -227,6 +268,17 @@ void roadSurface(vec3 w) {
   float fa = 1.0 - smoothstep(8.0, 40.0, dist);
   // neutral warm-grey asphalt, fine aggregate
   vec3 asph = lin3(vec3(0.27, 0.268, 0.265)) * (1.0 + (n5.a - 0.5) * 0.28 * fa + (n4.b - 0.5) * 0.1) * (0.95 + 0.1 * n2.g);
+  float photoRough = 0.9;
+  if (uAsOn > 0.5 && (t <= 3 || t == ${RT.TOWN} || t == ${RT.FOOT} || t == ${RT.CYCLE})) {
+    vec3 pd; vec3 pn;
+    asphaltPhoto(w.xz, (t == ${RT.FOOT} || t == ${RT.CYCLE}) ? 0.55 : 1.0, pd, photoRough, pn);
+    rPhotoF = 1.0 - smoothstep(35.0, 60.0, dist);
+    float pl = dot(pd, vec3(0.2126, 0.7152, 0.0722)) / max(uAsMean, 1e-3);
+    // photo detail replaces the procedural fine aggregate; macro variation stays on top
+    vec3 base = lin3(vec3(0.27, 0.268, 0.265)) * (0.95 + 0.1 * n2.g);
+    asph = mix(asph, base * mix(vec3(1.0), pd / max(uAsMean, 1e-3), 0.85) * mix(1.0, pl, 0.0), rPhotoF);
+    rNrm = pn;
+  }
   // fine cracks (thin dark lines from the noise iso-contours) and longitudinal tar-seal joints
   {
     float cn = texture2D(uNoise, w.xz / 4.7).g;
@@ -272,7 +324,7 @@ void roadSurface(vec3 w) {
   float lq = (abs(v) - hw * 0.5) / 0.45; float lane = exp(-lq * lq) * vMark;
   float oil = smoothstep(0.72, 0.9, n3.r) * lane;
   asph *= 1.0 - 0.22 * oil;
-  rAlb = asph; rRough = 0.9 - 0.15 * track - 0.25 * oil; rBump = n5.a * 0.5 + n4.a * 0.3;
+  rAlb = asph; rRough = mix(0.9, 0.7 + 0.3 * photoRough, rPhotoF) - 0.15 * track - 0.25 * oil; rBump = n5.a * 0.5 + n4.a * 0.3;
   // gully grates at the kerb every ~32 m, manhole covers in the lane every ~73 m
   if (vRoad.w < 3.5 && vMark > 0.5 && hw > 2.0) {
     float gu = abs(fract(u / 32.0 + 0.37) - 0.5) * 32.0;
@@ -345,6 +397,7 @@ void roadSurface(vec3 w) {
       rBump = mix(rBump, n5.a, sh);
     }
     rRough = mix(rRough, 0.55, paint);
+    rPaintAmt = paint;
     if (town && abs(gxc) > 14.5) {
       // double yellow lines along both kerbs
       float yl = max(lineAA(abs(v) - (hw - 0.22), 0.05), lineAA(abs(v) - (hw - 0.42), 0.05)) * m;
@@ -583,7 +636,13 @@ export async function createRoads(features, hf, lc, roadIdx, slicer, bIdx = null
           float det = dot(dpdx, r1);
           vec3 grad = sign(det) * (bx * r1 + by * r2);
           float fade = 1.0 - smoothstep(20.0, 90.0, distance(vAerialWorld, cameraPosition));
-          Nw = normalize(abs(det) * Nw - grad * 0.015 * fade);
+          Nw = normalize(abs(det) * Nw - grad * 0.015 * fade * (1.0 - rPhotoF));
+          if (uAsNormal > 0.5 && rPhotoF > 0.0) {
+            vec3 pn = rNrm;
+            float k = rPhotoF * (1.0 - 0.6 * rPaintAmt);
+            vec3 Np = normalize(vec3(pn.x, 0.0, pn.y) * 1.4 + Nw * pn.z);
+            Nw = normalize(mix(Nw, Np, k));
+          }
           Nw = hbWetNormal(Nw); // WEATHER: puddle ripples
           normal = normalize((viewMatrix * vec4(Nw, 0.0)).xyz);
           hbNw = Nw;
@@ -591,7 +650,7 @@ export async function createRoads(features, hf, lc, roadIdx, slicer, bIdx = null
       aomap_fragment: '$\n reflectedLight.indirectSpecular *= mix(1.0, 0.2, hbPud) * mix(1.0, 0.4, hbWetAmt); // WEATHER: replace sunny-sky IBL with graded sky reflection',
       emissivemap_fragment: '$\n totalEmissiveRadiance += hbWetRefl(vAerialWorld, hbNw); // WEATHER: sky reflection in wet road / puddles',
     },
-    uniforms: {},
+    uniforms: ASPHALT,
   });
   const mesh = new THREE.Group();
   mesh.name = 'roads';

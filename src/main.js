@@ -6,7 +6,7 @@ import { HeightField, PolygonIndex, Slicer, nextFrame } from './world/heightfiel
 import { U, makeNoiseTexture } from './world/shared.js';
 import { createSky } from './world/sky.js';
 import { createTerrain, makeHeightTexture, makeNormalTexture, makeSplatTextures } from './world/terrain.js';
-import { annotateRoads, buildRoadIndex, conformTerrain, createRoads, roadInfo } from './world/roads.js';
+import { annotateRoads, buildRoadIndex, conformTerrain, createRoads, roadInfo, loadAsphalt } from './world/roads.js';
 import { createBuildings, shopUnits, pubFronts, BLD } from './world/buildings.js';
 import { createTrees } from './world/trees.js';
 import { createWater, carveWater } from './world/water.js';
@@ -91,7 +91,7 @@ async function build() {
   const slicer = new Slicer(cfg.mobile ? 24 : 30);
   const data = await loadData(progress);
   const { meta, features } = data;
-  ui.attrib.textContent = (meta.attribution || '') + ' Street-level reference: Mapillary contributors (CC BY-SA 4.0).';
+  ui.attrib.textContent = (meta.attribution || '') + ' Street-level reference: Mapillary contributors (CC BY-SA 4.0). Asphalt texture: Poly Haven (CC0).';
   progress(0.1, 'Shaping terrain');
   await nextFrame();
   const hf = new HeightField(meta, data.height);
@@ -195,6 +195,7 @@ async function build() {
 
   progress(0.55, 'Laying roads');
   await nextFrame();
+  loadAsphalt(renderer, cfg.tier !== 'low');
   const roads = await createRoads(features, hf, data.landcover, roadIdx, slicer, bIdx);
   scene.add(roads.mesh);
 
