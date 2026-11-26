@@ -245,7 +245,9 @@ function solvePose(crankA, stand, roll) {
   _sp.set(0, HIP[1], HIP[2] + stand * 0.1);
   _sq.multiplyQuaternions(_qz, _qx);
   W[B.SPINE].compose(_sp, _sq, ONE);
-  _cq.setFromAxisAngle(X, ROUND);
+  _cq.setFromAxisAngle(X, ROUND + 0.006 * Math.sin(2 * crankA));          // slight torso bob twice per revolution
+  _q2.setFromAxisAngle(UP, 0.022 * Math.sin(crankA) * (1 - stand * 0.3));   // shoulders counter-rotate against the pedalling hips
+  _cq.multiply(_q2);
   W[B.CHEST].multiplyMatrices(W[B.SPINE], _m.compose(_c0.set(0, CHEST_Y, 0), _cq, ONE));
   _hq.setFromAxisAngle(X, HEAD_PITCH - (phi + ROUND));
   W[B.HEAD].multiplyMatrices(W[B.CHEST], _m.compose(_c1.set(HEAD_LOCAL[0], HEAD_LOCAL[1], HEAD_LOCAL[2]), _hq, ONE));
@@ -258,7 +260,9 @@ function solvePose(crankA, stand, roll) {
     ik(_hip, _ankle, L_THIGH, L_SHIN, KNEE_BEND, _knee);
     W[B.TH[k]].compose(_hip, aimQ(_q1, _hip, _knee), ONE);
     W[B.SH[k]].compose(_knee, aimQ(_q2, _knee, _ankle), ONE);
-    W[B.SHOE[k]].compose(_c2.set(_pedal.x, _pedal.y + 0.012, _pedal.z), IDQ, ONE);
+    // ankle: toes dip through the bottom of the stroke and rise at the top (about +-8 degrees)
+    _q3.setFromAxisAngle(X, 0.03 - 0.15 * Math.cos(crankA + (s > 0 ? Math.PI : 0)));
+    W[B.SHOE[k]].compose(_c2.set(_pedal.x, _pedal.y + 0.012, _pedal.z), _q3, ONE);
     W[B.PEDAL[k]].compose(_pedal, IDQ, ONE);
     _axle.set(s * 0.045, BB[1], BB[2]);
     W[B.CRANK[k]].compose(_axle, aimQ(_q3, _axle, _pedal), ONE);
@@ -276,7 +280,7 @@ function solvePose(crankA, stand, roll) {
 // ---------------------------------------------------------------- skinned body geometry
 // Vertices are stored in bind (rest) space with up to two bone influences: `bone` (owner) and `bone2`
 // with weight `w2`. Blends are 50/50 at a joint and ramp over `blend` metres either side.
-const SK = { P: [], N: [], C: [], A: [], B2: [], W: [], I: [], n: 0 };
+const SK = { P: [], N: [], C: [], A: [], B2: [], W: [], I: [], S: [], L: [], n: 0 };
 const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
 function skinGeo(geo, bone, opts = {}) {
@@ -295,6 +299,7 @@ function skinGeo(geo, bone, opts = {}) {
     const nx = nor[i * 3], ny = nor[i * 3 + 1], nz = nor[i * 3 + 2];
     SK.N.push(e[0] * nx + e[4] * ny + e[8] * nz, e[1] * nx + e[5] * ny + e[9] * nz, e[2] * nx + e[6] * ny + e[10] * nz);
     SK.C.push(c.r, c.g, c.b);
+    SK.S.push(c === K.skin ? 1 : 0); SK.L.push(x, y, z);   // skin mask + bone-local position (for shader seams)
     SK.A.push(bone); SK.B2.push(b2); SK.W.push(w);
   }
   if (idx) for (let k = 0; k < idx.length; k++) SK.I.push(idx[k] + off);
@@ -353,9 +358,13 @@ function buildBody() {
   skinGeo(E([0, -0.055, 0.035], [0.06, 0.05, 0.065]), H, { col: 'skin' });
   skinGeo(E([0, -0.02, 0.095], [0.014, 0.024, 0.016]), H, { col: 'skin' });
   for (const s of [-1, 1]) skinGeo(E([s * 0.084, -0.005, -0.005], [0.013, 0.026, 0.02], 10), H, { col: 'skin' });
-  skinGeo(new THREE.SphereGeometry(1, 28, 16, 0, TAU, 0, 1.25).scale(0.108, 0.114, 0.124).translate(0, 0.005, -0.01),
+  // modern road helmet: low-profile shell, long tapered tail, brow ridge, ventilation channels
+  skinGeo(new THREE.SphereGeometry(1, 30, 18, 0, TAU, 0, 1.3).scale(0.104, 0.106, 0.128).translate(0, 0.012, -0.012),
     H, { col: 'helmet', paint: paintHelmet });
-  skinGeo(E([0, 0, -0.085], [0.085, 0.08, 0.09]), H, { col: 'helmet' });
+  skinGeo(E([0, -0.004, -0.15], [0.064, 0.056, 0.105], 14), H, { col: 'helmet' });
+  skinGeo(E([0, 0.058, -0.02], [0.082, 0.04, 0.115], 14), H, { col: 'helmet' });
+  skinGeo(E([0, 0.033, 0.098], [0.098, 0.022, 0.03], 12), H, { col: 'rimDark' });
+  for (const s of [-1, 1]) skinGeo(tubeGeo([s * 0.035, 0.115, 0.085], [s * 0.05, 0.07, -0.19], 0.0055, 0.0055, 6), H, { col: 'vent' });
   for (const s of [-1, 1]) for (const z of [-0.04, 0, 0.04]) {
     skinGeo(E([s * 0.04, 0.108, z], [0.011, 0.0045, 0.02], 8), H, { col: 'vent' });
   }
@@ -383,6 +392,13 @@ function buildBody() {
     skinGeo(geoSH, B.SH[k], { col: 'skin', paint: paintShin, low: { bone: B.TH[k], y1: 0.07 } });
     skinGeo(geoShoeUp, B.SHOE[k], { col: 'shoe' });
     skinGeo(geoSole, B.SHOE[k], { col: 'sole' });
+    // shoe detail: toe box, heel cup, two retention straps with a dial, carbon sole edge, cleat and ankle cuff
+    skinGeo(E([0, 0.034, 0.11], [0.04, 0.03, 0.065], 10), B.SHOE[k], { col: 'shoe' });
+    skinGeo(E([0, 0.046, -0.075], [0.04, 0.042, 0.05], 10), B.SHOE[k], { col: 'shoe' });
+    for (const z of [-0.005, 0.06]) skinGeo(new THREE.BoxGeometry(0.086, 0.006, 0.026).translate(0, 0.066 + (z < 0 ? 0.004 : -0.002), z), B.SHOE[k], { col: 'sole' });
+    skinGeo(new THREE.CylinderGeometry(0.014, 0.014, 0.008, 10).translate(0.02, 0.076, 0.03), B.SHOE[k], { col: 'alu' });
+    skinGeo(new THREE.BoxGeometry(0.046, 0.01, 0.075).translate(0, -0.004, 0.012), B.SHOE[k], { col: 'chain' });
+    skinGeo(new THREE.CylinderGeometry(0.036, 0.04, 0.05, 12).translate(0, 0.095, -0.065), B.SHOE[k], { col: 'sock' });
     skinGeo(geoPedal, B.PEDAL[k], { col: 'pedal' });
     skinGeo(geoCrank, B.CRANK[k], { col: 'alu' });
   }
@@ -396,7 +412,38 @@ export function createRider() {
   const bikeMat = patchMaterial(new THREE.MeshPhysicalMaterial({
     vertexColors: true, roughness: 0.4, metalness: 0.35, clearcoat: 1, clearcoatRoughness: 0.08,
   }), { key: 'riderBike' });
-  const bodyMat = patchMaterial(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0 }), { key: 'riderBody' });
+  // body: fabric sheen on the kit, softer warmer skin (cheap scattering lift), woven micro-texture and stitched seams
+  const bodyMat = patchMaterial(new THREE.MeshPhysicalMaterial({
+    vertexColors: true, roughness: 0.72, metalness: 0, sheen: 1, sheenRoughness: 0.45, sheenColor: new THREE.Color(0.5, 0.52, 0.58),
+  }), {
+    key: 'riderBody',
+    vertexPars: 'attribute float aSkin; attribute vec3 aLoc; attribute float aOwn; varying float vSkin; varying vec3 vLoc; varying float vOwn;',
+    vertex: { begin_vertex: '$\n vSkin = aSkin; vLoc = aLoc; vOwn = aOwn;' },
+    fragmentPars: `varying float vSkin; varying vec3 vLoc; varying float vOwn;
+      float rbHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+      float rbSeam;`,
+    fragment: {
+      color_fragment: `$
+        {
+          float torso = (vOwn < 1.5) ? 1.0 : 0.0;
+          float nearF = 1.0 - smoothstep(1.5, 4.0, length(vViewPosition));
+          vec2 wp = vLoc.xy * 650.0 + vLoc.zz * 40.0;
+          float weave = (rbHash(floor(wp)) - 0.5) * (1.0 - vSkin) * nearF;
+          diffuseColor.rgb *= 1.0 + weave * 0.07;
+          // stitched seams on the jersey: side panel edges and the front zip
+          float side = 1.0 - smoothstep(0.0015, 0.004, abs(abs(vLoc.x) - 0.1195));
+          float zip = (1.0 - smoothstep(0.0012, 0.003, abs(vLoc.x))) * step(0.0, vLoc.z) * step(0.1, vLoc.y);
+          rbSeam = torso * max(side, zip) * (1.0 - vSkin);
+          diffuseColor.rgb *= 1.0 - 0.38 * rbSeam;
+        }`,
+      roughnessmap_fragment: 'float roughnessFactor = mix(0.74, 0.48, vSkin);',
+      lights_physical_fragment: `$
+        #ifdef USE_SHEEN
+          material.sheenColor *= (1.0 - vSkin) * (1.0 - 0.6 * rbSeam);
+        #endif`,
+      emissivemap_fragment: '$\n totalEmissiveRadiance += vSkin * diffuseColor.rgb * vec3(0.16, 0.05, 0.03) * 0.55;',
+    },
+  });
 
   // static bike: one mesh; wheels: one mesh each
   const bike = new THREE.Group(); lean.add(bike);
@@ -417,6 +464,9 @@ export function createRider() {
   bodyGeo.setAttribute('position', new THREE.BufferAttribute(OP, 3).setUsage(THREE.DynamicDrawUsage));
   bodyGeo.setAttribute('normal', new THREE.BufferAttribute(ON, 3).setUsage(THREE.DynamicDrawUsage));
   bodyGeo.setAttribute('color', new THREE.BufferAttribute(Float32Array.from(SK.C), 3));
+  bodyGeo.setAttribute('aSkin', new THREE.BufferAttribute(Float32Array.from(SK.S), 1));
+  bodyGeo.setAttribute('aLoc', new THREE.BufferAttribute(Float32Array.from(SK.L), 3));
+  bodyGeo.setAttribute('aOwn', new THREE.BufferAttribute(Float32Array.from(SK.A), 1));
   bodyGeo.setIndex(new THREE.BufferAttribute(new Uint32Array(SK.I), 1));
   bodyGeo.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 1, 0), 2);
   const bodyMesh = new THREE.Mesh(bodyGeo, bodyMat);
