@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { patchMaterial } from './shared.js';
 import { buildGraph, edgeAt, curveLimit, buildCrossings, setPose, depthMaterialFor, BUS_NAMES } from './lifeutil.js';
 import { mulberry32 } from './heightfield.js';
+import { buildVehicles, TYPE_DEFS } from './vehicleGeo.js';
 
 // ---------------------------------------------------------------------------------------------
 // Moving traffic: cars (hatchback/saloon/SUV/van) and single-decker buses on the real road graph,
@@ -10,48 +11,21 @@ import { mulberry32 } from './heightfield.js';
 // wheels are cylinders that spin from the distance the instance has travelled.
 // ---------------------------------------------------------------------------------------------
 
-// boxes: [cx, cy, cz, sx, sy, sz, taper, mat]  mat: 0 body 1 glass 2 dark trim 3 headlight 4 taillight 5 accent 6 light grey
-const NB = 8;
-const TYPES = [
-  { name: 'hatch', wheel: [0.76, 1.25, -1.2, 0.31], boxes: [
-    [0, 0.58, 0, 1.72, 0.52, 3.95, 0, 0], [0, 1.07, -0.1, 1.6, 0.44, 2.2, 0.42, 1], [0, 1.31, -0.1, 1.5, 0.06, 1.5, 0, 0],
-    [0, 0.42, 1.97, 1.66, 0.2, 0.1, 0, 2], [0, 0.42, -1.97, 1.66, 0.2, 0.1, 0, 2], [0, 0.7, 1.98, 1.5, 0.1, 0.06, 0, 3], [0, 0.72, -1.98, 1.5, 0.1, 0.06, 0, 4], [0, 0, 0, 0, 0, 0, 0, 0]] },
-  { name: 'saloon', wheel: [0.78, 1.45, -1.4, 0.32], boxes: [
-    [0, 0.6, 0, 1.78, 0.55, 4.6, 0, 0], [0, 1.1, -0.2, 1.64, 0.44, 2.1, 0.42, 1], [0, 1.33, -0.2, 1.52, 0.06, 1.4, 0, 0],
-    [0, 0.44, 2.27, 1.72, 0.2, 0.1, 0, 2], [0, 0.44, -2.27, 1.72, 0.2, 0.1, 0, 2], [0, 0.72, 2.3, 1.56, 0.1, 0.06, 0, 3], [0, 0.76, -2.3, 1.56, 0.1, 0.06, 0, 4], [0, 0, 0, 0, 0, 0, 0, 0]] },
-  { name: 'suv', wheel: [0.82, 1.4, -1.35, 0.37], boxes: [
-    [0, 0.86, 0, 1.9, 0.82, 4.5, 0, 0], [0, 1.46, -0.25, 1.78, 0.5, 2.7, 0.14, 1], [0, 1.73, -0.25, 1.72, 0.07, 2.5, 0, 0],
-    [0, 0.55, 2.22, 1.86, 0.25, 0.12, 0, 2], [0, 0.55, -2.22, 1.86, 0.25, 0.12, 0, 2], [0, 0.95, 2.26, 1.64, 0.12, 0.06, 0, 3], [0, 0.98, -2.26, 1.64, 0.12, 0.06, 0, 4], [0, 0, 0, 0, 0, 0, 0, 0]] },
-  { name: 'van', wheel: [0.86, 1.6, -1.55, 0.35], boxes: [
-    [0, 0.95, 0, 2.0, 0.9, 5.2, 0, 0], [0, 1.78, -0.6, 2.0, 1.0, 3.9, 0.04, 0], [0, 1.62, 1.72, 1.86, 0.55, 1.15, 0.2, 1],
-    [0, 0.58, 2.57, 1.96, 0.25, 0.12, 0, 2], [0, 0.58, -2.57, 1.96, 0.25, 0.12, 0, 2], [0, 1.0, 2.62, 1.7, 0.14, 0.06, 0, 3], [0, 1.05, -2.62, 1.7, 0.14, 0.06, 0, 4], [0, 2.3, -0.6, 1.9, 0.05, 3.7, 0, 6]] },
-  { name: 'bus', wheel: [1.0, 3.3, -3.5, 0.5], boxes: [
-    [0, 0.9, 0, 2.5, 1.1, 10.6, 0, 0], [0, 1.95, 0, 2.52, 0.95, 10.0, 0.0, 1], [0, 2.62, 0, 2.5, 0.38, 10.5, 0, 5],
-    [0, 1.95, 5.31, 2.3, 0.9, 0.06, 0, 1], [0, 2.58, 5.33, 1.5, 0.22, 0.06, 0, 3], [0, 0.62, 5.32, 2.3, 0.2, 0.08, 0, 3], [0, 0.78, -5.32, 2.3, 0.22, 0.08, 0, 4], [0, 0.3, 0, 2.3, 0.15, 10.4, 0, 2]] },
-];
-
 const GLSL_PARS = /* glsl */`
-uniform vec4 uBoxC[${TYPES.length * NB}];
-uniform vec4 uBoxS[${TYPES.length * NB}];
-uniform vec4 uWheel[${TYPES.length}];
+uniform vec4 uWheel[${TYPE_DEFS.length}];
 attribute vec4 aInst;    // type, travelled distance, 0, 0
 attribute vec3 aBody;
 attribute vec3 aAcc;
-attribute float aBox;
-attribute float aShade;
+attribute float aType;
+attribute float aMat;
+attribute float aWheel;
 varying vec3 vMatCol;
 varying float vRough;
 varying float vMetal;
-const vec3 RR = vec3(0.1);
 `;
 const GLSL_NORMAL = /* glsl */`
 vec3 objectNormal = vec3( normal );
-if (aBox < 7.5) {
-  int ty0 = int(aInst.x + 0.5);
-  int k0 = ty0 * ${NB} + int(aBox + 0.5);
-  vec3 d = position - clamp(position, vec3(-0.4), vec3(0.4));
-  if (dot(d, d) > 1e-8) objectNormal = normalize(d / max(uBoxS[k0].xyz, vec3(0.02)));
-} else {
+if (aWheel > -0.5) {
   int ty = int(aInst.x + 0.5);
   float ang = aInst.y / uWheel[ty].w;
   float ca = cos(ang), sa = sin(ang);
@@ -59,84 +33,30 @@ if (aBox < 7.5) {
 }
 `;
 const GLSL_BEGIN = /* glsl */`
-vec3 transformed;
+vec3 transformed = position;
 {
   int ty = int(aInst.x + 0.5);
-  vec3 col;
-  if (aBox < 7.5) {
-    int k = ty * ${NB} + int(aBox + 0.5);
-    vec4 c = uBoxC[k]; vec4 sz = uBoxS[k];
-    vec3 p = position;
-    vec3 q = clamp(p, vec3(-0.4), vec3(0.4));
-    vec3 dd = p - q;
-    if (dot(dd, dd) > 1e-8) p = q + normalize(dd) * 0.1;
-    p.z *= 1.0 - c.w * (p.y + 0.5);
-    transformed = p * sz.xyz + c.xyz;
-    float m = sz.w;
-    vRough = m < 0.5 ? 0.28 : m < 1.5 ? 0.04 : m < 2.5 ? 0.55 : m < 3.5 ? 0.15 : m < 4.5 ? 0.2 : m < 5.5 ? 0.3 : 0.5;
-    vMetal = m < 0.5 ? 0.4 : m < 1.5 ? 0.0 : m < 2.5 ? 0.1 : 0.0;
-    col = m < 0.5 ? aBody : m < 1.5 ? vec3(0.025, 0.04, 0.06) : m < 2.5 ? vec3(0.03) : m < 3.5 ? vec3(0.95, 0.88, 0.65) : m < 4.5 ? vec3(0.55, 0.03, 0.03) : m < 5.5 ? aAcc : vec3(0.62);
-  } else {
+  if (aWheel > -0.5) {
     vec4 w = uWheel[ty];
-    int wi = int(aBox + 0.5) - 8;
+    int wi = int(aWheel + 0.5);
     float sx = (wi == 1 || wi == 3) ? 1.0 : -1.0;
     float zc = wi < 2 ? w.y : w.z;
     float ang = aInst.y / w.w;
     float ca = cos(ang), sa = sin(ang);
     vec3 p = position;
     p.yz = vec2(ca * p.y - sa * p.z, sa * p.y + ca * p.z);
-    transformed = vec3(p.x * (w.w > 0.45 ? 0.32 : 0.24) + sx * w.x, p.y * 2.0 * w.w + w.w, p.z * 2.0 * w.w + zc);
-    col = aShade < 0.5 ? vec3(0.02) : aShade < 1.5 ? vec3(0.62, 0.63, 0.65) : vec3(0.2);
-    vRough = aShade < 0.5 ? 0.92 : 0.3; vMetal = aShade < 0.5 ? 0.0 : 0.9;
+    transformed = vec3(p.x * w.w + sx * w.x, p.y * w.w + w.w, p.z * w.w + zc);
+  } else if (abs(aType - aInst.x) > 0.5) {
+    transformed = vec3(0.0);            // other vehicle types: collapse to a point
   }
+  float m = aMat;
+  vec3 col = m < 0.5 ? aBody : m < 1.5 ? vec3(0.012, 0.018, 0.025) : m < 2.5 ? vec3(0.015) : m < 3.5 ? vec3(0.9, 0.88, 0.8) : m < 4.5 ? vec3(0.45, 0.02, 0.02)
+    : m < 5.5 ? aAcc : m < 6.5 ? vec3(0.85) : m < 7.5 ? vec3(0.8, 0.6, 0.05) : m < 9.5 ? vec3(0.018) : m < 10.5 ? vec3(0.42, 0.43, 0.45) : vec3(0.035);
   vMatCol = col;
+  vRough = m < 0.5 ? 0.26 : m < 1.5 ? 0.03 : m < 2.5 ? 0.55 : m < 3.5 ? 0.12 : m < 4.5 ? 0.2 : m < 5.5 ? 0.3 : m < 7.5 ? 0.5 : m < 9.5 ? 0.85 : m < 10.5 ? 0.4 : 0.8;
+  vMetal = m < 0.5 ? 0.3 : m < 1.5 ? 0.55 : m < 2.5 ? 0.0 : m < 5.5 ? (m > 4.5 ? 0.3 : 0.0) : m < 9.5 ? 0.0 : m < 10.5 ? 0.85 : 0.0;
 }
 `;
-
-function buildGeometry() {
-  const pos = [], nor = [], box = [], shade = [], idx = [];
-  const cube = new THREE.BoxGeometry(1, 1, 1, 5, 5, 5);
-  const MAP = (t) => { const a = Math.abs(t), sg = Math.sign(t); return sg * (a > 0.45 ? 0.5 : a > 0.25 ? 0.46 : 0.4); };
-  for (let i = 0; i < cube.attributes.position.count; i++) for (let k = 0; k < 3; k++) cube.attributes.position.array[i * 3 + k] = MAP(cube.attributes.position.array[i * 3 + k]);
-  const cp = cube.attributes.position.array, cn = cube.attributes.normal.array, ci = cube.index.array;
-  for (let b = 0; b < NB; b++) {
-    const o = pos.length / 3;
-    for (let i = 0; i < cp.length; i += 3) { pos.push(cp[i], cp[i + 1], cp[i + 2]); nor.push(cn[i], cn[i + 1], cn[i + 2]); box.push(b); shade.push(0); }
-    for (const k of ci) idx.push(o + k);
-  }
-  const SEG = 12;
-  for (let w = 0; w < 4; w++) {
-    // cylinder along x, radius 0.5, length 1; caps carry alternating light/dark segments (shows the spin)
-    let o = pos.length / 3;
-    for (let i = 0; i <= SEG; i++) {
-      const a = (i / SEG) * Math.PI * 2, y = Math.cos(a) * 0.5, z = Math.sin(a) * 0.5;
-      for (const x of [-0.5, 0.5]) { pos.push(x, y, z); nor.push(0, Math.cos(a), Math.sin(a)); box.push(8 + w); shade.push(0); }
-    }
-    for (let i = 0; i < SEG; i++) { const a = o + i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); }
-    for (const side of [-1, 1]) {
-      for (let i = 0; i < SEG; i++) {
-        const a0 = (i / SEG) * Math.PI * 2, a1 = ((i + 1) / SEG) * Math.PI * 2;
-        const sh = i & 1 ? 1 : 2;
-        // hub (radius 0.3, alternating light/dark so spin is visible) + dark tyre sidewall ring (0.3..0.5)
-        let o = pos.length / 3;
-        pos.push(side * 0.5, 0, 0, side * 0.5, Math.cos(a0) * 0.3, Math.sin(a0) * 0.3, side * 0.5, Math.cos(a1) * 0.3, Math.sin(a1) * 0.3);
-        for (let k = 0; k < 3; k++) { nor.push(side, 0, 0); box.push(8 + w); shade.push(sh); }
-        if (side > 0) idx.push(o, o + 2, o + 1); else idx.push(o, o + 1, o + 2);
-        o = pos.length / 3;
-        pos.push(side * 0.5, Math.cos(a0) * 0.3, Math.sin(a0) * 0.3, side * 0.5, Math.cos(a0) * 0.5, Math.sin(a0) * 0.5, side * 0.5, Math.cos(a1) * 0.5, Math.sin(a1) * 0.5, side * 0.5, Math.cos(a1) * 0.3, Math.sin(a1) * 0.3);
-        for (let k = 0; k < 4; k++) { nor.push(side, 0, 0); box.push(8 + w); shade.push(0); }
-        if (side > 0) idx.push(o, o + 2, o + 1, o, o + 3, o + 2); else idx.push(o, o + 1, o + 2, o, o + 2, o + 3);
-      }
-    }
-  }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
-  g.setAttribute('aBox', new THREE.Float32BufferAttribute(box, 1));
-  g.setAttribute('aShade', new THREE.Float32BufferAttribute(shade, 1));
-  g.setIndex(idx);
-  return g;
-}
 
 const CAR_COLS = [[0.8, 0.8, 0.8], [0.5, 0.52, 0.55], [0.04, 0.04, 0.05], [0.07, 0.14, 0.34], [0.5, 0.05, 0.04], [0.28, 0.28, 0.3], [0.1, 0.22, 0.14], [0.62, 0.58, 0.5], [0.85, 0.85, 0.86], [0.04, 0.04, 0.05], [0.3, 0.05, 0.08], [0.75, 0.55, 0.1]];
 const VAN_COLS = [[0.8, 0.8, 0.8], [0.8, 0.8, 0.8], [0.45, 0.46, 0.5], [0.1, 0.2, 0.45], [0.7, 0.7, 0.72]];
@@ -148,22 +68,18 @@ export function createTraffic(scene, features, hf, cfg, ctx = {}) {
   const nCars = cfg.tier === 'low' ? 14 : cfg.tier === 'medium' ? 26 : 38;
   const nBus = cfg.tier === 'low' ? 2 : cfg.tier === 'medium' ? 3 : 4;
   const N = nCars + nBus;
-  const R_SPAWN = [190, 380], R_DESPAWN = 470;
+  const R_SPAWN = [110, 380], R_DESPAWN = 470;
 
   // ---- instanced mesh
-  const geo = buildGeometry();
+  const geo = buildVehicles();
   const mesh = new THREE.InstancedMesh(geo, null, N);
   mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
   const aInst = new THREE.InstancedBufferAttribute(new Float32Array(N * 4), 4); aInst.setUsage(THREE.DynamicDrawUsage);
   const aBody = new THREE.InstancedBufferAttribute(new Float32Array(N * 3), 3);
   const aAcc = new THREE.InstancedBufferAttribute(new Float32Array(N * 3), 3);
   geo.setAttribute('aInst', aInst); geo.setAttribute('aBody', aBody); geo.setAttribute('aAcc', aAcc);
-  const uBoxC = [], uBoxS = [], uWheel = [];
-  for (const t of TYPES) {
-    for (let i = 0; i < NB; i++) { const b = t.boxes[i]; uBoxC.push(new THREE.Vector4(b[0], b[1], b[2], b[6])); uBoxS.push(new THREE.Vector4(b[3], b[4], b[5], b[7])); }
-    uWheel.push(new THREE.Vector4(...t.wheel));
-  }
-  const uniforms = { uBoxC: { value: uBoxC }, uBoxS: { value: uBoxS }, uWheel: { value: uWheel } };
+  const uWheel = TYPE_DEFS.map((t) => new THREE.Vector4(...t.wheel));
+  const uniforms = { uWheel: { value: uWheel } };
   const mat = new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.3, metalness: 0.3, clearcoat: 0.8, clearcoatRoughness: 0.06, envMapIntensity: 1.3 });
   patchMaterial(mat, {
     key: 'traffic', uniforms,
@@ -212,21 +128,35 @@ export function createTraffic(scene, features, hf, cfg, ctx = {}) {
   }
   function laneOff(e) { return Math.min(2.0, Math.max(1.1, e.w * 0.26)); }
 
+  // pick an edge near a point 70-210 m ahead of the rider so traffic is always visible on the street being ridden
+  function pickAhead(map) {
+    const G = graph.G, ah = 70 + rnd() * 140, lat = (rnd() - 0.5) * 50;
+    const px = rider.x + Math.sin(rider.yaw) * ah + Math.cos(rider.yaw) * lat, pz = rider.z + Math.cos(rider.yaw) * ah - Math.sin(rider.yaw) * lat;
+    let best = null, bd = 60;
+    const cx = Math.floor(px / G), cz = Math.floor(pz / G);
+    for (let ax = -1; ax <= 1; ax++) for (let az = -1; az <= 1; az++) {
+      const list = map.get(graph.gk(cx + ax, cz + az)); if (!list) continue;
+      for (const e of list) { const m = e.n >> 1, d = Math.hypot(e.x[m] - px, e.z[m] - pz); if (d < bd && rnd() < 0.7) { bd = d; best = e; } }
+    }
+    return best;
+  }
   function spawn(v, cx, cz) {
-    const e = pickEdge(v.bus ? graph.busGrid : graph.grid, cx, cz);
+    const ahead = rnd() < 0.55 && rider.v >= 0;
+    const e = (ahead && pickAhead(v.bus ? graph.busGrid : graph.grid)) || pickEdge(v.bus ? graph.busGrid : graph.grid, cx, cz);
     if (!e) return false;
     const dir = rnd() < 0.5 ? 1 : -1, s = rnd() * e.len;
     edgeAt(e, dir, s, out);
     const dc = Math.hypot(out.x - cx, out.z - cz);
-    if (dc < R_SPAWN[0] * 0.9 || dc > R_DESPAWN - 30) return false;
+    // never pop in right in front of the camera; ahead spawns may be much closer than the general ring
+    if (dc < (ahead ? 75 : R_SPAWN[0] * 0.9) || dc > R_DESPAWN - 30) return false;
     for (const o of veh) if (o.on && o !== v && Math.hypot(o.x - out.x, o.z - out.z) < 14) return false;
     v.on = true; v.e = e; v.dir = dir; v.s = s;
     v.off = laneOff(e); v.offT = v.off; v.v = Math.min(e.lim * 0.6, 6); v.bx = v.bz = v.byaw = 0;
     v.stall = 0; v.ghost = 0; v.stop = 0; v.overtaking = false; v.lastStopE = -1;
-    if (v.bus) { v.type = 4; v.len = 10.6; v.hw = 1.25; v.vf = 0.9; }
+    if (v.bus) { v.type = 4; v.len = TYPE_DEFS[4].L; v.hw = 1.25; v.vf = 0.9; }
     else {
       const r = rnd(); v.type = e.rank >= 3 && r < 0.12 ? 3 : r < 0.38 ? 0 : r < 0.62 ? 1 : r < 0.82 ? 2 : 3;
-      v.len = [3.95, 4.6, 4.5, 5.2][v.type]; v.hw = v.type === 3 ? 1.0 : v.type === 2 ? 0.95 : 0.88; v.vf = 0.82 + rnd() * 0.3;
+      v.len = TYPE_DEFS[v.type].L; v.hw = TYPE_DEFS[v.type].W / 2; v.vf = 0.82 + rnd() * 0.3;
     }
     const cols = v.bus ? BUS_BODY : v.type === 3 ? VAN_COLS[(rnd() * VAN_COLS.length) | 0] : CAR_COLS[(rnd() * CAR_COLS.length) | 0];
     const i = v.idx;
@@ -287,7 +217,7 @@ export function createTraffic(scene, features, hf, cfg, ctx = {}) {
     for (let n = 0; n < N; n++) {
       const v = veh[n];
       if (!v.on) {
-        if (timeSpawn <= 0 && dt > 0) { if (spawn(v, camP.x, camP.z)) timeSpawn = 0.25; }
+        if (timeSpawn <= 0 && dt > 0) { if (spawn(v, camP.x, camP.z)) timeSpawn = 0.15; }
         else if (dt === 0 && live < 0) { /* paused: nothing */ }
         continue;
       }

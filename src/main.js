@@ -200,7 +200,7 @@ async function build() {
 
 
   progress(0.62, 'Raising buildings');
-  const buildings = await createBuildings(features, slicer, (f) => progress(0.62 + f * 0.2, `Raising buildings ${Math.round(f * 100)}%`), tc.tcIdx, roadIdx, bIdx);
+  const buildings = await createBuildings(features, slicer, (f) => progress(0.62 + f * 0.2, `Raising buildings ${Math.round(f * 100)}%`), tc.tcIdx, roadIdx, bIdx, hf);
   scene.add(buildings.group);
   world.buildings = buildings;
   const street = createStreetLife(features, hf, data.landcover, roadIdx, bIdx, routeIdx, roads.giveWays, cfg, tc, shopUnits, pubFronts, qh, st);

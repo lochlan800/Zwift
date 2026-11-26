@@ -52,7 +52,8 @@ transformed.y += abs(sin(aMisc.x)) * 0.014 * aMisc.y;
 {
   float m = aMat;
   float sk = mod(aMisc.w, 4.0), sl = mod(floor(aMisc.w / 4.0), 2.0);
-  if (aPart > 8.5 && floor(aMisc.w / 8.0) < 0.5) transformed *= 0.0;   // WEATHER: umbrella only while it rains
+  if (aPart > 8.5 && aPart < 9.5 && mod(floor(aMisc.w / 8.0), 2.0) < 0.5) transformed *= 0.0;   // WEATHER: umbrella only while it rains
+  if (aPart > 9.5 && floor(aMisc.w / 16.0) < 0.5) transformed *= 0.0;                                // dog lead only when walking a dog
   vec3 skin = sk < 0.5 ? vec3(0.50, 0.33, 0.25) : sk < 1.5 ? vec3(0.36, 0.21, 0.15) : sk < 2.5 ? vec3(0.22, 0.11, 0.075) : vec3(0.09, 0.045, 0.03);
   float part = aPart;
   vec3 col = m < 0.5 ? aShirt : m < 1.5 ? aTrou : m < 2.5 ? skin : m < 3.5 ? aHair : vec3(0.025, 0.022, 0.02);
@@ -149,6 +150,15 @@ function personGeometry() {
   // umbrella (hidden by the shader unless it is raining): canopy + pole held up beside the head
   const can = new THREE.SphereGeometry(1, 14, 5, 0, Math.PI * 2, 0, Math.PI / 2); can.scale(0.5, 0.17, 0.5); can.translate(0.16, 2.0, 0.1); add(can, 9, 6);
   add(limb(0.008, 0.008, 0.8, 0.16, 2.02, 0.1, 5), 9, 4);
+  // dog lead: thin line from the right hand to the dog's collar (dog trots 1.3 m ahead)
+  {
+    const hx = 0.215, hy = 0.84, hz = 0.06, cx = 0.0, cy = 0.6, cz = 1.5;
+    const len = Math.hypot(cx - hx, cy - hy, cz - hz);
+    const g = new THREE.BoxGeometry(0.007, 0.007, len, 1, 1, 1);
+    g.rotateX(-Math.asin((cy - hy) / len)); g.rotateY(Math.atan2(cx - hx, cz - hz));
+    g.translate((hx + cx) / 2, (hy + cy) / 2, (hz + cz) / 2);
+    add(g, 10, 4);
+  }
   return mk(A.map((a) => ({ ...a, geo: a.geo.index ? a.geo : a.geo })));
 }
 function dogGeometry() {
@@ -233,9 +243,20 @@ export function createPeople(scene, graph, features, cfg, ctx = {}) {
   const offsetFor = (e) => e.w * 0.5 + (e.road._verge || 0) + (e.road._pave || 2) * (0.35 + rnd() * 0.3);
   const sideFor = (e) => e.road._paveSide || (rnd() < 0.5 ? 1 : -1); // side in the road polyline frame (+ = left of polyline direction)
 
-  function pickEdge(cx, cz) {
-    for (let t = 0; t < 12; t++) {
-      const a = rnd() * 6.283, r = R_SPAWN[0] + rnd() * (R_SPAWN[1] - R_SPAWN[0]);
+  // seeding: any paved edge in the cells around the camera (so the crowd is visible immediately), town-centre first
+  function pickNear(cx, cz) {
+    const k = Math.ceil(120 / G), gx = Math.floor(cx / G), gz = Math.floor(cz / G);
+    let pick = null, n = 0;
+    for (let j = -k; j <= k; j++) for (let i = -k; i <= k; i++) {
+      const l = grid.get(gk(gx + i, gz + j)); if (!l) continue;
+      for (const e of l) { const w = e.road._tc ? 4 : 1; n += w; if (rnd() * n < w) pick = e; }
+    }
+    return pick;
+  }
+  function pickEdge(cx, cz, seed) {
+    if (seed) { const e = pickNear(cx, cz); if (e) return e; }
+    for (let t = 0; t < 14; t++) {
+      const a = rnd() * 6.283, r = seed ? 20 + rnd() * 100 : R_SPAWN[0] + rnd() * (R_SPAWN[1] - R_SPAWN[0]);
       const list = grid.get(gk(Math.floor((cx + Math.cos(a) * r) / G), Math.floor((cz + Math.sin(a) * r) / G)));
       if (list && list.length) {
         // town-centre streets are busier: weight them
@@ -246,15 +267,23 @@ export function createPeople(scene, graph, features, cfg, ctx = {}) {
     return null;
   }
 
-  function spawnWalker(p, cx, cz) {
-    const e = pickEdge(cx, cz);
+  function spawnWalker(p, cx, cz, seed) {
+    const e = pickEdge(cx, cz, seed);
     if (!e) return false;
     p.e = e; p.dir = rnd() < 0.5 ? 1 : -1; p.s = rnd() * e.len; p.side = sideFor(e);
     p.off = offsetFor(e);
     edgeAt(e, p.dir, p.s, out);
+    if (seed) {   // slide along the edge until the person stands 18-120 m from the camera
+      let ok = false;
+      for (let t = 0; t < 10 && !ok; t++) {
+        p.s = rnd() * e.len; edgeAt(e, p.dir, p.s, out);
+        const dd = Math.hypot(out.x - cx, out.z - cz); ok = dd > 18 && dd < 120;
+      }
+      if (!ok) return false;
+    }
     const x = out.x + out.tz * p.dir * p.side * p.off, z = out.z - out.tx * p.dir * p.side * p.off;
     const d = Math.hypot(x - cx, z - cz);
-    if (d < R_SPAWN[0] * 0.8) return false;
+    if (d < (seed ? 12 : R_SPAWN[0] * 0.8)) return false;
     dress(p);
     p.on = true; p.stand = 0; p.state = 0; p.dog = -1; p.fy = undefined;
     // chatting pair in the centre (second person is the next free walker slot)
@@ -317,7 +346,7 @@ export function createPeople(scene, graph, features, cfg, ctx = {}) {
     } else if (p.state === 1) { // crossing
       const L = Math.hypot(p.bx - p.ax, p.bz - p.az);
       p.cx += 1.3 * dt / L; p.v = 1.3; p.ph += 1.3 * dt * 4.4;
-      c.timer = 2.0;
+      if (traffic && traffic.requestStop) traffic.requestStop(p.ci, true, 2.0); else c.timer = 2.0;
       p.x = p.ax + (p.bx - p.ax) * Math.min(1, p.cx); p.z = p.az + (p.bz - p.az) * Math.min(1, p.cx);
       p.yaw = Math.atan2(p.bx - p.ax, p.bz - p.az);
       if (p.cx >= 1) { p.state = 2; p.t = 4 + rnd() * 8; }
@@ -328,10 +357,15 @@ export function createPeople(scene, graph, features, cfg, ctx = {}) {
   }
 
   let crossInit = false;
+  const lastCam = new THREE.Vector3();
   const camP = new THREE.Vector3();
   let spawnT = 0;
   function update(dt, camPos, riderPos, riderYaw, riderSpeed, paused) {
+    // (re)seed the crowd near the camera on first frame or after a teleport (route jump)
+    const jumped = !lastCam.initd || lastCam.distanceTo(camPos) > 150;
+    lastCam.copy(camPos); lastCam.initd = true;
     camP.copy(camPos);
+    if (jumped) { for (const q of peds) if (!q.cross) q.on = false; for (const g of dogs) g.on = false; }
     if (dt > 0.1) dt = 0.1;
     if (paused) dt = 0;
     if (!crossInit && crossings.length) {
@@ -348,7 +382,7 @@ export function createPeople(scene, graph, features, cfg, ctx = {}) {
     for (let i = 0; i < N; i++) {
       const p = peds[i];
       if (!p.on) {
-        if (!p.cross && (spawnT <= 0 || onN < maxWalk * 0.6) && dt > 0 && onN < maxWalk) { if (spawnWalker(p, camP.x, camP.z)) { spawnT = 0.12; onN++; } }
+        if (!p.cross && (spawnT <= 0 || jumped || onN < maxWalk * 0.6) && dt > 0 && onN < maxWalk) { if (spawnWalker(p, camP.x, camP.z, jumped || onN < maxWalk * 0.6)) { spawnT = 0.12; onN++; } }
         continue;
       }
       if (p.cross) { if (dt > 0) stepCrosser(p, dt, camP); }
@@ -367,7 +401,7 @@ export function createPeople(scene, graph, features, cfg, ctx = {}) {
       if (p.cross) { const c = crossings[p.ci]; const dx = c.x - camP.x, dz = c.z - camP.z; if (dx * dx + dz * dz > 320 * 320) continue; }
       setPose(mA, live * 16, p.x, p.y, p.z, p.yaw, 0);
       const o4 = live * 4, o3 = live * 3;
-      aM.aMisc.array[o4] = p.ph; aM.aMisc.array[o4 + 1] = p.v > 0.1 ? 1 : 0; aM.aMisc.array[o4 + 2] = p.scale; aM.aMisc.array[o4 + 3] = p.skin + 4 * p.sleeve + (p.umb && umbOn ? 8 : 0);
+      aM.aMisc.array[o4] = p.ph; aM.aMisc.array[o4 + 1] = p.v > 0.1 ? 1 : 0; aM.aMisc.array[o4 + 2] = p.scale; aM.aMisc.array[o4 + 3] = p.skin + 4 * p.sleeve + (p.umb && umbOn ? 8 : 0) + (p.dog >= 0 ? 16 : 0);
       aM.aShirt.array[o3] = p.shirt.r; aM.aShirt.array[o3 + 1] = p.shirt.g; aM.aShirt.array[o3 + 2] = p.shirt.b;
       aM.aTrou.array[o3] = p.trou.r; aM.aTrou.array[o3 + 1] = p.trou.g; aM.aTrou.array[o3 + 2] = p.trou.b;
       aM.aHair.array[o3] = p.hair.r; aM.aHair.array[o3 + 1] = p.hair.g; aM.aHair.array[o3 + 2] = p.hair.b;

@@ -56,10 +56,7 @@ function birdGeometry() {
     // flip so the normal points up for both sides
     const nrm = g.attributes.normal.array; for (let i = 0; i < nrm.length; i += 3) { nrm[i] = 0; nrm[i + 1] = 1; nrm[i + 2] = 0; }
     add(g, 1);
-    // underside copy facing down
-    const g2 = g.clone(); const i2 = g2.index.array; for (let i = 0; i < i2.length; i += 3) { const t = i2[i + 1]; i2[i + 1] = i2[i + 2]; i2[i + 2] = t; }
-    const n2 = g2.attributes.normal.array; for (let i = 0; i < n2.length; i += 3) n2[i + 1] = -1;
-    add(g2, 1);
+
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));

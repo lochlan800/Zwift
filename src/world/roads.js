@@ -3,7 +3,7 @@ import { SegmentIndex, splitByCell } from './heightfield.js';
 import { patchMaterial, GRID_GLSL, WET_GLSL } from './shared.js';
 
 // type codes used by the road shader
-export const RT = { MAJOR: 0, MAJOR_DASH: 1, MINOR: 2, SERVICE: 3, TRACK: 4, FOOT: 5, PATH: 6, PAVE: 7, KERB: 8, BALLAST: 9, RAIL: 10, PARAPET: 11, CYCLE: 12, TOWN: 13 };
+export const RT = { MAJOR: 0, MAJOR_DASH: 1, MINOR: 2, SERVICE: 3, TRACK: 4, FOOT: 5, PATH: 6, PAVE: 7, KERB: 8, BALLAST: 9, RAIL: 10, PARAPET: 11, CYCLE: 12, TOWN: 13, BLOCK: 14 };
 
 const KIND = {
   primary: { t: RT.MAJOR, w: 7.3, lift: 0.07, pave: true },
@@ -236,13 +236,38 @@ void roadSurface(vec3 w) {
   asph *= mix(1.0, ph > 0.5 ? 0.9 : 1.06, step(0.955, ph) * vMark);
   float tq = (abs(v) - hw * 0.5) / (hw * 0.16); float track = exp(-tq * tq);
   track *= vMark;
-  asph *= 1.0 - 0.06 * track;
+  // wheel paths: binder worn off -> lighter, slightly polished
+  asph *= 1.0 + 0.07 * track;
+  // macro mottling at 2-10 m
+  vec4 nm = texture2D(uNoise, w.xz / 17.0);
+  asph *= 0.9 + 0.2 * nm.g;
+  // utility trench reinstatements: long strips of newer, darker tarmac with sealed edges
+  {
+    float cellU = floor(u / 26.0);
+    float th = fract(sin(cellU * 47.13 + hw * 3.7) * 43758.5453);
+    float tl = 4.0 + 14.0 * fract(th * 7.1), tw = 0.6 + 0.6 * fract(th * 13.7);
+    float tu0 = cellU * 26.0 + fract(th * 3.3) * (26.0 - tl), tv0 = (fract(th * 5.9) - 0.5) * (2.0 * hw - tw - 0.4);
+    vec2 tfw = vec2(fwidth(u), fwidth(v)) + 1e-4;
+    float inT = smoothstep(tu0 - tfw.x, tu0 + tfw.x, u) * (1.0 - smoothstep(tu0 + tl - tfw.x, tu0 + tl + tfw.x, u))
+              * (1.0 - smoothstep(tw * 0.5 - tfw.y, tw * 0.5 + tfw.y, abs(v - tv0))) * step(0.45, th) * vMark;
+    float edge = inT * (1.0 - smoothstep(0.0, 0.06 + tfw.y, tw * 0.5 - abs(v - tv0)));
+    asph = mix(asph, lin3(vec3(0.20, 0.20, 0.205)) * (0.92 + 0.1 * n5.a), inT);
+    asph *= 1.0 - 0.35 * edge;
+  }
+  // kerb-side grit, debris and leaf litter
+  {
+    float kb = smoothstep(hw - 0.45, hw - 0.05, abs(v)) * vMark;
+    float grit = smoothstep(0.55, 0.75, n5.a) * kb;
+    float leaf = smoothstep(0.7, 0.85, texture2D(uNoise, w.xz / 0.9).b) * kb * smoothstep(0.4, 0.7, n2.g);
+    asph = mix(asph, lin3(vec3(0.38, 0.35, 0.30)), grit * 0.5);
+    asph = mix(asph, lin3(vec3(0.36, 0.24, 0.12)) * (0.7 + 0.5 * n4.r), leaf * 0.7);
+  }
   asph *= mix(1.0, 0.9 + 0.1 * n3.b, smoothstep(hw - 0.5, hw, abs(v)) * vMark); // edge grime
   // oil drips / tar bleed along the lane centres
   float lq = (abs(v) - hw * 0.5) / 0.45; float lane = exp(-lq * lq) * vMark;
   float oil = smoothstep(0.72, 0.9, n3.r) * lane;
   asph *= 1.0 - 0.22 * oil;
-  rAlb = asph; rRough = 0.9 - 0.06 * track - 0.25 * oil; rBump = n5.a * 0.5 + n4.a * 0.3;
+  rAlb = asph; rRough = 0.9 - 0.15 * track - 0.25 * oil; rBump = n5.a * 0.5 + n4.a * 0.3;
   // gully grates at the kerb every ~32 m, manhole covers in the lane every ~73 m
   if (vRoad.w < 3.5 && vMark > 0.5 && hw > 2.0) {
     float gu = abs(fract(u / 32.0 + 0.37) - 0.5) * 32.0;
@@ -305,6 +330,7 @@ void roadSurface(vec3 w) {
     paint *= 0.75 + 0.25 * n4.b;
     paint *= 1.0 - smoothstep(0.62, 0.75, n3.r) * 0.5; // worn
     paint *= 0.8 - 0.25 * smoothstep(0.4, 0.8, n2.b); // faded
+    paint *= 1.0 - step(0.82, texture2D(uNoise, vec2(u / 6.0, v)).r) * 0.8; // broken / worn-through sections
     rAlb = mix(rAlb, vec3(0.72, 0.72, 0.70), paint);
     // rural lanes without pavements: narrow grit shoulder
     if (rural && vMark > 0.5 && hw > 1.6) {
@@ -353,6 +379,17 @@ void roadSurface(vec3 w) {
       if (edge < 1.2) { rAlb = red * (0.85 + 0.2 * blister); rBump = blister; }
       else rAlb = lin3(vec3(0.50, 0.26, 0.22)) * (0.82 + 0.18 * jv);   // red block paving
     }
+  } else if (t == ${RT.BLOCK}) {
+    // block paving, herringbone-ish 0.2 x 0.1 m, warm grey/brindle
+    vec2 bq = vec2(w.x / 0.2, w.z / 0.1);
+    float rowb = floor(bq.y);
+    bq.x += mod(rowb, 2.0) * 0.5;
+    vec2 bf = fract(bq); vec2 bfw = fwidth(bq);
+    float bj = min(smoothstep(0.0, 0.08 + bfw.x, min(bf.x, 1.0 - bf.x)), smoothstep(0.0, 0.12 + bfw.y, min(bf.y, 1.0 - bf.y)));
+    bj = mix(bj, 1.0, smoothstep(0.3, 0.8, max(bfw.x, bfw.y)));
+    float bh = fract(sin(dot(floor(bq), vec2(12.9898, 78.233))) * 43758.5453);
+    vec3 bc = mix(lin3(vec3(0.52, 0.46, 0.40)), lin3(vec3(0.44, 0.34, 0.28)), step(0.6, bh)) * (0.88 + 0.18 * bh);
+    rAlb = bc * (0.72 + 0.28 * bj) * (0.9 + 0.12 * n2.g); rRough = 0.88; rBump = bj * 0.6;
   } else if (t == ${RT.KERB}) {
     // kerbstones: 0.9 m blocks with joints, top arris lighter
     float kj = smoothstep(0.0, 0.03 + fwidth(u / 0.9) * 0.9, min(fract(u / 0.9), 1.0 - fract(u / 0.9)));
@@ -453,7 +490,9 @@ export async function createRoads(features, hf, lc, roadIdx, slicer, bIdx = null
           return q === null && !(bIdx && bIdx.find(x, z));
         };
         const o0 = side > 0 ? hw + vg : -hw - vg - pw, o1 = side > 0 ? hw + vg + pw : -hw - vg;
-        strip(B, p, F, o0, o1, lift + (vg ? 0.1 : 0.12), r._paveTarmac ? RT.FOOT : RT.PAVE, hw + vg, null, keep);
+        const mid = p[p.length >> 1], dCore = Math.hypot(mid[0] + 100, mid[2] - 150);
+        const paveT = r._paveTarmac ? RT.FOOT : (r._tc || dCore < 750 || r._qh) ? RT.PAVE : RT.FOOT;
+        strip(B, p, F, o0, o1, lift + (vg ? 0.1 : 0.12), paveT, hw + vg, null, keep);
         wall(B, p, F, side * hw, lift - 0.02, lift + 0.12, -side, RT.KERB, hw, keep);
 
         // town centre: pave forecourts right up to the building line
@@ -470,8 +509,8 @@ export async function createRoads(features, hf, lc, roadIdx, slicer, bIdx = null
             const y0 = p[i][1] + lift + 0.12;
             const ox = p[i][0] + F.nx[i] * side * (hw + pw + d), oz = p[i][2] + F.nz[i] * side * (hw + pw + d);
             const y1 = Math.max(y0, hf.sample(ox, oz) + 0.06);
-            const inner = B.vert(p[i][0] + F.nx[i] * side * (hw + pw), y0, p[i][2] + F.nz[i] * side * (hw + pw), 0, 1, 0, F.L[i], side * (hw + pw), hw, RT.PAVE, 1);
-            const outer = B.vert(ox, y1, oz, 0, 1, 0, F.L[i], side * (hw + pw + d), hw, RT.PAVE, 1);
+            const inner = B.vert(p[i][0] + F.nx[i] * side * (hw + pw), y0, p[i][2] + F.nz[i] * side * (hw + pw), 0, 1, 0, F.L[i], side * (hw + pw), hw, RT.BLOCK, 1);
+            const outer = B.vert(ox, y1, oz, 0, 1, 0, F.L[i], side * (hw + pw + d), hw, RT.BLOCK, 1);
             const a = side > 0 ? inner : outer, b = side > 0 ? outer : inner;
             if (prev) B.idx.push(prev[0], a, prev[1], prev[1], a, b);
             prev = [a, b];

@@ -7,7 +7,7 @@ export const frontEnds = []; // front-edge endpoints of town-centre buildings (f
 export const pubFronts = [];
 // shop units found while building facades (used to place awnings, A-boards, the clock)
 export const shopUnits = [];
-const S_WALL = 0, S_ROOF = 1, S_FLAT = 2, S_CHIM = 3, S_SHOP = 5, S_POT = 6, S_BAY = 7, S_FASCIA = 8, S_RIDGE = 9, S_DARK = 10, S_CAP = 11;
+const S_WALL = 0, S_ROOF = 1, S_FLAT = 2, S_CHIM = 3, S_SHOP = 5, S_POT = 6, S_BAY = 7, S_FASCIA = 8, S_RIDGE = 9, S_DARK = 10, S_CAP = 11, S_METAL = 12;
 const CELL = 600;
 
 // --- growable vertex buffers -------------------------------------------------------------
@@ -81,6 +81,64 @@ function obb(poly) {
   };
 }
 
+function obbAxis(poly, ux, uz) {
+  let u0 = Infinity, u1 = -Infinity, v0 = Infinity, v1 = -Infinity;
+  for (const q of poly) { const u = q[0] * ux + q[1] * uz, v = -q[0] * uz + q[1] * ux; u0 = Math.min(u0, u); u1 = Math.max(u1, u); v0 = Math.min(v0, v); v1 = Math.max(v1, v); }
+  const cu = (u0 + u1) / 2, cv = (v0 + v1) / 2;
+  return { ux, uz, vx: -uz, vz: ux, cx: cu * ux - cv * uz, cz: cu * uz + cv * ux, hl: (u1 - u0) / 2, hw: (v1 - v0) / 2, area: (u1 - u0) * (v1 - v0) };
+}
+function clipHalfB(poly, a, b, c) {
+  const out = [];
+  for (let i = 0; i < poly.length; i++) {
+    const P = poly[i], Q = poly[(i + 1) % poly.length];
+    const dp = a * P[0] + b * P[1] - c, dq = a * Q[0] + b * Q[1] - c;
+    if (dp >= 0) out.push(P);
+    if ((dp >= 0) !== (dq >= 0)) { const t = dp / (dp - dq); out.push([P[0] + (Q[0] - P[0]) * t, P[1] + (Q[1] - P[1]) * t]); }
+  }
+  return out;
+}
+// Split long sloping terraces into house-width units stepped to the street gradient, and add
+// single-storey rear outshuts to many old terrace houses.
+function expandTerraces(list, hf, roadIdx) {
+  if (!hf) return list;
+  const out = [];
+  const tq = { seg: null, d: 0, t: 0, y: 0 };
+  for (const b of list) {
+    if (!b.p || b.p.length < 3 || !(b.k === 'terrace' || (b._old && b.k === 'house')) || (b.r || 'flat') === 'flat') { out.push(b); continue; }
+    const O = obb(b.p);
+    if (!O || O.hl < 6) { out.push(b); continue; }
+    const P0 = [O.cx - O.ux * O.hl, O.cz - O.uz * O.hl], P1 = [O.cx + O.ux * O.hl, O.cz + O.uz * O.hl];
+    const dh = hf.sample(P1[0], P1[1]) - hf.sample(P0[0], P0[1]);
+    const n = Math.max(1, Math.round(O.hl * 2 / 5.4));
+    // rear side: the long side away from the nearest road
+    const rv = roadIdx && roadIdx.query(O.cx + O.vx * (O.hw + 6), O.cz + O.vz * (O.hw + 6), 6, null, tq) ? -1 : 1;
+    const pieces = [];
+    if (Math.abs(dh) > 0.7 && n > 1) {
+      const uvp = b.p.map((q) => { const dx = q[0] - O.cx, dz = q[1] - O.cz; return [dx * O.ux + dz * O.uz, dx * O.vx + dz * O.vz]; });
+      for (let k = 0; k < n; k++) {
+        const u0 = -O.hl + (2 * O.hl * k) / n, u1 = -O.hl + (2 * O.hl * (k + 1)) / n;
+        let pc = clipHalfB(clipHalfB(uvp, 1, 0, u0), -1, 0, -u1);
+        if (pc.length < 3) continue;
+        const pxz = pc.map(([u, v]) => [O.cx + u * O.ux + v * O.vx, O.cz + u * O.uz + v * O.vz]);
+        let base = Infinity; for (const q of pxz) base = Math.min(base, hf.sample(q[0], q[1]));
+        pieces.push({ ...b, p: pxz, b: base, r: 'gabled', _axis: [O.ux, O.uz], _parent: b, _uc: (u0 + u1) / 2, _uw: u1 - u0 });
+      }
+    } else pieces.push(b);
+    for (const pc of pieces) out.push(pc);
+    // rear outshuts
+    if (b._old) {
+      for (let k = 0; k < n; k++) {
+        if (hash2b(b.p[0][0] + k * 3.1, b.p[0][1] - k) > 0.55) continue;
+        const uc = -O.hl + (2 * O.hl * (k + 0.5)) / n, w = Math.min(2.6, (2 * O.hl) / n - 0.6), d = 2.8;
+        const v0 = rv * O.hw, v1 = rv * (O.hw + d);
+        const rect = [[uc - w / 2, v0], [uc + w / 2, v0], [uc + w / 2, v1], [uc - w / 2, v1]].map(([u, v]) => [O.cx + u * O.ux + v * O.vx, O.cz + u * O.uz + v * O.vz]);
+        let base = Infinity; for (const q of rect) base = Math.min(base, hf.sample(q[0], q[1]));
+        out.push({ p: rect, h: 3.3, e: 2.4, b: base, r: 'gabled', k: 'shed', c: b.c, _old: true, _parent: b });
+      }
+    }
+  }
+  return out;
+}
 function triOriented(G, a, b, c, nx, ny, nz) {
   const P = G.p;
   const ux = P[b * 3] - P[a * 3], uy = P[b * 3 + 1] - P[a * 3 + 1], uz = P[b * 3 + 2] - P[a * 3 + 2];
@@ -133,8 +191,9 @@ function addBuilding(G, b, rnd, tcIdx, roadIdx, bIdx) {
   const kind = Math.max(0, KINDS.indexOf(b.k));
   const base = b.b;
   let H = Math.max(2.2, b.h || 6), E = Math.min(H, Math.max(2.0, b.e || H));
+  if (b._old && (b.r || 'flat') !== 'flat' && b.k !== 'church') { const j = (hash2b(b.p[0][0] * 1.3, b.p[0][1] * 0.7) - 0.5) * 0.5; E += j; H += j + (hash2b(b.p[0][1], b.p[0][0]) - 0.5) * 0.3; }
   let roof = b.r || 'flat';
-  const O = obb(poly);
+  const O = b._axis ? obbAxis(poly, b._axis[0], b._axis[1]) : obb(poly);
   if (!O) return;
   if (roof !== 'flat' && (H - E < 0.4 || O.hw < 1.2)) roof = 'flat';
   // keep pitch plausible (<= 52 deg)
@@ -164,7 +223,7 @@ function addBuilding(G, b, rnd, tcIdx, roadIdx, bIdx) {
     for (let i = 0; i < poly.length; i++) if (concave[i]) { const d = Math.hypot(x - poly[i][0], z - poly[i][1]); if (d < 1.6) ao = Math.min(ao, 0.45 + 0.55 * d / 1.6); }
     if (bIdx) {
       const nb = bIdx.find(x + 0.01, z + 0.01, 0.7);
-      if (nb && nb !== b) ao = Math.min(ao, 0.55);
+      if (nb && nb !== (b._parent || b)) ao = Math.min(ao, 0.55);
     }
     return ao;
   };
@@ -393,12 +452,20 @@ function addBuilding(G, b, rnd, tcIdx, roadIdx, bIdx) {
     if (kind === 1 || O.hl > 9) { const sp = b._old ? 5.2 : 6.5; for (let u = -O.hl + sp * 0.5; u < O.hl - 1.5; u += sp + rnd() * 0.6) spots.push(u); }
     else if (rnd() < (b._tc ? 1 : 0.85)) { spots.push((rnd() < 0.5 ? -1 : 1) * (O.hl - (roof === 'hipped' ? O.hw * 0.9 : 0.6))); if (rnd() < (b._tc ? 0.7 : 0.35)) spots.push(-spots[0]); }
     for (const u of spots) {
-      const top = base + roofH(u, 0) + 0.9 + rnd() * 0.4;
+      const top = base + roofH(u, 0) + 0.6 + rnd() * 1.0;
       const yb = base + roofH(u, 0.5) - 0.6;
       prism(u, 0, 0.45, 0.7, yb, top, S_CHIM, S_FLAT);
       prism(u, 0, 0.52, 0.77, top - 0.2, top + 0.02, S_CAP, S_CAP);
       const np = 2 + (rnd() < 0.4 ? 1 : 0);
       for (let k = 0; k < np; k++) prism(u, (k - (np - 1) / 2) * 0.42, 0.1, 0.1, top - 0.02, top + 0.32 + rnd() * 0.12, S_POT, S_POT);
+      const ra = rnd();
+      if (ra < 0.3) { // TV aerial strapped to the stack
+        prism(u + 0.35, 0.5, 0.02, 0.02, top - 0.6, top + 1.7, S_DARK, S_DARK);
+        prism(u + 0.35, 0.5, 0.5, 0.012, top + 1.45, top + 1.48, S_DARK, S_DARK);
+        prism(u + 0.35, 0.5, 0.35, 0.012, top + 1.2, top + 1.23, S_DARK, S_DARK);
+      } else if (ra < 0.45) { // satellite dish on the stack
+        prism(u + 0.5, -0.2, 0.03, 0.28, top - 0.85, top - 0.3, S_METAL, S_METAL);
+      }
     }
   }
   // ---- St Peter's: west tower with spire; mills: tall chimney
@@ -585,6 +652,13 @@ void buildingSurface(vec3 w, vec3 Nw) {
       col = mix(col, col * vec3(0.78, 0.86, 0.72), clamp(north * 0.45 * smoothstep(0.45, 0.8, n3.g) + damp * 0.35 * smoothstep(0.4, 0.75, n4.g), 0.0, 0.6));
       col = mix(col, lin3(vec3(0.78, 0.77, 0.72)), (brick ? 0.18 : 0.0) * damp * smoothstep(0.7, 0.9, wn.a));
       bRough = clamp(bRough + 0.05 * streak, 0.0, 1.0);
+    }
+    // ground contact: damp band and a thin strip of dirt / weeds at the foot of the wall
+    if (!shop) {
+      float gc = 1.0 - smoothstep(0.0, 0.4, hgt);
+      col *= 1.0 - 0.28 * gc;
+      float wd = (1.0 - smoothstep(0.0, 0.1, hgt)) * smoothstep(0.55, 0.8, texture2D(uNoise, vec2(u / 0.4, 0.5)).g);
+      col = mix(col, lin3(vec3(0.20, 0.24, 0.12)), wd * 0.7);
     }
     // baked AO (inside corners, neighbours)
     col *= mix(0.8, 1.0, vAO);
@@ -823,6 +897,18 @@ void buildingSurface(vec3 w, vec3 Nw) {
     if (old) col *= 0.88 + 0.12 * n4.r;
     bAlb = col * (0.9 + 0.15 * n4.b);
     bRough = slate ? 0.72 : 0.8;
+    // occasional roof-lights
+    {
+      float cellA = floor(ac / 6.5);
+      float hs = hb(cellA * 3.1 + seed * 0.37);
+      float up = (w.y - vW.w) / slope;
+      vec2 fwr = vec2(fwidth(ac), fwidth(up)) + 1e-4;
+      float c0 = cellA * 6.5 + 3.25;
+      float sky = boxAA(vec2(ac, up), vec2(c0 - 0.3, 1.0), vec2(c0 + 0.3, 1.9), fwr) * step(hs, 0.18);
+      float skyF = clamp(sky - boxAA(vec2(ac, up), vec2(c0 - 0.25, 1.05), vec2(c0 + 0.25, 1.85), fwr), 0.0, 1.0);
+      bAlb = mix(bAlb, lin3(vec3(0.05, 0.06, 0.07)), sky); bAlb = mix(bAlb, lin3(vec3(0.2, 0.2, 0.21)), skyF);
+      bRough = mix(bRough, 0.12, sky - skyF);
+    }
     bBump = shadow * 0.8 + (1.0 - gap) * 0.3;
   } else if (surf == 8) {
     vec3 fc = accentFascia(seed);
@@ -833,6 +919,8 @@ void buildingSurface(vec3 w, vec3 Nw) {
     float rj = fract(vW.x / 0.45);
     vec3 rcol = (c == 0 || c == 3 || c == 6) ? lin3(vec3(0.42, 0.26, 0.20)) : lin3(vec3(0.24, 0.25, 0.26));
     bAlb = rcol * (0.75 + 0.35 * smoothstep(0.0, 0.25, rj)); bRough = 0.6; bBump = rj;
+  } else if (surf == 12) {
+    bAlb = lin3(vec3(0.62, 0.63, 0.64)); bRough = 0.4; bMetal = 0.3;
   } else if (surf == 10) {
     bAlb = lin3(vec3(0.05, 0.05, 0.055)); bRough = 0.35; bMetal = 0.0;
   } else if (surf == 11) {
@@ -856,10 +944,10 @@ void buildingSurface(vec3 w, vec3 Nw) {
 }
 `;
 
-export async function createBuildings(features, slicer, onProgress, tcIdx = null, roadIdx = null, bIdx = null) {
+export async function createBuildings(features, slicer, onProgress, tcIdx = null, roadIdx = null, bIdx = null, hf = null) {
   const cells = new Map();
   const rnd = mulberry32(1234);
-  const list = features.buildings;
+  const list = expandTerraces(features.buildings, hf, roadIdx);
   for (let i = 0; i < list.length; i++) {
     const b = list[i];
     const q = b.p[0];
