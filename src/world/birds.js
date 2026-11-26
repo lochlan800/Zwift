@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { patchMaterial } from './shared.js';
+import { patchMaterial, U } from './shared.js';
 import { setPose } from './lifeutil.js';
 import { mulberry32 } from './heightfield.js';
 
@@ -134,8 +134,10 @@ export function createBirds(scene, hf, lc, features, cfg) {
     }
     const arr = mesh.instanceMatrix.array, col = mesh.instanceColor.array, am = aMisc.array;
     let n = 0;
+    const vis = Math.max(0.05, 1 - 0.85 * U.uStorm.value - 0.35 * U.uRain.value);   // WEATHER: fewer birds in rain/storm
     for (let i = 0; i < B.length; i++) {
       const b = B[i];
+      if (((i * 0.6180339) % 1) > vis) continue;
       if (b.kind === 0) {
         const f = b.fl, a = f.a0 + b.da, r = f.r + b.dr;
         const nx = f.cx + Math.cos(a) * r, nz = f.cz + Math.sin(a) * r, ny = f.alt + b.dy + Math.sin(time * 0.3 + b.ph) * 2.5;

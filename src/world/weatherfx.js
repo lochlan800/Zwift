@@ -86,7 +86,7 @@ export class LensDropsEffect extends Effect {
         vec2 p = (uv - 0.5) * vec2(asp, 1.0);
         float e = 1.5 * texelSize.y;
         vec2 h0 = wxH(p), hx = wxH(p + vec2(e, 0.0)), hy = wxH(p + vec2(0.0, e));
-        float f0 = h0.x + h0.y * 0.25, fx = hx.x + hx.y * 0.25, fy = hy.x + hy.y * 0.25;
+        float f0 = h0.x + h0.y * 0.03, fx = hx.x + hx.y * 0.03, fy = hy.x + hy.y * 0.03;
         vec2 n = vec2(fx - f0, fy - f0) / e;
         if (any(isnan(n)) || any(isinf(n))) n = vec2(0.0);
         float inDrop = wxSS(0.05, 0.45, h0.x);

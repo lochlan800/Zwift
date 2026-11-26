@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { patchMaterial } from './shared.js';
+import { patchMaterial, U } from './shared.js';
 import { edgeAt, setPose, depthMaterialFor } from './lifeutil.js';
 import { mulberry32 } from './heightfield.js';
 
@@ -51,11 +51,13 @@ animate(int(aPart + 0.5), aMisc.x, aMisc.y, transformed, nDummy);
 transformed.y += abs(sin(aMisc.x)) * 0.014 * aMisc.y;
 {
   float m = aMat;
-  float sk = mod(aMisc.w, 4.0), sl = floor(aMisc.w / 4.0);
+  float sk = mod(aMisc.w, 4.0), sl = mod(floor(aMisc.w / 4.0), 2.0);
+  if (aPart > 8.5 && floor(aMisc.w / 8.0) < 0.5) transformed *= 0.0;   // WEATHER: umbrella only while it rains
   vec3 skin = sk < 0.5 ? vec3(0.50, 0.33, 0.25) : sk < 1.5 ? vec3(0.36, 0.21, 0.15) : sk < 2.5 ? vec3(0.22, 0.11, 0.075) : vec3(0.09, 0.045, 0.03);
   float part = aPart;
   vec3 col = m < 0.5 ? aShirt : m < 1.5 ? aTrou : m < 2.5 ? skin : m < 3.5 ? aHair : vec3(0.025, 0.022, 0.02);
   if (m > 4.5) col = (sl > 0.5) ? aShirt : skin;        // forearm: long sleeve or bare
+  if (m > 5.5) col = aTrou * 0.6 + 0.015;                // umbrella canopy
   vMatCol = col;
   vRough = m < 0.5 ? 0.9 : m < 1.5 ? 0.85 : m < 2.5 ? 0.5 : m < 3.5 ? 0.75 : 0.55;
   transformed *= aMisc.z;   // person scale (height variety)
@@ -144,6 +146,9 @@ function personGeometry() {
     add(limb(0.038, 0.03, 0.28, s * 0.215, 1.12, 0, 8), pf, 5);
     add(ell(0.034, 0.045, 0.026, s * 0.215, 0.81, 0.01, 7, 5), pf, 2);
   }
+  // umbrella (hidden by the shader unless it is raining): canopy + pole held up beside the head
+  const can = new THREE.SphereGeometry(1, 14, 5, 0, Math.PI * 2, 0, Math.PI / 2); can.scale(0.5, 0.17, 0.5); can.translate(0.16, 2.0, 0.1); add(can, 9, 6);
+  add(limb(0.008, 0.008, 0.8, 0.16, 2.02, 0.1, 5), 9, 4);
   return mk(A.map((a) => ({ ...a, geo: a.geo.index ? a.geo : a.geo })));
 }
 function dogGeometry() {
@@ -202,6 +207,7 @@ export function createPeople(scene, graph, features, cfg, ctx = {}) {
     });
     mesh.material = mat;
     mesh.customDepthMaterial = depthMaterialFor(pars, beg, nrm, {});
+    mat.side = THREE.DoubleSide;
     mesh.frustumCulled = false; mesh.castShadow = shadow; mesh.receiveShadow = true; mesh.count = 0; mesh.name = key;
     scene.add(mesh);
     return { mesh, attrs };
@@ -220,7 +226,7 @@ export function createPeople(scene, graph, features, cfg, ctx = {}) {
 
   function dress(p) {
     p.shirt.set(SHIRTS[(rnd() * SHIRTS.length) | 0]); p.trou.set(TROUS[(rnd() * TROUS.length) | 0]); p.hair.set(HAIR[(rnd() * HAIR.length) | 0]);
-    p.skin = rnd() < 0.78 ? 0 : (rnd() * 4) | 0; p.sleeve = rnd() < 0.7 ? 1 : 0;
+    p.skin = rnd() < 0.78 ? 0 : (rnd() * 4) | 0; p.sleeve = rnd() < 0.7 ? 1 : 0; p.umb = rnd() < 0.6 ? 1 : 0;
     p.scale = 0.9 + rnd() * 0.12 + (rnd() < 0.5 ? 0 : 0.03);
     p.sp = 1.05 + rnd() * 0.45;
   }
@@ -333,12 +339,16 @@ export function createPeople(scene, graph, features, cfg, ctx = {}) {
       for (let i = 0; i < crossings.length; i++) { initCrosser(peds[nWalk + i * 2], i, 0); initCrosser(peds[nWalk + i * 2 + 1], i, 1); }
     }
     spawnT -= dt;
+    // WEATHER: fewer people out in the rain; umbrellas up once it is properly raining
+    const rainK = Math.min(1, U.uRain.value * 1.2), maxWalk = nWalk * (1 - 0.7 * rainK), umbOn = U.uRain.value > 0.3;
+    let onN = 0;
+    for (let i = 0; i < nWalk; i++) if (peds[i].on) onN++;
     let live = 0, dl = 0;
     const R2 = R_DESPAWN * R_DESPAWN;
     for (let i = 0; i < N; i++) {
       const p = peds[i];
       if (!p.on) {
-        if (!p.cross && spawnT <= 0 && dt > 0) { if (spawnWalker(p, camP.x, camP.z)) spawnT = 0.12; }
+        if (!p.cross && spawnT <= 0 && dt > 0 && onN < maxWalk) { if (spawnWalker(p, camP.x, camP.z)) { spawnT = 0.12; onN++; } }
         continue;
       }
       if (p.cross) { if (dt > 0) stepCrosser(p, dt, camP); }
@@ -346,7 +356,7 @@ export function createPeople(scene, graph, features, cfg, ctx = {}) {
         if (dt > 0) stepWalker(p, dt);
         walkerPos(p);
         const dx = p.x - camP.x, dz = p.z - camP.z;
-        if (dx * dx + dz * dz > R2) { p.on = false; if (p.dog >= 0) { dogs[p.dog].on = false; p.dog = -1; } continue; }
+        if ((dx * dx + dz * dz > R2) || (onN > maxWalk + 1 && dt > 0 && rnd() < 0.02 && dx * dx + dz * dz > 40 * 40)) { onN--; p.on = false; if (p.dog >= 0) { dogs[p.dog].on = false; p.dog = -1; } continue; }
       }
     }
     // upload people (compact)
@@ -357,7 +367,7 @@ export function createPeople(scene, graph, features, cfg, ctx = {}) {
       if (p.cross) { const c = crossings[p.ci]; const dx = c.x - camP.x, dz = c.z - camP.z; if (dx * dx + dz * dz > 320 * 320) continue; }
       setPose(mA, live * 16, p.x, p.y, p.z, p.yaw, 0);
       const o4 = live * 4, o3 = live * 3;
-      aM.aMisc.array[o4] = p.ph; aM.aMisc.array[o4 + 1] = p.v > 0.1 ? 1 : 0; aM.aMisc.array[o4 + 2] = p.scale; aM.aMisc.array[o4 + 3] = p.skin + 4 * p.sleeve;
+      aM.aMisc.array[o4] = p.ph; aM.aMisc.array[o4 + 1] = p.v > 0.1 ? 1 : 0; aM.aMisc.array[o4 + 2] = p.scale; aM.aMisc.array[o4 + 3] = p.skin + 4 * p.sleeve + (p.umb && umbOn ? 8 : 0);
       aM.aShirt.array[o3] = p.shirt.r; aM.aShirt.array[o3 + 1] = p.shirt.g; aM.aShirt.array[o3 + 2] = p.shirt.b;
       aM.aTrou.array[o3] = p.trou.r; aM.aTrou.array[o3 + 1] = p.trou.g; aM.aTrou.array[o3 + 2] = p.trou.b;
       aM.aHair.array[o3] = p.hair.r; aM.aHair.array[o3 + 1] = p.hair.g; aM.aHair.array[o3 + 2] = p.hair.b;

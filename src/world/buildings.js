@@ -707,7 +707,7 @@ void buildingSurface(vec3 w, vec3 Nw) {
         vec3 T = sign(det) * (dux * r1 + duy * r2);
         T = normalize(T - Nw * dot(T, Nw) + vec3(1e-6));
         vec3 vv = normalize(cameraPosition - w);
-        float ndv = max(dot(vv, Nw), 0.2);
+        float ndv = max(dot(vv, Nw), 0.5);
         vec2 lp2 = lp - vec2(dot(vv, T), vv.y) * depth / ndv;
         float open = boxAA(lp, lo, hi, fw);                 // hole in the wall face
         float back = boxAA(lp2, lo, hi, fw);                // frame plane seen through the hole
