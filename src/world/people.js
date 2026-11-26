@@ -348,7 +348,7 @@ export function createPeople(scene, graph, features, cfg, ctx = {}) {
     for (let i = 0; i < N; i++) {
       const p = peds[i];
       if (!p.on) {
-        if (!p.cross && spawnT <= 0 && dt > 0 && onN < maxWalk) { if (spawnWalker(p, camP.x, camP.z)) { spawnT = 0.12; onN++; } }
+        if (!p.cross && (spawnT <= 0 || onN < maxWalk * 0.6) && dt > 0 && onN < maxWalk) { if (spawnWalker(p, camP.x, camP.z)) { spawnT = 0.12; onN++; } }
         continue;
       }
       if (p.cross) { if (dt > 0) stepCrosser(p, dt, camP); }

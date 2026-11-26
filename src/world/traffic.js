@@ -351,7 +351,7 @@ export function createTraffic(scene, features, hf, cfg, ctx = {}) {
         if (along < 0.5 || along > lookRange + olen) continue;
         const lat = Math.abs(dx * fz - dz * fx);
         if (lat > v.hw + ohw + 0.35) continue;
-        const g = along - (v.len + olen) * 0.5;
+        const g = along - (v.len + olen) * 0.5 - (isRider ? 6 : 0); // keep clear of the chase camera behind the rider
         if (g < gap) { gap = g; bv = ov; blockRider = isRider; }
       }
       // zebra crossings with someone on them
