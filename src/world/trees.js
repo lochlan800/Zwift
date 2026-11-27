@@ -699,15 +699,15 @@ export function createTrees(features, hf, opts) {
     const mat = new THREE.MeshStandardMaterial({ map: leafTex, alphaTest: 0.42, side: THREE.DoubleSide, roughness: 1.0, metalness: 0, envMapIntensity: 0.5, color: 0xffffff, vertexColors: true });
     patchMaterial(mat, {
       key: 'treesL' + lod, uniforms: { uNear, uD0 },
-      vertexPars: `attribute vec2 aT; attribute vec3 aC; attribute vec4 aTint; varying vec2 vT; varying vec3 vTint; varying vec3 vCW; varying float vIDist; uniform float uTime; uniform float uNear; uniform vec2 uWind;`,
+      vertexPars: `attribute vec2 aT; attribute vec3 aC; attribute vec4 aTint; varying vec2 vT; varying vec3 vTint; varying vec3 vCW; varying float vCR; varying float vIDist; uniform float uTime; uniform float uNear; uniform vec2 uWind;`,
       vertex: {
         begin_vertex: `$
           vT = aT; vTint = aTint.rgb;
           ${WIND_VERT}
-          vCW = (modelMatrix * instanceMatrix * vec4(aC.x, ym, aC.z, 1.0)).xyz;
+          vCW = (modelMatrix * instanceMatrix * vec4(aC.x, ym, aC.z, 1.0)).xyz; vCR = sx;
           vIDist = distance(ip, cameraPosition);`,
       },
-      fragmentPars: `${GRID_GLSL} ${OCC_GLSL} varying vec2 vT; varying vec3 vTint; varying vec3 vCW; varying float vIDist; uniform float uNear; uniform float uD0; float hbSun;`,
+      fragmentPars: `${GRID_GLSL} ${OCC_GLSL} varying vec2 vT; varying vec3 vTint; varying vec3 vCW; varying float vCR; varying float vIDist; uniform float uNear; uniform float uD0; float hbSun;`,
       fragment: {
         map_fragment: `$
           {
@@ -725,8 +725,8 @@ export function createTrees(features, hf, opts) {
               float Lr = length(cr); vec3 dr = cr / max(Lr, 1e-3);
               if (vT.x > 0.9) {
                 float tr_ = dot(cv, dr);
-                if (dc < 3.0 + 3.5 * hh) discard;
-                if (tr_ > 0.0 && tr_ < Lr - 1.0 && length(cv - dr * tr_) < 2.0 + 1.6 * hh) discard;
+                if (dc < 3.0 + 0.3 * vCR + 3.5 * hh) discard;
+                if (tr_ > 0.0 && tr_ < Lr - 1.0 && length(cv - dr * tr_) < 2.0 + 0.45 * vCR + 1.6 * hh) discard;
               } else {
                 vec3 fv = vAerialWorld - cameraPosition;
                 float tf = dot(fv, dr);
