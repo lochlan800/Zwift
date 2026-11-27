@@ -18,8 +18,8 @@ const CRANK_ARM = Math.hypot(0.05, CRANK);
 
 // original team kit palette
 const PAL = {
-  jersey: 0xff5a2a, navy: 0x1c2140, rimDark: 0x0e1020, accent: 0xffd23f, white: 0xf4f6fa,
-  bibs: 0x1c2140, chamois: 0x8ea6c4, skin: 0xd6a386, sock: 0xf4f6fa, glove: 0x1a1c22,
+  jersey: 0xe84f26, navy: 0x1c2140, rimDark: 0x0e1020, accent: 0xffd23f, white: 0xf4f6fa,
+  bibs: 0x1c2140, chamois: 0x8ea6c4, skin: 0xc8977c, sock: 0xf4f6fa, glove: 0x1a1c22,
   helmet: 0x1c2140, vent: 0x07080d, visor: 0x14171e, lens: 0x0c0e13,
   frame: 0x2d6fe0, frameDark: 0x17191f, stripe: 0xffd23f, bartape: 0xf1f3f6,
   tyre: 0x161616, rim: 0x23262d, alu: 0xc9ced6, chain: 0x8e959f, saddle: 0x101216,
@@ -364,7 +364,8 @@ function buildBody() {
   skinGeo(E([0, -0.004, -0.15], [0.064, 0.056, 0.105], 14), H, { col: 'helmet' });
   skinGeo(E([0, 0.058, -0.02], [0.082, 0.04, 0.115], 14), H, { col: 'helmet' });
   skinGeo(E([0, 0.033, 0.098], [0.098, 0.022, 0.03], 12), H, { col: 'rimDark' });
-  for (const s of [-1, 1]) skinGeo(tubeGeo([s * 0.035, 0.115, 0.085], [s * 0.05, 0.07, -0.19], 0.0055, 0.0055, 6), H, { col: 'vent' });
+  // flush vent slots on the shell (no protruding geometry)
+  for (const s of [-1, 1]) for (const z of [0.06, -0.01, -0.08]) skinGeo(E([s * 0.034, 0.1, z], [0.012, 0.004, 0.026], 8), H, { col: 'vent' });
   for (const s of [-1, 1]) for (const z of [-0.04, 0, 0.04]) {
     skinGeo(E([s * 0.04, 0.108, z], [0.011, 0.0045, 0.02], 8), H, { col: 'vent' });
   }
@@ -441,7 +442,7 @@ export function createRider() {
         #ifdef USE_SHEEN
           material.sheenColor *= (1.0 - vSkin) * (1.0 - 0.6 * rbSeam);
         #endif`,
-      emissivemap_fragment: '$\n totalEmissiveRadiance += vSkin * diffuseColor.rgb * vec3(0.16, 0.05, 0.03) * 0.55;',
+      emissivemap_fragment: '$\n totalEmissiveRadiance += vSkin * diffuseColor.rgb * vec3(0.10, 0.035, 0.022) * 0.5;',
     },
   });
 
