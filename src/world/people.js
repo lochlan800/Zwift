@@ -71,14 +71,14 @@ attribute vec4 aMisc;
 attribute vec3 aShirt; attribute vec3 aTrou; attribute vec3 aHair;
 varying vec3 vMatCol; varying float vRough;
 vec3 pivotOf(int p) {
-  if (p == 1) return vec3(0.085, 0.47, 0.24);  if (p == 2) return vec3(-0.085, 0.47, 0.24);
-  if (p == 3) return vec3(0.085, 0.47, -0.24); if (p == 4) return vec3(-0.085, 0.47, -0.24);
-  if (p == 5) return vec3(0.0, 0.6, -0.34);
+  if (p == 1) return vec3(0.085, 0.40, 0.24);  if (p == 2) return vec3(-0.085, 0.40, 0.24);
+  if (p == 3) return vec3(0.085, 0.40, -0.24); if (p == 4) return vec3(-0.085, 0.40, -0.24);
+  if (p == 5) return vec3(0.0, 0.5, -0.34);
   return vec3(0.0);
 }
 vec3 rotX(vec3 p, vec3 pv, float th) { float c = cos(th), s = sin(th); vec3 d = p - pv; return pv + vec3(d.x, d.y * c - d.z * s, d.y * s + d.z * c); }
 void animate(int part, float a, float sw, inout vec3 p, inout vec3 n) {
-  float s = sin(a) * 0.6 * sw;
+  float s = sin(a) * 0.42 * sw;
   float th = 0.0;
   if (part == 1 || part == 4) th = s; else if (part == 2 || part == 3) th = -s;
   if (part >= 1 && part <= 4) { p = rotX(p, pivotOf(part), th); n = rotX(n, vec3(0.0), th); }
@@ -148,8 +148,8 @@ function personGeometry() {
     add(limb(0.058, 0.042, 0.4, s * 0.09, 0.48, 0, 8), ps, 1);
     const shoe = new THREE.BoxGeometry(0.095, 0.07, 0.27, 1, 1, 1); shoe.translate(s * 0.09, 0.045, 0.06); add(shoe, ps, 4);
     add(ell(0.062, 0.062, 0.062, s * 0.215, 1.415, 0, 8, 6), pu, 0);
-    add(limb(0.05, 0.04, 0.3, s * 0.215, 1.42, 0, 8), pu, 0);
-    add(limb(0.038, 0.03, 0.28, s * 0.215, 1.12, 0, 8), pf, 5);
+    add(limb(0.058, 0.046, 0.3, s * 0.215, 1.42, 0, 8), pu, 0);
+    add(limb(0.045, 0.034, 0.28, s * 0.215, 1.12, 0, 8), pf, 5);
     add(ell(0.034, 0.045, 0.026, s * 0.215, 0.81, 0.01, 7, 5), pf, 2);
   }
   // umbrella (hidden by the shader unless it is raining): canopy + pole held up beside the head
@@ -157,7 +157,7 @@ function personGeometry() {
   add(limb(0.008, 0.008, 0.8, 0.16, 2.02, 0.1, 5), 9, 4);
   // dog lead: thin line from the right hand to the dog's collar (dog trots 1.3 m ahead)
   {
-    const hx = 0.215, hy = 0.84, hz = 0.06, cx = 0.0, cy = 0.6, cz = 1.5;
+    const hx = 0.215, hy = 0.84, hz = 0.06, cx = 0.0, cy = 0.5, cz = 1.5;
     const len = Math.hypot(cx - hx, cy - hy, cz - hz);
     const g = new THREE.BoxGeometry(0.007, 0.007, len, 1, 1, 1);
     g.rotateX(-Math.asin((cy - hy) / len)); g.rotateY(Math.atan2(cx - hx, cz - hz));
@@ -168,7 +168,7 @@ function personGeometry() {
 }
 function dogGeometry() {
   const A = [];
-  const add = (geo, part, mat) => A.push({ geo, part, mat });
+  const add = (geo, part, mat) => { if (part === 0 || part === 5) geo.translate(0, -0.1, 0); A.push({ geo, part, mat }); };
   const ellR = (rx, ry, rz, x, y, z, rzAng, rxAng = 0, ws = 9, hs = 7) => { const g = new THREE.SphereGeometry(1, ws, hs); g.scale(rx, ry, rz); g.rotateZ(rzAng); g.rotateX(rxAng); g.translate(x, y, z); return g; };
   // body: deep chest, tucked waist, rounder hindquarters
   add(ell(0.105, 0.125, 0.23, 0, 0.57, 0, 12, 9), 0, 0);
@@ -185,11 +185,11 @@ function dogGeometry() {
   add(new THREE.TorusGeometry(0.056, 0.0085, 5, 12).rotateX(Math.PI / 2 - 0.55).translate(0, 0.645, 0.255), 0, 3); // collar
   // legs: slim, tapered, with paws (parts 1..4 swing about the shoulder/hip pivots)
   for (const [s, z, pt] of [[1, 0.24, 1], [-1, 0.24, 2], [1, -0.24, 3], [-1, -0.24, 4]]) {
-    add(limb(0.034, 0.019, 0.47, s * 0.082, 0.5, z, 7), pt, 0);
-    add(ell(0.03, 0.02, 0.046, s * 0.082, 0.018, z + 0.016, 7, 5), pt, 1);
+    add(limb(0.04, 0.022, 0.38, s * 0.085, 0.40, z, 7), pt, 0);
+    add(ell(0.034, 0.022, 0.05, s * 0.085, 0.02, z + 0.014, 7, 5), pt, 1);
   }
   // tail: tapered, carried up and back (part 5 wags in the shader)
-  const tail = new THREE.CylinderGeometry(0.008, 0.02, 0.3, 6, 1); tail.translate(0, 0.15, 0); tail.rotateX(-0.95); tail.translate(0, 0.6, -0.34);
+  const tail = new THREE.CylinderGeometry(0.008, 0.02, 0.26, 6, 1); tail.translate(0, 0.13, 0); tail.rotateX(-0.8); tail.translate(0, 0.6, -0.34);
   add(tail, 5, 0);
   return mk(A);
 }

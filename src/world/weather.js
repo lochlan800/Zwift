@@ -171,7 +171,7 @@ void main() {
       float d = length(vec2((x - tx) * 1.0, (y - ty) * 1.3));
       a += smoothstep(0.10, 0.03, d) * step(ph, 0.999) * step(0.001, ph);
     }
-    a *= (1.0 - vAge) * (0.03 + 0.07 * vHard);
+    a *= (1.0 - vAge) * (0.02 + 0.045 * vHard);
   }
   a *= vA;
   if (a < 0.004) discard;
