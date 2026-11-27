@@ -862,7 +862,7 @@ void buildingSurface(vec3 w, vec3 Nw) {
           else if (wh < 0.78) { cov = smoothstep(0.32, 0.38, abs(wxr - 0.5)); covC = accentDoor(wh * 13.0) * 1.3; }
           roomE = mix(roomE, covC * 0.16, cov);
           float ndvR = clamp(dot(vv, Nw), 0.0, 1.0);
-          float fr = 0.04 + 0.96 * pow(1.0 - ndvR, 5.0);
+          float fr = min(0.6, 0.04 + 0.96 * pow(1.0 - ndvR, 5.0));
           roomE *= 1.0 - fr;
           glassCol = lin3(vec3(0.015, 0.016, 0.018));
         }
@@ -886,7 +886,7 @@ void buildingSurface(vec3 w, vec3 Nw) {
           col = mix(col, frameCol, gb * fade);
           bRough = mix(bRough, 0.18, glass * fade * (1.0 - gb));
           bMetal = mix(bMetal, 0.0, glass * fade);
-          bAO *= mix(1.0, 0.3, glass * fade); // windows reflect the street opposite, not open sky
+          bAO *= mix(1.0, 0.12, glass * fade); // windows mostly reflect the street opposite, not open sky
         }
         // protruding sill / lintel / step (lighter, with a dark underside line)
         vec3 dressing = dress ? dressCol : (stone ? base * 1.12 : lin3(vec3(0.82, 0.80, 0.75)));

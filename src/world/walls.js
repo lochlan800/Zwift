@@ -107,7 +107,7 @@ export async function createWalls(features, slicer, castShadow = true, roadIdx =
           const nrm = [nx * side * (1 - topness) * 0.9, 0.35 + 0.65 * topness, nz * side * (1 - topness) * 0.9];
           const ln = Math.hypot(nrm[0], nrm[1], nrm[2]) || 1;
           const ob = 0.04 + cardRnd() * 0.1;
-          addCard(x + nx * off + nrm[0] / ln * ob, y + yy + nrm[1] / ln * ob, z + nz * off + nrm[2] / ln * ob, nrm[0] / ln, nrm[1] / ln, nrm[2] / ln, dx, dz, 0.16 + cardRnd() * 0.1, 0.55 + 0.5 * cardRnd() * (0.5 + 0.5 * Math.min(1, yy / 1.2)));
+          addCard(x + nx * off + nrm[0] / ln * ob, y + yy + nrm[1] / ln * ob, z + nz * off + nrm[2] / ln * ob, nrm[0] / ln, nrm[1] / ln, nrm[2] / ln, dx, dz, 0.26 + cardRnd() * 0.16, 0.55 + 0.5 * cardRnd() * (0.5 + 0.5 * Math.min(1, yy / 1.2)));
         }
       }
       prev = ids;

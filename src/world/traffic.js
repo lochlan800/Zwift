@@ -89,6 +89,7 @@ export function createTraffic(scene, features, hf, cfg, ctx = {}) {
     });
     mesh.material = mat;
     mesh.customDepthMaterial = depthMaterialFor(GLSL_PARS, GLSL_BEGIN, GLSL_NORMAL, uniforms);
+    mesh.customDepthMaterial.side = THREE.BackSide;   // render back faces into the shadow map: removes acne on roofs/bonnets
     mesh.frustumCulled = false; mesh.castShadow = true; mesh.receiveShadow = true;
     mesh.name = 'traffic-' + TYPE_DEFS[ti].name; mesh.count = 0;
     scene.add(mesh);
@@ -149,7 +150,7 @@ export function createTraffic(scene, features, hf, cfg, ctx = {}) {
     const dc = Math.hypot(out.x - cx, out.z - cz);
     // never pop in right in front of the camera; ahead spawns may be much closer than the general ring
     if (dc < (ahead ? 75 : R_SPAWN[0] * 0.9) || dc > R_DESPAWN - 30) return false;
-    for (const o of veh) if (o.on && o !== v && Math.hypot(o.x - out.x, o.z - out.z) < 14) return false;
+    for (const o of veh) if (o.on && o !== v && Math.hypot(o.x - out.x, o.z - out.z) < 16) return false;
     v.on = true; v.e = e; v.dir = dir; v.s = s;
     v.off = laneOff(e); v.offT = v.off; v.v = Math.min(e.lim * 0.6, 6); v.bx = v.bz = v.byaw = 0;
     v.stall = 0; v.ghost = 0; v.stop = 0; v.overtaking = false; v.lastStopE = -1;
@@ -241,6 +242,7 @@ export function createTraffic(scene, features, hf, cfg, ctx = {}) {
     }
   }
 
+  const fx0 = (v) => v.tx, fz0 = (v) => v.tz;
   function step(v, dt) {
     const e = v.e;
     // --- target speed
@@ -253,6 +255,9 @@ export function createTraffic(scene, features, hf, cfg, ctx = {}) {
     const junction = node.out.length >= 3;
     if (remain < 40) vt = Math.min(vt, Math.sqrt((junction ? 3.5 : 6) ** 2 + 2 * 2.5 * Math.max(0, remain - 4)));
     vt = Math.min(vt, curveLimit(e, v.dir, v.s, 45, v.v));
+    // a cyclist closing from behind: don't dawdle (the rider has no avoidance, so slow cars would be ridden through)
+    { const rdx = v.x - rider.x, rdz = v.z - rider.z, ra = rdx * fx0(v) + rdz * fz0(v);
+      if (ra > 0 && ra < 45 && Math.abs(rdx * fz0(v) - rdz * fx0(v)) < 3.2 && rider.v > v.v - 0.5) vt = Math.max(vt, Math.min(e.lim * 1.1, rider.v + 2.5)); }
     if (v.stop > 0) { vt = 0; v.stop -= dt; }
     else if (v.bus) {
       for (const st of stops) {
@@ -260,7 +265,7 @@ export function createTraffic(scene, features, hf, cfg, ctx = {}) {
         const sPos = v.dir > 0 ? st.s : e.len - st.s;
         const d = sPos - v.s;
         if (d > -1 && d < 35) vt = Math.min(vt, Math.sqrt(2 * 2.2 * Math.max(0, d - 0.5)) + 0.4);
-        if (d <= 1.0 && v.v < 0.8) { v.stop = 6 + rnd() * 5; v.lastStopE = e.id; }
+        if (d <= 1.0 && v.v < 0.8) { v.lastStopE = e.id; const rd = Math.hypot(rider.x - v.x, rider.z - v.z); if (rd > 90) v.stop = 6 + rnd() * 5; }
       }
     }
     // --- obstacles (cars, buses, rider): nearest in front inside a lateral window
@@ -278,7 +283,7 @@ export function createTraffic(scene, features, hf, cfg, ctx = {}) {
         if (along < 0.5 || along > lookRange + olen) continue;
         const lat = Math.abs(dx * fz - dz * fx);
         if (lat > v.hw + ohw + 0.35) continue;
-        const g = along - (v.len + olen) * 0.5 - (isRider ? 6 : 0); // keep clear of the chase camera behind the rider
+        const g = along - (v.len + olen) * 0.5 - (isRider ? 11 : 0); // keep clear of the chase camera (up to ~9 m behind the rider)
         if (g < gap) { gap = g; bv = ov; blockRider = isRider; }
       }
       // zebra crossings with someone on them
@@ -294,7 +299,7 @@ export function createTraffic(scene, features, hf, cfg, ctx = {}) {
     }
     // --- overtake a slow cyclist when the oncoming lane is clear
     const lane = laneOff(e);
-    if (blockRider && gap < 14 && rider.v < v.v * 0.8 + 3 && !v.bus && !v.overtaking && v.ghost <= 0) {
+    if (blockRider && gap < 24 && rider.v < v.v * 0.8 + 3 && !v.bus && !v.overtaking && v.ghost <= 0) {
       let clear = true;
       for (const o of veh) {
         if (!o.on || o === v) continue;
@@ -318,7 +323,7 @@ export function createTraffic(scene, features, hf, cfg, ctx = {}) {
     const a = vt > v.v ? (v.bus ? 1.2 : 2.0) : 6.5;
     v.v += Math.max(-a * dt, Math.min((vt > v.v ? 1 : 1) * 2.4 * dt, vt - v.v));
     if (v.v < 0) v.v = 0;
-    if (v.v < 0.25 && gap < 6 && v.stop <= 0) { v.stall += dt; if (v.stall > 9) { v.ghost = 4; v.stall = 0; } } else v.stall = Math.max(0, v.stall - dt * 2);
+    if (v.v < 0.25 && gap < 6 && v.stop <= 0) { v.stall += dt; if (v.stall > 30) { v.ghost = 2.5; v.stall = 0; } } else v.stall = Math.max(0, v.stall - dt * 2);
     if (v.ghost > 0) v.ghost -= dt;
     const ds = v.v * dt;
     v.s += ds; v.spin += ds;
