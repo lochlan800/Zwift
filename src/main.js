@@ -6,7 +6,7 @@ import { HeightField, PolygonIndex, Slicer, nextFrame } from './world/heightfiel
 import { U, makeNoiseTexture } from './world/shared.js';
 import { createSky } from './world/sky.js';
 import { createTerrain, makeHeightTexture, makeNormalTexture, makeSplatTextures } from './world/terrain.js';
-import { annotateRoads, buildRoadIndex, conformTerrain, createRoads, roadInfo, loadAsphalt } from './world/roads.js';
+import { annotateRoads, buildRoadIndex, conformTerrain, createRoads, roadInfo, loadAsphalt, ASPHALT } from './world/roads.js';
 import { createBuildings, shopUnits, pubFronts, BLD } from './world/buildings.js';
 import { createTrees } from './world/trees.js';
 import { createWater, carveWater } from './world/water.js';
@@ -416,7 +416,7 @@ canvas.addEventListener('webglcontextrestored', () => {
 }, false);
 
 // testing hooks
-window.__hb = { state, world, camera, renderer, breakdown() {
+window.__hb = { state, world, camera, renderer, asphalt: ASPHALT, breakdown() {
   const out = {}; const meas = () => { renderer.info.reset(); post.composer.render(0); return [renderer.info.render.calls, renderer.info.render.triangles]; };
   const all = meas(); out.all = all;
   for (const c of scene.children) { const v = c.visible; c.visible = false; const m = meas(); out[c.name || c.type] = [all[0] - m[0], all[1] - m[1]]; c.visible = v; }
