@@ -118,7 +118,7 @@ export function clippedHedgeGeometry() {
     const q = f.p; const c = [0.06, 0.085, 0.035];
     B.tri(q[0], f.n, c); B.tri(q[1], f.n, c); B.tri(q[2], f.n, c); B.tri(q[0], f.n, c); B.tri(q[2], f.n, c); B.tri(q[3], f.n, c);
   }
-  const hs = 0.10; // metres (half extent)
+  const hs = 0.14; // metres (half extent)
   const add = (c, nrm, tu, tv) => {
     // card lies on the face: tangent axes tu, tv in unit space, sized so it is isotropic in world space
     const rr = rnd() * 6.283, cs = Math.cos(rr), sn = Math.sin(rr);

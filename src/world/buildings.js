@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { patchMaterial, GRID_GLSL } from './shared.js';
+import { PHOTO, PHOTO_GLSL } from './phototex.js';
 import { mulberry32 } from './heightfield.js';
 
 const KINDS = ['house', 'terrace', 'residential', 'commercial', 'retail', 'industrial', 'church', 'school', 'garage', 'shed', 'other', 'coop', 'pub', 'mill'];
@@ -503,9 +504,20 @@ function addBuilding(G, b, rnd, tcIdx, roadIdx, bIdx) {
 // --- material ------------------------------------------------------------------------------------
 const BLD_FRAG = /* glsl */`
 ${GRID_GLSL}
+${PHOTO_GLSL}
 varying vec4 vW; flat varying vec4 vB; varying float vAO;
 uniform sampler2D uNoise;
 vec3 bAlb; float bRough; float bMetal; float bBump; float bAO; float hbSun; vec3 bEmis; uniform float uInterior;
+vec3 bPN = vec3(0.0, 0.0, 1.0); float bPF = 0.0; int bPK = 0;
+// photo layer: main sample + a large rotated luminance sample to break tiling
+vec3 photoLayer(sampler2D D, sampler2D N, sampler2D R, float mean, vec2 uv, float tile, out vec3 nrm, out float rough) {
+  vec3 d = texture2D(D, uv / tile).rgb;
+  float big = dot(texture2D(D, mat2(0.8, 0.6, -0.6, 0.8) * uv / (tile * 3.7) + 0.31).rgb, vec3(0.3, 0.59, 0.11)) / max(mean, 1e-3);
+  nrm = texture2D(N, uv / tile).xyz * 2.0 - 1.0;
+  rough = texture2D(R, uv / tile).g;
+  return d / max(mean, 1e-3) * mix(1.0, clamp(big, 0.6, 1.5), 0.35);
+}
+
 vec3 lin3(vec3 c) { return pow(c, vec3(2.2)); }
 float hb(float n) { return fract(sin(n * 127.1) * 43758.5453); }
 float boxAA(vec2 p, vec2 lo, vec2 hi, vec2 fw) {
@@ -539,7 +551,7 @@ void buildingSurface(vec3 w, vec3 Nw) {
   vec4 n3 = texture2D(uNoise, w.xz / 5.0 + w.y / 9.0);
   vec4 n4 = texture2D(uNoise, vec2(w.x + w.z, w.y) / 1.1);
   float dist = distance(w, cameraPosition);
-  bRough = 0.85; bMetal = 0.0; bBump = 0.0; bAO = 1.0; bEmis = vec3(0.0);
+  bRough = 0.85; bMetal = 0.0; bBump = 0.0; bAO = 1.0; bEmis = vec3(0.0); bPF = 0.0; bPK = 0;
   bool industrial = (kind == 3 || kind == 4 || kind == 5);
   if (surf == 0 || surf == 3 || surf == 5 || surf == 7) {
     bool shop = surf == 5, bayW = surf == 7;
@@ -577,6 +589,16 @@ void buildingSurface(vec3 w, vec3 Nw) {
       float course = 0.5 + 0.5 * sin(hgt / 0.075 * 6.2831);
       col = mix(mix(bc, mc, mortar * 0.85), mix(base, mc, 0.18) * (0.94 + 0.08 * course * (1.0 - smoothstep(1.2, 2.5, fw.y))), aa);
       bBump = (1.0 - mortar) * (1.0 - aa);
+      if (uPhotoOn > 0.5 && surf != 3) {
+        float pf = 1.0 - smoothstep(30.0, 55.0, dist);
+        if (pf > 0.0) {
+          vec3 pn; float pr;
+          vec3 pd = photoLayer(uBrD, uBrN, uBrR, uBrMean, vec2(u + seed * 0.37, hgt), 1.5, pn, pr);
+          col = mix(col, base * pd * 0.95, pf);
+          bRough = mix(bRough, 0.6 + 0.4 * pr, pf);
+          bBump *= 1.0 - pf; bPN = pn; bPF = pf; bPK = 1;
+        }
+      }
     } else if (stone) {
       // coursed sandstone: course heights 0.20-0.30 m, random block lengths 0.4-0.9 m
       float cH = 0.22;
@@ -605,6 +627,16 @@ void buildingSurface(vec3 w, vec3 Nw) {
       vec3 mortar = base * 0.62;
       col = mix(mix(sc, mortar, j * 0.8), base * 0.9, aa);
       bBump = (1.0 - j) * (1.0 - aa) * (0.7 + 0.3 * sh);
+      if (uPhotoOn > 0.5) {
+        float pf = 1.0 - smoothstep(30.0, 55.0, dist);
+        if (pf > 0.0) {
+          vec3 pn; float pr;
+          vec3 pd = photoLayer(uStD, uStN, uStR, uStMean, vec2(u + seed * 0.53, hgt), 1.2, pn, pr);
+          col = mix(col, base * pd * mix(1.0, 0.7, soot * 0.45), pf);
+          bRough = mix(bRough, 0.7 + 0.3 * pr, pf);
+          bBump *= 1.0 - pf; bPN = pn; bPF = pf; bPK = 1;
+        }
+      }
     } else {
       vec4 n5 = texture2D(uNoise, vec2(w.x + w.z, w.y) / 0.21);
       float pebble = n5.a * 0.6 + n4.b * 0.4;
@@ -938,6 +970,15 @@ void buildingSurface(vec3 w, vec3 Nw) {
     col = mix(col, lin3(vec3(0.30, 0.33, 0.16)), smoothstep(0.58, 0.85, n3.g) * (old ? 0.4 : 0.12)); // moss / lichen
     if (old) col *= 0.88 + 0.12 * n4.r;
     bAlb = col * (0.9 + 0.15 * n4.b);
+    if (uPhotoOn > 0.5 && slate) {
+      float pf = 1.0 - smoothstep(35.0, 60.0, dist);
+      if (pf > 0.0) {
+        vec3 pn; float pr;
+        vec3 pd = photoLayer(uSlD, uSlN, uSlR, uSlMean, vec2(ac, -down), 4.5, pn, pr);
+        bAlb = mix(bAlb, rc * pd * mix(0.72, 1.0, smoothstep(0.0, 1.2, w.y - vW.w + 0.5)), pf);
+        bPN = pn; bPF = pf; bPK = 2;
+      }
+    }
     bRough = slate ? 0.72 : 0.8;
     // occasional roof-lights
     {
@@ -1032,7 +1073,7 @@ export async function createBuildings(features, slicer, onProgress, tcIdx = null
   const lightsBegin = THREE.ShaderChunk.lights_fragment_begin.replace(
     'getSunLightInfo( sunLight, directLight );', 'getSunLightInfo( sunLight, directLight ); directLight.color *= hbSun;');
   patchMaterial(mat, {
-    key: 'buildings', uniforms: { uInterior: BLD.uInterior },
+    key: 'buildings', uniforms: { uInterior: BLD.uInterior, ...PHOTO },
     vertexPars: 'attribute vec4 aW; attribute vec4 aB; attribute vec4 aN4; varying vec4 vW; flat varying vec4 vB; varying float vAO;',
     vertex: { begin_vertex: '$\n vW = aW; vB = aB; vAO = aN4.w;' },
     fragmentPars: BLD_FRAG,
@@ -1051,6 +1092,13 @@ export async function createBuildings(features, slicer, onProgress, tcIdx = null
           vec3 grad = sign(det) * (bx * r1 + by * r2);
           float fade = 1.0 - smoothstep(15.0, 60.0, distance(vAerialWorld, cameraPosition));
           vec3 Nw2 = normalize(abs(det) * bNw - grad * 0.02 * fade);
+          if (uPhotoNrm > 0.5 && bPF > 0.0) {
+            vec3 Tt = bPK == 2 ? normalize(cross(bNw, vec3(0.0, 1.0, 0.0)) + 1e-5) : normalize(cross(vec3(0.0, 1.0, 0.0), bNw) + 1e-5);
+            vec3 Bt = normalize(cross(bNw, Tt));
+            if (bPK != 2) Bt = vec3(0.0, 1.0, 0.0);
+            vec3 Np = normalize(Tt * bPN.x * 1.3 + Bt * bPN.y * 1.3 + Nw2 * bPN.z);
+            Nw2 = normalize(mix(Nw2, Np, bPF));
+          }
           normal = normalize((viewMatrix * vec4(Nw2, 0.0)).xyz);
         }`,
       lights_fragment_begin: lightsBegin,

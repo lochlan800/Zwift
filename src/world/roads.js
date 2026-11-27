@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { SegmentIndex, splitByCell } from './heightfield.js';
+import { PHOTO, PHOTO_GLSL } from './phototex.js';
 import { patchMaterial, GRID_GLSL, WET_GLSL } from './shared.js';
 
 // type codes used by the road shader
@@ -235,6 +236,7 @@ function wall(B, p, F, o, y0, y1, face, type, hw, keepFn) {
 const ROAD_FRAG = /* glsl */`
 varying vec4 vRoad; varying float vMark; varying vec3 vGw;
 uniform sampler2D uNoise;
+${PHOTO_GLSL}
 uniform sampler2D uAsD; uniform sampler2D uAsN; uniform sampler2D uAsR;
 uniform float uAsOn; uniform float uAsNormal; uniform float uAsMean;
 vec3 rNrm = vec3(0.0, 0.0, 1.0); float rPhotoF = 0.0; float rPaintAmt = 0.0;
@@ -425,6 +427,16 @@ void roadSurface(vec3 w) {
     float fh = fract(sin(dot(floor(fl), vec2(41.3, 289.1))) * 43758.5453);
     vec3 c = lin3(vec3(0.47, 0.465, 0.45)) * (0.92 + 0.12 * fh) * (0.93 + 0.1 * n4.a) * (0.95 + 0.08 * n2.g);
     rAlb = c * (0.82 + 0.18 * jv); rRough = 0.92; rBump = jv * 0.4 + n4.a * 0.15;
+    if (uPhotoOn > 0.5) {
+      float pf = 1.0 - smoothstep(30.0, 55.0, dist);
+      vec2 puv = vec2(u, abs(v) - hw) / 2.4;
+      vec3 pd = texture2D(uPvD, puv).rgb / max(uPvMean, 1e-3);
+      float pr = texture2D(uPvR, puv).g;
+      rAlb = mix(rAlb, c * pd * (0.9 + 0.1 * jv), pf);
+      rRough = mix(rRough, 0.75 + 0.25 * pr, pf);
+      if (uPhotoNrm > 0.5) { rNrm = texture2D(uPvN, puv).xyz * 2.0 - 1.0; rPhotoF = pf * 0.8; }
+      rBump *= 1.0 - pf;
+    }
     float edgeD = abs(v) - hw;
     rAlb *= mix(0.8, 1.0, smoothstep(0.0, 0.25, edgeD));                  // grit along the kerb line
     rAlb *= 1.0 - 0.15 * smoothstep(0.65, 0.9, n2.r);                     // staining
@@ -650,7 +662,7 @@ export async function createRoads(features, hf, lc, roadIdx, slicer, bIdx = null
       aomap_fragment: '$\n reflectedLight.indirectSpecular *= mix(1.0, 0.2, hbPud) * mix(1.0, 0.4, hbWetAmt); // WEATHER: replace sunny-sky IBL with graded sky reflection',
       emissivemap_fragment: '$\n totalEmissiveRadiance += hbWetRefl(vAerialWorld, hbNw); // WEATHER: sky reflection in wet road / puddles',
     },
-    uniforms: ASPHALT,
+    uniforms: { ...ASPHALT, ...PHOTO },
   });
   const mesh = new THREE.Group();
   mesh.name = 'roads';
