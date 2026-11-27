@@ -115,7 +115,7 @@ export function clippedHedgeGeometry() {
     { n: [-1, 0, 0], p: [[-bx, 0, bz], [-bx, by, bz], [-bx, by, -bz], [-bx, 0, -bz]] },
   ];
   for (const f of faces) {
-    const q = f.p; const c = [0.04, 0.06, 0.025];
+    const q = f.p; const c = [0.06, 0.085, 0.035];
     B.tri(q[0], f.n, c); B.tri(q[1], f.n, c); B.tri(q[2], f.n, c); B.tri(q[0], f.n, c); B.tri(q[2], f.n, c); B.tri(q[3], f.n, c);
   }
   const hs = 0.10; // metres (half extent)
@@ -126,7 +126,7 @@ export function clippedHedgeGeometry() {
     const ay = [-tu[0] * sn + tv[0] * cs, -tu[1] * sn + tv[1] * cs, -tu[2] * sn + tv[2] * cs];
     // per-axis half extents in unit space (compensate non-uniform instance scale)
     const h = [hs * Math.hypot(ax[0] / SX, ay[0] / SX) / 1.0, hs * Math.hypot(ax[1] / SY, ay[1] / SY), hs * Math.hypot(ax[2] / SZ, ay[2] / SZ)];
-    const shade = 0.62 + 0.4 * rnd();
+    const shade = 0.85 + 0.45 * rnd();
     B.card(c, ax, ay, [hs / SX, hs / SY, hs / SZ].map((v, i) => v), rnd() < 0.8 ? 2 : 1, [0.6 * shade, 0.68 * shade, 0.4 * shade], nrm);
     void h;
   };
