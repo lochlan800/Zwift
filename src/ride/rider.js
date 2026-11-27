@@ -20,7 +20,7 @@ const CRANK_ARM = Math.hypot(0.05, CRANK);
 const PAL = {
   jersey: 0xe84f26, navy: 0x1c2140, rimDark: 0x0e1020, accent: 0xffd23f, white: 0xf4f6fa,
   bibs: 0x1c2140, chamois: 0x8ea6c4, skin: 0xc8977c, sock: 0xf4f6fa, glove: 0x1a1c22,
-  helmet: 0x1c2140, vent: 0x07080d, visor: 0x14171e, lens: 0x0c0e13,
+  helmet: 0x1c2140, hair: 0x2b1f16, lip: 0x9b5a50, vent: 0x07080d, visor: 0x14171e, lens: 0x0c0e13,
   frame: 0x2d6fe0, frameDark: 0x17191f, stripe: 0xffd23f, bartape: 0xf1f3f6,
   tyre: 0x161616, rim: 0x23262d, alu: 0xc9ced6, chain: 0x8e959f, saddle: 0x101216,
   shoe: 0xf4f6fa, sole: 0x1a1c22, pedal: 0x1a1c22, bottle: 0x2aa3ff, cage: 0xc9ced6,
@@ -299,7 +299,7 @@ function skinGeo(geo, bone, opts = {}) {
     const nx = nor[i * 3], ny = nor[i * 3 + 1], nz = nor[i * 3 + 2];
     SK.N.push(e[0] * nx + e[4] * ny + e[8] * nz, e[1] * nx + e[5] * ny + e[9] * nz, e[2] * nx + e[6] * ny + e[10] * nz);
     SK.C.push(c.r, c.g, c.b);
-    SK.S.push(c === K.skin ? 1 : 0); SK.L.push(x, y, z);   // skin mask + bone-local position (for shader seams)
+    SK.S.push(opts.mask !== undefined ? opts.mask : (c === K.skin ? 1 : 0)); SK.L.push(x, y, z);   // skin mask + bone-local position (for shader seams)
     SK.A.push(bone); SK.B2.push(b2); SK.W.push(w);
   }
   if (idx) for (let k = 0; k < idx.length; k++) SK.I.push(idx[k] + off);
@@ -331,8 +331,8 @@ const paintFore = (x, y) => (y > L_FORE - 0.08 ? K.glove : null);
 // upper arm / thigh / calf radius profiles (muscle shapes, tapering to the joints)
 const rThigh = (u) => 0.09 - 0.03 * u + 0.006 * Math.exp(-(((u - 0.15) / 0.18) ** 2));
 const rShin = (u) => 0.06 - 0.024 * u + 0.01 * Math.exp(-(((u - 0.3) / 0.18) ** 2));
-const rUpper = (u) => 0.044 - 0.006 * u + 0.004 * Math.exp(-(((u - 0.35) / 0.2) ** 2));
-const rFore = (u) => 0.035 - 0.004 * u + 0.005 * Math.exp(-(((u - 0.3) / 0.25) ** 2));
+const rUpper = (u) => 0.047 - 0.011 * u + 0.008 * Math.exp(-(((u - 0.3) / 0.2) ** 2)) + 0.004 * Math.exp(-(((u - 0.05) / 0.12) ** 2));   // deltoid insertion + biceps
+const rFore = (u) => 0.036 - 0.011 * u + 0.008 * Math.exp(-(((u - 0.22) / 0.2) ** 2));                  // brachioradialis bulge, slim wrist
 
 function buildBody() {
   solvePose(0, 0, 0);
@@ -348,16 +348,27 @@ function buildBody() {
   // chest: upper back, shoulders, neck
   const upper = revolve(0.33, (u) => 0.118 - 0.008 * u + 0.004 * Math.sin(u * Math.PI), 18, false, false).scale(1.2, 1, 0.92);
   skinGeo(upper, B.CHEST, { col: 'jersey', paint: paintTorso, low: { bone: B.SPINE, y1: 0.07 } });
-  for (const s of [-1, 1]) skinGeo(E([s * SHOULDER_X, SHOULDER_Y, 0], [0.05, 0.05, 0.05]), B.CHEST, { col: 'jersey' });
+  for (const s of [-1, 1]) skinGeo(E([s * SHOULDER_X, SHOULDER_Y - 0.004, 0], [0.058, 0.062, 0.056], 12), B.CHEST, { col: 'jersey' });
   const neck = revolve(0.2, () => 0.05, 12, false, false).translate(0, 0.3, 0.01);
   skinGeo(neck, B.CHEST, { col: 'skin', high: { bone: B.HEAD, y0: 0.42, y1: 0.5 } });
+  for (const s of [-1, 1]) skinGeo(tubeGeo([s * 0.045, 0.285, 0.0], [s * 0.025, 0.2, 0.035], 0.019, 0.016, 8), B.CHEST, { col: 'skin' });   // sternocleidomastoid
 
-  // head: skin, jaw, nose, ears, aero helmet, visor-sunglasses, chin straps
+  // head: skull, brow, cheekbones, nose, lips, jaw, chin, ears; short hair at the nape; neck muscles
   const H = B.HEAD;
-  skinGeo(E([0, 0, 0], [0.086, 0.1, 0.096]), H, { col: 'skin' });
-  skinGeo(E([0, -0.055, 0.035], [0.06, 0.05, 0.065]), H, { col: 'skin' });
-  skinGeo(E([0, -0.02, 0.095], [0.014, 0.024, 0.016]), H, { col: 'skin' });
-  for (const s of [-1, 1]) skinGeo(E([s * 0.084, -0.005, -0.005], [0.013, 0.026, 0.02], 10), H, { col: 'skin' });
+  skinGeo(E([0, 0, 0], [0.082, 0.1, 0.092], 16), H, { col: 'skin' });                         // cranium
+  skinGeo(E([0, -0.045, 0.03], [0.07, 0.065, 0.075], 16), H, { col: 'skin' });                // face mass
+  skinGeo(E([0, 0.028, 0.082], [0.06, 0.016, 0.022], 10), H, { col: 'skin' });                // brow ridge
+  for (const s of [-1, 1]) skinGeo(E([s * 0.05, -0.03, 0.062], [0.028, 0.024, 0.03], 10), H, { col: 'skin' });   // cheekbones
+  for (const s of [-1, 1]) skinGeo(E([s * 0.056, -0.075, 0.0], [0.028, 0.038, 0.044], 10), H, { col: 'skin' });  // jaw angle
+  skinGeo(E([0, -0.1, 0.058], [0.03, 0.022, 0.03], 10), H, { col: 'skin' });                  // chin
+  skinGeo(E([0, -0.012, 0.096], [0.012, 0.03, 0.016], 8), H, { col: 'skin' });                // nose bridge
+  skinGeo(E([0, -0.04, 0.106], [0.016, 0.013, 0.015], 8), H, { col: 'skin' });                // nose tip
+  skinGeo(E([0, -0.075, 0.094], [0.026, 0.007, 0.012], 8), H, { col: 'lip' });                // lips
+  for (const s of [-1, 1]) {
+    skinGeo(E([s * 0.083, -0.01, -0.012], [0.012, 0.03, 0.02], 10), H, { col: 'skin' });      // ears
+    skinGeo(E([s * 0.08, -0.025, 0.0], [0.007, 0.03, 0.018], 6), H, { col: 'hair' });         // sideburns
+  }
+  skinGeo(E([0, -0.058, -0.082], [0.066, 0.036, 0.04], 12), H, { col: 'hair' });              // short hair below the helmet at the back
   // modern road helmet: low-profile shell, long tapered tail, brow ridge, ventilation channels
   skinGeo(new THREE.SphereGeometry(1, 30, 18, 0, TAU, 0, 1.3).scale(0.104, 0.106, 0.128).translate(0, 0.012, -0.012),
     H, { col: 'helmet', paint: paintHelmet });
@@ -369,11 +380,17 @@ function buildBody() {
   for (const s of [-1, 1]) for (const z of [-0.04, 0, 0.04]) {
     skinGeo(E([s * 0.04, 0.108, z], [0.011, 0.0045, 0.02], 8), H, { col: 'vent' });
   }
-  skinGeo(new THREE.SphereGeometry(1, 28, 8, Math.PI / 2 - 0.85, 1.7, 1.25, 0.35).scale(0.1, 0.1, 0.108), H, { col: 'lens' });
+  // sunglasses: wrap-around reflective shield with a dark frame rim, temple arms to the ears
+  skinGeo(new THREE.SphereGeometry(1, 32, 8, Math.PI / 2 - 0.95, 1.9, 1.22, 0.44).scale(0.098, 0.098, 0.106).translate(0, -0.003, 0.004), H, { col: 'lens', mask: 2 });
+  skinGeo(new THREE.SphereGeometry(1, 32, 3, Math.PI / 2 - 0.96, 1.92, 1.18, 0.05).scale(0.1, 0.1, 0.108).translate(0, -0.003, 0.004), H, { col: 'frameDark' });
+  skinGeo(new THREE.SphereGeometry(1, 32, 3, Math.PI / 2 - 0.96, 1.92, 1.64, 0.04).scale(0.1, 0.1, 0.108).translate(0, -0.003, 0.004), H, { col: 'frameDark' });
+  for (const s of [-1, 1]) skinGeo(tubeGeo([s * 0.088, 0.012, 0.03], [s * 0.086, 0.0, -0.045], 0.004, 0.004, 6), H, { col: 'frameDark' });
+  // chin strap: two Y straps from the shell, buckle under the chin
   for (const s of [-1, 1]) {
-    skinGeo(tubeGeo([s * 0.094, 0.025, -0.005], [s * 0.07, -0.07, 0.05], 0.0045, 0.0045, 6), H, { col: 'lens' });
-    skinGeo(tubeGeo([s * 0.07, -0.07, 0.05], [0, -0.1, 0.085], 0.0045, 0.0045, 6), H, { col: 'lens' });
+    skinGeo(tubeGeo([s * 0.085, 0.02, 0.03], [s * 0.052, -0.095, 0.045], 0.0035, 0.0035, 6), H, { col: 'rimDark' });
+    skinGeo(tubeGeo([s * 0.052, -0.095, 0.045], [0, -0.112, 0.062], 0.0035, 0.0035, 6), H, { col: 'rimDark' });
   }
+  skinGeo(E([0, -0.113, 0.063], [0.012, 0.006, 0.01], 6), H, { col: 'alu' });
 
   // arms, legs and cycling kit
   const geoUA = revolve(L_UP, rUpper, 14, true, false);
@@ -389,6 +406,13 @@ function buildBody() {
     skinGeo(geoUA, B.UA[k], { col: 'jersey', paint: paintUpperArm, high: { bone: B.FA[k], y0: L_UP - 0.06, y1: L_UP } });
     skinGeo(geoFA, B.FA[k], { col: 'skin', paint: paintFore, low: { bone: B.UA[k], y1: 0.06 }, high: { bone: B.HAND[k], y0: L_FORE - 0.04, y1: L_FORE } });
     skinGeo(geoHand, B.HAND[k], { col: 'glove' });
+    // gloved fingers curl over the hood top, down its front and back under it; thumb on the inner side
+    const hs = k ? 1 : -1;
+    for (const fx of [-0.024, -0.008, 0.008, 0.024]) {
+      const pts = [[fx, 0.004, 0.08], [fx, 0.0, 0.112], [fx, -0.024, 0.128], [fx, -0.05, 0.116], [fx, -0.058, 0.094]];
+      for (let i = 0; i + 1 < pts.length; i++) skinGeo(tubeGeo(pts[i], pts[i + 1], 0.0085 - i * 0.0004, 0.0083 - i * 0.0004, 6), B.HAND[k], { col: 'glove' });
+    }
+    skinGeo(tubeGeo([-hs * 0.03, -0.002, 0.03], [-hs * 0.04, -0.032, 0.066], 0.011, 0.009, 6), B.HAND[k], { col: 'glove' });
     skinGeo(geoTH, B.TH[k], { col: 'skin', paint: paintThigh, high: { bone: B.SH[k], y0: L_THIGH - 0.07, y1: L_THIGH } });
     skinGeo(geoSH, B.SH[k], { col: 'skin', paint: paintShin, low: { bone: B.TH[k], y1: 0.07 } });
     skinGeo(geoShoeUp, B.SHOE[k], { col: 'shoe' });
@@ -422,27 +446,29 @@ export function createRider() {
     vertex: { begin_vertex: '$\n vSkin = aSkin; vLoc = aLoc; vOwn = aOwn;' },
     fragmentPars: `varying float vSkin; varying vec3 vLoc; varying float vOwn;
       float rbHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
-      float rbSeam;`,
+      float rbSeam;
+      #define SKINM (vSkin > 1.5 ? 0.0 : vSkin)`,
     fragment: {
       color_fragment: `$
         {
           float torso = (vOwn < 1.5) ? 1.0 : 0.0;
           float nearF = 1.0 - smoothstep(1.5, 4.0, length(vViewPosition));
           vec2 wp = vLoc.xy * 650.0 + vLoc.zz * 40.0;
-          float weave = (rbHash(floor(wp)) - 0.5) * (1.0 - vSkin) * nearF;
+          float weave = (rbHash(floor(wp)) - 0.5) * (1.0 - SKINM) * nearF * (vSkin > 1.5 ? 0.0 : 1.0);
           diffuseColor.rgb *= 1.0 + weave * 0.07;
           // stitched seams on the jersey: side panel edges and the front zip
           float side = 1.0 - smoothstep(0.0015, 0.004, abs(abs(vLoc.x) - 0.1195));
           float zip = (1.0 - smoothstep(0.0012, 0.003, abs(vLoc.x))) * step(0.0, vLoc.z) * step(0.1, vLoc.y);
-          rbSeam = torso * max(side, zip) * (1.0 - vSkin);
+          rbSeam = torso * max(side, zip) * (1.0 - SKINM);
           diffuseColor.rgb *= 1.0 - 0.38 * rbSeam;
         }`,
-      roughnessmap_fragment: 'float roughnessFactor = mix(0.74, 0.48, vSkin);',
+      roughnessmap_fragment: 'float roughnessFactor = vSkin > 1.5 ? 0.07 : mix(0.74, 0.38, vSkin); /* skin carries a light sweat sheen */',
+      metalnessmap_fragment: 'float metalnessFactor = vSkin > 1.5 ? 0.75 : 0.0;',
       lights_physical_fragment: `$
         #ifdef USE_SHEEN
-          material.sheenColor *= (1.0 - vSkin) * (1.0 - 0.6 * rbSeam);
+          material.sheenColor *= (1.0 - min(vSkin, 1.0)) * (1.0 - 0.6 * rbSeam);
         #endif`,
-      emissivemap_fragment: '$\n totalEmissiveRadiance += vSkin * diffuseColor.rgb * vec3(0.10, 0.035, 0.022) * 0.5;',
+      emissivemap_fragment: '$\n totalEmissiveRadiance += SKINM * diffuseColor.rgb * vec3(0.10, 0.035, 0.022) * 0.5;',
     },
   });
 

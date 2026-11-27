@@ -136,6 +136,10 @@ function needleCell(g, ox, oy, rnd) {
   }
   for (const p of pts) p.k = (-p.y / R) * 0.5 + 0.5 + (p.r - 0.5) * 0.6;
   pts.sort((p, q) => p.k - q.k);
+  // solid dark under-clump (irregular edge) so the card stays a soft clump at distance instead of sparkling needles
+  g.fillStyle = '#17240f'; g.beginPath();
+  for (let i = 0; i <= 48; i++) { const an = i / 48 * Math.PI * 2; const rr = R * 0.7 * (0.85 + 0.15 * Math.sin(an * 5 + 1.0) * Math.sin(an * 8 + 0.4)); g.lineTo(cx + Math.cos(an) * rr, cy + Math.sin(an) * rr); }
+  g.fill();
   for (let t = 0; t < 10; t++) {
     const a = rnd() * Math.PI * 2, len = R * (0.6 + rnd() * 0.35);
     g.strokeStyle = '#2d2016'; g.lineWidth = 3.5;
@@ -148,7 +152,7 @@ function needleCell(g, ox, oy, rnd) {
       const len = (pass ? 20 : 26) + rnd() * 14;
       const l = pass ? 15 + (p.k - 0.3) * 20 + rnd() * 6 : 9 + rnd() * 5;
       const blue = rnd() < 0.12;
-      g.strokeStyle = blue ? `hsl(150,14%,${l + 14}%)` : `hsl(${92 + rnd() * 22},${pass ? 34 : 28}%,${l}%)`; g.lineWidth = pass ? 2.4 : 3.2;
+      g.strokeStyle = blue ? `hsl(150,14%,${l + 14}%)` : `hsl(${92 + rnd() * 22},${pass ? 34 : 28}%,${l}%)`; g.lineWidth = pass ? 3.4 : 4.4;
       g.beginPath(); g.moveTo(cx + p.x, cy + p.y); g.lineTo(cx + p.x + Math.cos(base) * len, cy + p.y + Math.sin(base) * len); g.stroke();
     }
   }

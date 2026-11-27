@@ -235,36 +235,36 @@ export function dogGeometry() {
     [-0.31, 0.04, 0.05, 0.49], [-0.26, 0.085, 0.1, 0.5], [-0.17, 0.1, 0.115, 0.5], [-0.05, 0.088, 0.1, 0.49], [0.06, 0.097, 0.12, 0.5],
     [0.17, 0.105, 0.135, 0.51], [0.27, 0.085, 0.115, 0.55], [0.35, 0.058, 0.082, 0.6], [0.41, 0.052, 0.07, 0.645], [0.46, 0.062, 0.072, 0.675],
     [0.52, 0.054, 0.058, 0.67], [0.58, 0.042, 0.045, 0.655], [0.635, 0.032, 0.034, 0.645], [0.675, 0.022, 0.024, 0.64], [0.69, 0.005, 0.006, 0.64],
-  ].map(([t, rx, r2, c2], i, a) => ({ t, rx, r2, c1: 0, c2, u: i / (a.length - 1) }));
+  ].map(([t, rx, r2, c2], i, a) => ({ t, rx: rx * (i >= 8 ? 1.12 : 1.14), r2: r2 * (i >= 8 ? 1.1 : 1.1), c1: 0, c2: c2 - 0.08, u: i / (a.length - 1) }));
   B.loft('z', S, {
     seg: 14,
     sk: (u, th, p) => [0, 10, sm(0.34, 0.46, p[2])],
-    mat: (u, th, p) => (p[2] > 0.676 ? 2 : p[2] > 0.235 && p[2] < 0.285 ? 5 : p[2] > 0.5 && Math.sin(th) < 0.35 ? 1 : p[2] > -0.12 && p[2] < 0.3 && Math.sin(th) < -0.55 ? 1 : 0),
+    mat: (u, th, p) => (p[2] > 0.676 ? 2 : p[2] > 0.245 && p[2] < 0.275 ? 5 : p[2] > 0.5 && Math.sin(th) < 0.35 ? 1 : p[2] > -0.12 && p[2] < 0.3 && Math.sin(th) < -0.55 ? 1 : 0),
   });
   const hsk = () => [10, 10, 0];
   for (const s of [-1, 1]) {
-    B.ell([s * 0.04, 0.728, 0.46], [0.011, 0.011, 0.008], { seg: 6, rings: 4, sk: hsk, mat: T(2) });                                     // eyes
-    B.ell([s * 0.066, 0.68, 0.40], [0.02, 0.06, 0.042], { seg: 8, rings: 6, sk: hsk, mat: T(3), rot: new THREE.Euler(0.15, 0, -s * 0.5) });   // floppy ears
-    B.ell([s * 0.045, 0.745, 0.395], [0.02, 0.05, 0.03], { seg: 8, rings: 6, sk: hsk, mat: T(4), rot: new THREE.Euler(-0.2, 0, -s * 0.2) });  // prick ears
+    B.ell([s * 0.045, 0.655, 0.46], [0.011, 0.011, 0.008], { seg: 6, rings: 4, sk: hsk, mat: T(2) });                                     // eyes
+    B.ell([s * 0.07, 0.605, 0.40], [0.02, 0.06, 0.042], { seg: 8, rings: 6, sk: hsk, mat: T(3), rot: new THREE.Euler(0.15, 0, -s * 0.5) });   // floppy ears
+    B.ell([s * 0.048, 0.675, 0.395], [0.02, 0.05, 0.03], { seg: 8, rings: 6, sk: hsk, mat: T(4), rot: new THREE.Euler(-0.2, 0, -s * 0.2) });  // prick ears
   }
   // legs: upper (shoulder / thigh) + lower (elbow / hock) with a bend between them
   const legs = [
     // [x, upper bone, lower bone, hip(a), knee(b), paw(c)]
-    [0.082, 1, 5, [0.082, 0.50, 0.19], [0.085, 0.27, 0.205], [0.088, 0.02, 0.21]],
-    [-0.082, 2, 6, [-0.082, 0.50, 0.19], [-0.085, 0.27, 0.205], [-0.088, 0.02, 0.21]],
-    [0.088, 3, 7, [0.088, 0.50, -0.2], [0.09, 0.30, -0.14], [0.085, 0.02, -0.2]],
-    [-0.088, 4, 8, [-0.088, 0.50, -0.2], [-0.09, 0.30, -0.14], [-0.085, 0.02, -0.2]],
+    [0.082, 1, 5, [0.085, 0.42, 0.19], [0.088, 0.22, 0.205], [0.09, 0.02, 0.21]],
+    [-0.082, 2, 6, [-0.085, 0.42, 0.19], [-0.088, 0.22, 0.205], [-0.09, 0.02, 0.21]],
+    [0.088, 3, 7, [0.09, 0.42, -0.2], [0.092, 0.25, -0.14], [0.088, 0.02, -0.2]],
+    [-0.088, 4, 8, [-0.09, 0.42, -0.2], [-0.092, 0.25, -0.14], [-0.088, 0.02, -0.2]],
   ];
   for (const [x, up, lo, a, b, c] of legs) {
     const hind = up >= 3;
-    B.tube(a, b, (u) => (hind ? 0.075 - 0.032 * u : 0.05 - 0.016 * u), { seg: 10, rings: 5, capA: true,
+    B.tube(a, b, (u) => (hind ? 0.088 - 0.04 * u : 0.06 - 0.02 * u), { seg: 10, rings: 5, capA: true,
       sk: (u) => [up, u > 0.5 ? lo : 0, u > 0.5 ? 0.5 * sm(0.7, 1, u) : 0.5 * (1 - sm(0, 0.3, u))], mat: T(0) });
-    B.tube(b, c, (u) => 0.03 - 0.011 * u, { seg: 9, rings: 5, capB: false,
+    B.tube(b, c, (u) => 0.037 - 0.014 * u, { seg: 9, rings: 5, capB: false,
       sk: (u) => [lo, up, 0.5 * (1 - sm(0, 0.25, u))], mat: (u) => (u > 0.78 ? 1 : 0) });
     B.ell([c[0], 0.022, c[2] + 0.018], [0.03, 0.022, 0.05], { seg: 8, rings: 5, sk: () => [lo, lo, 0], mat: T(1) });   // paw
   }
   // tail
-  B.tube([0, 0.53, -0.3], [0, 0.68, -0.44], (u) => 0.03 - 0.02 * u, { seg: 8, rings: 5, capB: true, sk: () => [9, 9, 0], mat: (u) => (u > 0.78 ? 1 : 0) });
+  B.tube([0, 0.44, -0.3], [0, 0.6, -0.44], (u) => 0.034 - 0.022 * u, { seg: 8, rings: 5, capB: true, sk: () => [9, 9, 0], mat: (u) => (u > 0.78 ? 1 : 0) });
   return B.build();
 }
 
@@ -274,12 +274,12 @@ attribute vec4 aMisc;       // phase, walking, scale, breed (0 lab-like floppy e
 attribute vec3 aShirt; attribute vec3 aTrou; attribute vec3 aHair;
 varying vec3 vMatCol; varying float vRough;
 vec3 pv(int b) {
-  if (b == 1) return vec3(0.082, 0.50, 0.19);  if (b == 2) return vec3(-0.082, 0.50, 0.19);
-  if (b == 3) return vec3(0.088, 0.50, -0.2);  if (b == 4) return vec3(-0.088, 0.50, -0.2);
-  if (b == 5) return vec3(0.085, 0.27, 0.205); if (b == 6) return vec3(-0.085, 0.27, 0.205);
-  if (b == 7) return vec3(0.09, 0.30, -0.14);  if (b == 8) return vec3(-0.09, 0.30, -0.14);
-  if (b == 9) return vec3(0.0, 0.53, -0.3);
-  if (b == 10) return vec3(0.0, 0.62, 0.3);
+  if (b == 1) return vec3(0.085, 0.42, 0.19);  if (b == 2) return vec3(-0.085, 0.42, 0.19);
+  if (b == 3) return vec3(0.09, 0.42, -0.2);   if (b == 4) return vec3(-0.09, 0.42, -0.2);
+  if (b == 5) return vec3(0.088, 0.22, 0.205); if (b == 6) return vec3(-0.088, 0.22, 0.205);
+  if (b == 7) return vec3(0.092, 0.25, -0.14); if (b == 8) return vec3(-0.092, 0.25, -0.14);
+  if (b == 9) return vec3(0.0, 0.44, -0.3);
+  if (b == 10) return vec3(0.0, 0.54, 0.3);
   return vec3(0.0);
 }
 vec3 rX(vec3 p, vec3 c, float th) { float cs = cos(th), sn = sin(th); vec3 d = p - c; return c + vec3(d.x, d.y * cs - d.z * sn, d.y * sn + d.z * cs); }
