@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { patchMaterial, U } from './shared.js';
 import { edgeAt, setPose, depthMaterialFor } from './lifeutil.js';
+import { personGeometry, dogGeometry, PERSON_PARS, PERSON_NORMAL, PERSON_BEGIN, DOG_PARS, DOG_NORMAL, DOG_BEGIN } from './bodies.js';
 import { mulberry32 } from './heightfield.js';
 
 // ---------------------------------------------------------------------------------------------
@@ -10,189 +11,6 @@ import { mulberry32 } from './heightfield.js';
 // per-frame CPU skinning. Pedestrians walk the pavements on both sides of the real road edges, some
 // stand chatting by shop fronts, some cross at the zebra crossings (traffic stops for them).
 // ---------------------------------------------------------------------------------------------
-
-const PERSON_PARS = /* glsl */`
-attribute float aPart; attribute float aMat;
-attribute vec4 aMisc;       // phase, speed(0..1), scale, skin + 4*sleeve
-attribute vec3 aShirt; attribute vec3 aTrou; attribute vec3 aHair;
-varying vec3 vMatCol; varying float vRough;
-vec3 pivotOf(int p) {
-  if (p == 1) return vec3(0.09, 0.92, 0.0);  if (p == 2) return vec3(-0.09, 0.92, 0.0);
-  if (p == 3) return vec3(0.09, 0.48, 0.0);  if (p == 4) return vec3(-0.09, 0.48, 0.0);
-  if (p == 5) return vec3(0.215, 1.42, 0.0); if (p == 6) return vec3(-0.215, 1.42, 0.0);
-  if (p == 7) return vec3(0.215, 1.12, 0.0); if (p == 8) return vec3(-0.215, 1.12, 0.0);
-  return vec3(0.0);
-}
-vec3 rotX(vec3 p, vec3 pv, float th) { float c = cos(th), s = sin(th); vec3 d = p - pv; return pv + vec3(d.x, d.y * c - d.z * s, d.y * s + d.z * c); }
-void animate(int part, float a, float sw, inout vec3 p, inout vec3 n) {
-  float hipL = 0.48 * sin(a) * sw, hipR = -hipL;
-  float kneeL = 0.85 * max(0.0, cos(a)) * sw, kneeR = 0.85 * max(0.0, -cos(a)) * sw;
-  float armL = -0.42 * sin(a) * sw, armR = -armL;
-  float elb = 0.18 + 0.35 * sw;
-  if (part == 3) { p = rotX(p, pivotOf(3), kneeL); n = rotX(n, vec3(0.0), kneeL); p = rotX(p, pivotOf(1), -hipL); n = rotX(n, vec3(0.0), -hipL); }
-  else if (part == 4) { p = rotX(p, pivotOf(4), kneeR); n = rotX(n, vec3(0.0), kneeR); p = rotX(p, pivotOf(2), -hipR); n = rotX(n, vec3(0.0), -hipR); }
-  else if (part == 1) { p = rotX(p, pivotOf(1), -hipL); n = rotX(n, vec3(0.0), -hipL); }
-  else if (part == 2) { p = rotX(p, pivotOf(2), -hipR); n = rotX(n, vec3(0.0), -hipR); }
-  else if (part == 7) { p = rotX(p, pivotOf(7), -elb); p = rotX(p, pivotOf(5), -armL); n = rotX(n, vec3(0.0), -elb - armL); }
-  else if (part == 8) { p = rotX(p, pivotOf(8), -elb); p = rotX(p, pivotOf(6), -armR); n = rotX(n, vec3(0.0), -elb - armR); }
-  else if (part == 5) { p = rotX(p, pivotOf(5), -armL); n = rotX(n, vec3(0.0), -armL); }
-  else if (part == 6) { p = rotX(p, pivotOf(6), -armR); n = rotX(n, vec3(0.0), -armR); }
-}
-`;
-const PERSON_NORMAL = /* glsl */`
-vec3 objectNormal = vec3( normal );
-vec3 pDummy = position;
-animate(int(aPart + 0.5), aMisc.x, aMisc.y, pDummy, objectNormal);
-`;
-const PERSON_BEGIN = /* glsl */`
-vec3 transformed = position;
-vec3 nDummy = vec3(0.0);
-animate(int(aPart + 0.5), aMisc.x, aMisc.y, transformed, nDummy);
-transformed.y += abs(sin(aMisc.x)) * 0.014 * aMisc.y;
-{
-  float m = aMat;
-  float sk = mod(aMisc.w, 4.0), sl = mod(floor(aMisc.w / 4.0), 2.0);
-  if (aPart > 8.5 && aPart < 9.5 && mod(floor(aMisc.w / 8.0), 2.0) < 0.5) transformed *= 0.0;   // WEATHER: umbrella only while it rains
-  if (aPart > 9.5 && floor(aMisc.w / 16.0) < 0.5) transformed *= 0.0;                                // dog lead only when walking a dog
-  vec3 skin = sk < 0.5 ? vec3(0.50, 0.33, 0.25) : sk < 1.5 ? vec3(0.36, 0.21, 0.15) : sk < 2.5 ? vec3(0.22, 0.11, 0.075) : vec3(0.09, 0.045, 0.03);
-  float part = aPart;
-  vec3 col = m < 0.5 ? aShirt : m < 1.5 ? aTrou : m < 2.5 ? skin : m < 3.5 ? aHair : vec3(0.025, 0.022, 0.02);
-  if (m > 4.5) col = (sl > 0.5) ? aShirt : skin;        // forearm: long sleeve or bare
-  if (m > 5.5) col = aTrou * 0.6 + 0.015;                // umbrella canopy
-  vMatCol = col;
-  vRough = m < 0.5 ? 0.9 : m < 1.5 ? 0.85 : m < 2.5 ? 0.5 : m < 3.5 ? 0.75 : 0.55;
-  transformed *= aMisc.z;   // person scale (height variety)
-}
-`;
-
-const DOG_PARS = /* glsl */`
-attribute float aPart; attribute float aMat;
-attribute vec4 aMisc;
-attribute vec3 aShirt; attribute vec3 aTrou; attribute vec3 aHair;
-varying vec3 vMatCol; varying float vRough;
-vec3 pivotOf(int p) {
-  if (p == 1) return vec3(0.085, 0.40, 0.24);  if (p == 2) return vec3(-0.085, 0.40, 0.24);
-  if (p == 3) return vec3(0.085, 0.40, -0.24); if (p == 4) return vec3(-0.085, 0.40, -0.24);
-  if (p == 5) return vec3(0.0, 0.5, -0.34);
-  return vec3(0.0);
-}
-vec3 rotX(vec3 p, vec3 pv, float th) { float c = cos(th), s = sin(th); vec3 d = p - pv; return pv + vec3(d.x, d.y * c - d.z * s, d.y * s + d.z * c); }
-void animate(int part, float a, float sw, inout vec3 p, inout vec3 n) {
-  float s = sin(a) * 0.42 * sw;
-  float th = 0.0;
-  if (part == 1 || part == 4) th = s; else if (part == 2 || part == 3) th = -s;
-  if (part >= 1 && part <= 4) { p = rotX(p, pivotOf(part), th); n = rotX(n, vec3(0.0), th); }
-  if (part == 5) { float w = sin(a * 2.3) * 0.5; vec3 d = p - pivotOf(5); float c = cos(w), sn = sin(w); p = pivotOf(5) + vec3(d.x * c + d.z * sn, d.y, -d.x * sn + d.z * c); }
-}
-`;
-const DOG_NORMAL = /* glsl */`
-vec3 objectNormal = vec3( normal );
-vec3 pDummy = position;
-animate(int(aPart + 0.5), aMisc.x, aMisc.y, pDummy, objectNormal);
-`;
-const DOG_BEGIN = /* glsl */`
-vec3 transformed = position;
-vec3 nDummy = vec3(0.0);
-animate(int(aPart + 0.5), aMisc.x, aMisc.y, transformed, nDummy);
-transformed.y += abs(sin(aMisc.x * 2.0)) * 0.012 * aMisc.y;
-{
-  float m = aMat;
-  vMatCol = m < 0.5 ? aShirt : m < 1.5 ? aTrou : m < 2.5 ? vec3(0.02) : vec3(0.35, 0.05, 0.05);
-  vRough = 0.85;
-  transformed *= aMisc.z;
-}
-`;
-
-// ---- geometry helpers: parts merged into one buffer geometry carrying part id + material id
-function mk(parts) {
-  const P = [], N = [], I = [], PT = [], MT = [];
-  for (const { geo, part, mat } of parts) {
-    const g = geo.index ? geo : geo;
-    const pos = g.attributes.position.array, nor = g.attributes.normal.array, idx = g.index.array;
-    const o = P.length / 3;
-    for (let i = 0; i < pos.length; i += 3) { P.push(pos[i], pos[i + 1], pos[i + 2]); N.push(nor[i], nor[i + 1], nor[i + 2]); PT.push(part); MT.push(mat); }
-    for (const k of idx) I.push(o + k);
-  }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(P, 3));
-  g.setAttribute('normal', new THREE.Float32BufferAttribute(N, 3));
-  g.setAttribute('aPart', new THREE.Float32BufferAttribute(PT, 1));
-  g.setAttribute('aMat', new THREE.Float32BufferAttribute(MT, 1));
-  g.setIndex(I);
-  return g;
-}
-const ell = (rx, ry, rz, x, y, z, ws = 10, hs = 7) => { const g = new THREE.SphereGeometry(1, ws, hs); g.scale(rx, ry, rz); g.translate(x, y, z); return g; };
-const limb = (r0, r1, len, x, yTop, z, seg = 8) => { const g = new THREE.CylinderGeometry(r0, r1, len, seg, 1); g.translate(x, yTop - len / 2, z); return g; };
-
-function personGeometry() {
-  const A = [];
-  const add = (geo, part, mat) => A.push({ geo, part, mat });
-  // torso
-  add(ell(0.185, 0.21, 0.115, 0, 1.27, 0, 12, 8), 0, 0);
-  add(ell(0.16, 0.17, 0.1, 0, 1.08, 0, 12, 7), 0, 0);
-  add(ell(0.168, 0.13, 0.108, 0, 0.95, -0.005, 12, 7), 0, 1);
-  // neck + head + hair
-  add(limb(0.045, 0.05, 0.1, 0, 1.6, 0.005), 0, 2);
-  add(ell(0.078, 0.108, 0.093, 0, 1.675, 0.012, 12, 9), 0, 2);
-  add(ell(0.082, 0.1, 0.1, 0, 1.69, -0.012, 12, 7), 0, 3);
-  for (const s of [-1, 1]) add(ell(0.012, 0.028, 0.018, s * 0.078, 1.67, 0.005, 6, 5), 0, 2);
-  // face: dark eyes, brows, nose, mouth shadow (muted, tiny) so heads do not read as blank eggs
-  for (const s of [-1, 1]) { add(ell(0.0105, 0.0075, 0.007, s * 0.032, 1.69, 0.098, 6, 4), 0, 4); add(ell(0.02, 0.0045, 0.008, s * 0.033, 1.708, 0.097, 6, 4), 0, 3); }
-  add(ell(0.011, 0.02, 0.014, 0, 1.667, 0.104, 6, 5), 0, 2);
-  add(ell(0.026, 0.0045, 0.01, 0, 1.636, 0.094, 6, 4), 0, 4);
-  add(ell(0.07, 0.03, 0.09, 0, 1.585, 0.01, 8, 5), 0, 2);   // jaw/chin mass
-  // legs (part 1/2 thigh, 3/4 shin+shoe), arms (5/6 upper, 7/8 fore+hand)
-  for (const [s, pt, ps, pu, pf] of [[1, 1, 3, 5, 7], [-1, 2, 4, 6, 8]]) {
-    add(limb(0.088, 0.06, 0.44, s * 0.09, 0.92, 0, 9), pt, 1);
-    add(ell(0.092, 0.09, 0.1, s * 0.09, 0.93, 0, 8, 6), pt, 1);
-    add(limb(0.058, 0.042, 0.4, s * 0.09, 0.48, 0, 8), ps, 1);
-    const shoe = new THREE.BoxGeometry(0.095, 0.07, 0.27, 1, 1, 1); shoe.translate(s * 0.09, 0.045, 0.06); add(shoe, ps, 4);
-    add(ell(0.062, 0.062, 0.062, s * 0.215, 1.415, 0, 8, 6), pu, 0);
-    add(limb(0.058, 0.046, 0.3, s * 0.215, 1.42, 0, 8), pu, 0);
-    add(limb(0.045, 0.034, 0.28, s * 0.215, 1.12, 0, 8), pf, 5);
-    add(ell(0.034, 0.045, 0.026, s * 0.215, 0.81, 0.01, 7, 5), pf, 2);
-  }
-  // umbrella (hidden by the shader unless it is raining): canopy + pole held up beside the head
-  const can = new THREE.SphereGeometry(1, 14, 5, 0, Math.PI * 2, 0, Math.PI / 2); can.scale(0.5, 0.17, 0.5); can.translate(0.16, 2.0, 0.1); add(can, 9, 6);
-  add(limb(0.008, 0.008, 0.8, 0.16, 2.02, 0.1, 5), 9, 4);
-  // dog lead: thin line from the right hand to the dog's collar (dog trots 1.3 m ahead)
-  {
-    const hx = 0.215, hy = 0.84, hz = 0.06, cx = 0.0, cy = 0.5, cz = 1.5;
-    const len = Math.hypot(cx - hx, cy - hy, cz - hz);
-    const g = new THREE.BoxGeometry(0.007, 0.007, len, 1, 1, 1);
-    g.rotateX(-Math.asin((cy - hy) / len)); g.rotateY(Math.atan2(cx - hx, cz - hz));
-    g.translate((hx + cx) / 2, (hy + cy) / 2, (hz + cz) / 2);
-    add(g, 10, 4);
-  }
-  return mk(A.map((a) => ({ ...a, geo: a.geo.index ? a.geo : a.geo })));
-}
-function dogGeometry() {
-  const A = [];
-  const add = (geo, part, mat) => { if (part === 0 || part === 5) geo.translate(0, -0.1, 0); A.push({ geo, part, mat }); };
-  const ellR = (rx, ry, rz, x, y, z, rzAng, rxAng = 0, ws = 9, hs = 7) => { const g = new THREE.SphereGeometry(1, ws, hs); g.scale(rx, ry, rz); g.rotateZ(rzAng); g.rotateX(rxAng); g.translate(x, y, z); return g; };
-  // body: deep chest, tucked waist, rounder hindquarters
-  add(ell(0.105, 0.125, 0.23, 0, 0.57, 0, 12, 9), 0, 0);
-  add(ell(0.112, 0.135, 0.13, 0, 0.56, 0.15, 12, 8), 0, 0);
-  add(ell(0.108, 0.125, 0.14, 0, 0.56, -0.15, 12, 8), 0, 0);
-  add(ell(0.062, 0.095, 0.1, 0, 0.65, 0.27, 9, 7), 0, 0);                      // neck
-  add(ell(0.072, 0.076, 0.098, 0, 0.715, 0.335, 10, 8), 0, 0);                  // skull
-  add(ell(0.04, 0.04, 0.092, 0, 0.693, 0.435, 8, 6), 0, 1);                     // muzzle
-  add(ell(0.0185, 0.015, 0.015, 0, 0.705, 0.522, 6, 5), 0, 2);                  // nose
-  for (const s of [-1, 1]) {
-    add(ell(0.0105, 0.0105, 0.008, s * 0.042, 0.74, 0.405, 6, 5), 0, 2);        // eyes
-    add(ellR(0.022, 0.058, 0.04, s * 0.068, 0.725, 0.325, s * 0.45, 0.25, 7, 6), 0, 0); // floppy ears
-  }
-  add(new THREE.TorusGeometry(0.056, 0.0085, 5, 12).rotateX(Math.PI / 2 - 0.55).translate(0, 0.645, 0.255), 0, 3); // collar
-  // legs: slim, tapered, with paws (parts 1..4 swing about the shoulder/hip pivots)
-  for (const [s, z, pt] of [[1, 0.24, 1], [-1, 0.24, 2], [1, -0.24, 3], [-1, -0.24, 4]]) {
-    add(limb(0.04, 0.022, 0.38, s * 0.085, 0.40, z, 7), pt, 0);
-    add(ell(0.034, 0.022, 0.05, s * 0.085, 0.02, z + 0.014, 7, 5), pt, 1);
-  }
-  // tail: tapered, carried up and back (part 5 wags in the shader)
-  const tail = new THREE.CylinderGeometry(0.008, 0.02, 0.26, 6, 1); tail.translate(0, 0.13, 0); tail.rotateX(-0.8); tail.translate(0, 0.6, -0.34);
-  add(tail, 5, 0);
-  return mk(A);
-}
 
 // clothing is never skin-toned: dark coats / navy / grey / green / burgundy, plus a few clean light tops (white, pale blue)
 const SHIRTS = ['#2b3442', '#3a3d40', '#6b6f73', '#3f5a3a', '#7a3a35', '#e6e6e2', '#4d6a8a', '#16181a', '#c9d1d8', '#5a2f2f', '#2f4f4a', '#243a5e', '#8a2f3a', '#d8d8d4', '#4a4f55'];
@@ -257,7 +75,7 @@ export function createPeople(scene, graph, features, cfg, ctx = {}) {
 
   function dress(p) {
     p.shirt.set(SHIRTS[(rnd() * SHIRTS.length) | 0]); p.trou.set(TROUS[(rnd() * TROUS.length) | 0]); p.hair.set(HAIR[(rnd() * HAIR.length) | 0]);
-    p.skin = rnd() < 0.78 ? 0 : (rnd() * 4) | 0; p.sleeve = rnd() < 0.7 ? 1 : 0; p.umb = rnd() < 0.6 ? 1 : 0;
+    p.skin = rnd() < 0.78 ? 0 : (rnd() * 4) | 0; p.sleeve = rnd() < 0.7 ? 1 : 0; p.umb = rnd() < 0.6 ? 1 : 0; p.coat = rnd() < 0.5 ? 1 : 0;
     p.scale = 0.9 + rnd() * 0.12 + (rnd() < 0.5 ? 0 : 0.03);
     p.sp = 1.05 + rnd() * 0.45;
   }
@@ -315,7 +133,7 @@ export function createPeople(scene, graph, features, cfg, ctx = {}) {
     }
     else if (rnd() < nDog / Math.max(1, nWalk) * 1.4) {
       const di = dogs.findIndex((g) => !g.on);
-      if (di >= 0) { const g = dogs[di]; g.on = true; g.owner = p.idx; p.dog = di; const dc = DOGS[(rnd() * DOGS.length) | 0]; g.c1.set(dc[0]); g.c2.set(dc[1]); g.scale = 0.75 + rnd() * 0.4; }
+      if (di >= 0) { const g = dogs[di]; g.on = true; g.owner = p.idx; p.dog = di; const dc = DOGS[(rnd() * DOGS.length) | 0]; g.c1.set(dc[0]); g.c2.set(dc[1]); g.breed = (rnd() * 3) | 0; g.scale = g.breed === 1 ? 0.72 + rnd() * 0.1 : g.breed === 2 ? 0.85 + rnd() * 0.1 : 1.0 + rnd() * 0.12; }
     }
     return true;
   }
@@ -422,7 +240,7 @@ export function createPeople(scene, graph, features, cfg, ctx = {}) {
       if (p.cross) { const c = crossings[p.ci]; const dx = c.x - camP.x, dz = c.z - camP.z; if (dx * dx + dz * dz > 320 * 320) continue; }
       setPose(mA, live * 16, p.x, p.y, p.z, p.yaw, 0);
       const o4 = live * 4, o3 = live * 3;
-      aM.aMisc.array[o4] = p.ph; aM.aMisc.array[o4 + 1] = p.v > 0.1 ? 1 : 0; aM.aMisc.array[o4 + 2] = p.scale; aM.aMisc.array[o4 + 3] = p.skin + 4 * p.sleeve + (p.umb && umbOn ? 8 : 0) + (p.dog >= 0 ? 16 : 0);
+      aM.aMisc.array[o4] = p.ph; aM.aMisc.array[o4 + 1] = p.v > 0.1 ? 1 : 0; aM.aMisc.array[o4 + 2] = p.scale; aM.aMisc.array[o4 + 3] = p.skin + 4 * p.sleeve + (p.umb && umbOn ? 8 : 0) + (p.dog >= 0 ? 16 : 0) + (p.coat ? 32 : 0);
       aM.aShirt.array[o3] = p.shirt.r; aM.aShirt.array[o3 + 1] = p.shirt.g; aM.aShirt.array[o3 + 2] = p.shirt.b;
       aM.aTrou.array[o3] = p.trou.r; aM.aTrou.array[o3 + 1] = p.trou.g; aM.aTrou.array[o3 + 2] = p.trou.b;
       aM.aHair.array[o3] = p.hair.r; aM.aHair.array[o3 + 1] = p.hair.g; aM.aHair.array[o3 + 2] = p.hair.b;
@@ -440,7 +258,7 @@ export function createPeople(scene, graph, features, cfg, ctx = {}) {
       g.x = o.x + ax; g.z = o.z + az; g.y = o.y; g.yaw = o.yaw; g.ph = o.ph * 1.1 + 1;
       setPose(dA, dl * 16, g.x, g.y, g.z, g.yaw, 0);
       const o4 = dl * 4, o3 = dl * 3;
-      aD.aMisc.array[o4] = g.ph; aD.aMisc.array[o4 + 1] = 1; aD.aMisc.array[o4 + 2] = g.scale; aD.aMisc.array[o4 + 3] = 0;
+      aD.aMisc.array[o4] = g.ph; aD.aMisc.array[o4 + 1] = 1; aD.aMisc.array[o4 + 2] = g.scale; aD.aMisc.array[o4 + 3] = g.breed || 0;
       aD.aShirt.array[o3] = g.c1.r; aD.aShirt.array[o3 + 1] = g.c1.g; aD.aShirt.array[o3 + 2] = g.c1.b;
       aD.aTrou.array[o3] = g.c2.r; aD.aTrou.array[o3 + 1] = g.c2.g; aD.aTrou.array[o3 + 2] = g.c2.b;
       dl++;
