@@ -228,7 +228,7 @@ export function storrsVerge(st, hf, lc) {
           const ii = Math.round((x - hf.x0) / hf.res), jj = Math.round((z - hf.z0) / hf.res);
           if (ii < 0 || jj < 0 || ii >= hf.cols || jj >= hf.rows) continue;
           const k = jj * hf.cols + ii;
-          if (lc[k] === 1 || lc[k] === 0) { lc[k] = 7; n++; }
+          if (lc[k] === 1) { lc[k] = 0; n++; }
         }
       }
     }

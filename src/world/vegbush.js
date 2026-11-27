@@ -142,7 +142,14 @@ export function leafMaterial(key) {
   const mat = new THREE.MeshStandardMaterial({ map: foliageTexture(), alphaTest: 0.42, vertexColors: true, side: THREE.DoubleSide, roughness: 1.0, metalness: 0, envMapIntensity: 0.5 });
   patchMaterial(mat, {
     key, fragmentPars: OCC_GLSL,
-    fragment: { alphatest_fragment: '$\n if (ign(gl_FragCoord.xy) > occFade(vAerialWorld)) discard;' },
+    // hard cut-outs (no screen-door veil): very close to the camera and on the camera-to-rider line
+    fragment: { alphatest_fragment: `$
+      {
+        vec3 cv = vAerialWorld - cameraPosition; float Lc = length(cv);
+        vec3 cr = uRiderPos + vec3(0.0, 1.0, 0.0) - cameraPosition; float Lr = length(cr); vec3 dr = cr / max(Lr, 1e-3);
+        float tq = dot(cv, dr);
+        if (Lc < 1.6 || (tq > 0.0 && tq < Lr - 1.0 && length(cv - dr * tq) < 1.1)) discard;
+      }` },
   });
   return mat;
 }

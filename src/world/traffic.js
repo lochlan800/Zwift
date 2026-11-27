@@ -3,6 +3,7 @@ import { patchMaterial } from './shared.js';
 import { buildGraph, edgeAt, curveLimit, buildCrossings, setPose, depthMaterialFor, BUS_NAMES } from './lifeutil.js';
 import { mulberry32 } from './heightfield.js';
 import { buildVehicles, TYPE_DEFS } from './vehicleGeo.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 // ---------------------------------------------------------------------------------------------
 // Moving traffic: cars (hatchback/saloon/SUV/van) and single-decker buses on the real road graph,
@@ -12,11 +13,13 @@ import { buildVehicles, TYPE_DEFS } from './vehicleGeo.js';
 // ---------------------------------------------------------------------------------------------
 
 const GLSL_PARS = /* glsl */`
-uniform vec4 uWheel;     // half track, z front, z rear, radius
+uniform vec4 uWheel[2];  // per type in this mesh: half track, z front, z rear, radius
+uniform float uBase;     // first type index in this mesh
 attribute vec4 aInst;    // unused, travelled distance, far-LOD flag, 0
 attribute vec3 aBody;
 attribute vec3 aAcc;
 attribute float aMat;
+attribute float aType;
 attribute float aWheel;
 attribute float aDetail;
 varying vec3 vMatCol;
@@ -26,7 +29,7 @@ varying float vMetal;
 const GLSL_NORMAL = /* glsl */`
 vec3 objectNormal = vec3( normal );
 if (aWheel > -0.5) {
-  float ang = aInst.y / uWheel.w;
+  float ang = aInst.y / uWheel[int(aType - uBase + 0.5)].w;
   float ca = cos(ang), sa = sin(ang);
   objectNormal.yz = vec2(ca * objectNormal.y - sa * objectNormal.z, sa * objectNormal.y + ca * objectNormal.z);
 }
@@ -34,8 +37,10 @@ if (aWheel > -0.5) {
 const GLSL_BEGIN = /* glsl */`
 vec3 transformed = position;
 {
-  if (aWheel > -0.5) {
-    vec4 w = uWheel;
+  if (abs(aType - aInst.x) > 0.5) {
+    transformed = vec3(0.0);                 // another type's geometry in a shared mesh: collapse
+  } else if (aWheel > -0.5) {
+    vec4 w = uWheel[int(aType - uBase + 0.5)];
     int wi = int(aWheel + 0.5);
     float sx = (wi == 1 || wi == 3) ? 1.0 : -1.0;
     float zc = wi < 2 ? w.y : w.z;
@@ -67,18 +72,22 @@ export function createTraffic(scene, features, hf, cfg, ctx = {}) {
   const N = nCars + nBus;
   const R_SPAWN = [110, 380], R_DESPAWN = 470;
 
-  // ---- one InstancedMesh per vehicle type: only that type's real vertices are processed
+  // ---- meshes: hatch+saloon, SUV+van, bus (3 meshes x 3 passes). A shared mesh carries both types' geometry and
+  // collapses the one that does not match the instance, so draw calls stay low while vertex work stays modest.
   const geos = buildVehicles();
-  const caps = TYPE_DEFS.map((t, ti) => (t.bus ? nBus : nCars)); // capacity per type (cars share nCars)
-  const meshes = geos.map((geo, ti) => {
-    const cap = caps[ti];
+  const GROUPS = [[0, 1], [2, 3], [4]];
+  const groupOf = [0, 0, 1, 1, 2];
+  const meshes = GROUPS.map((types) => {
+    const geo = types.length === 1 ? geos[types[0]] : mergeGeometries(types.map((t) => geos[t]));
+    const cap = types.includes(4) ? nBus : nCars;
     const mesh = new THREE.InstancedMesh(geo, null, cap);
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     const aInst = new THREE.InstancedBufferAttribute(new Float32Array(cap * 4), 4); aInst.setUsage(THREE.DynamicDrawUsage);
     const aBody = new THREE.InstancedBufferAttribute(new Float32Array(cap * 3), 3); aBody.setUsage(THREE.DynamicDrawUsage);
     const aAcc = new THREE.InstancedBufferAttribute(new Float32Array(cap * 3), 3); aAcc.setUsage(THREE.DynamicDrawUsage);
     geo.setAttribute('aInst', aInst); geo.setAttribute('aBody', aBody); geo.setAttribute('aAcc', aAcc);
-    const uniforms = { uWheel: { value: new THREE.Vector4(...TYPE_DEFS[ti].wheel) } };
+    const wh = [0, 1].map((i) => new THREE.Vector4(...TYPE_DEFS[types[Math.min(i, types.length - 1)]].wheel));
+    const uniforms = { uWheel: { value: wh }, uBase: { value: types[0] } };
     const mat = new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.3, metalness: 0.3, clearcoat: 0.8, clearcoatRoughness: 0.06, envMapIntensity: 1.3 });
     patchMaterial(mat, {
       key: 'traffic', uniforms,
@@ -89,9 +98,9 @@ export function createTraffic(scene, features, hf, cfg, ctx = {}) {
     });
     mesh.material = mat;
     mesh.customDepthMaterial = depthMaterialFor(GLSL_PARS, GLSL_BEGIN, GLSL_NORMAL, uniforms);
-    mesh.customDepthMaterial.side = THREE.BackSide;   // render back faces into the shadow map: removes acne on roofs/bonnets
+    mesh.customDepthMaterial.side = THREE.BackSide;   // back faces into the shadow map: no acne on roofs/bonnets
     mesh.frustumCulled = false; mesh.castShadow = true; mesh.receiveShadow = true;
-    mesh.name = 'traffic-' + TYPE_DEFS[ti].name; mesh.count = 0;
+    mesh.name = 'traffic-' + types.map((t) => TYPE_DEFS[t].name).join('+'); mesh.count = 0;
     scene.add(mesh);
     return { mesh, aInst, aBody, aAcc, cap };
   });
@@ -229,10 +238,10 @@ export function createTraffic(scene, features, hf, cfg, ctx = {}) {
       let k = 0;
       for (let n = 0; n < N && k < M.cap; n++) {
         const v = veh[n];
-        if (!v.on || v.type !== t) continue;
+        if (!v.on || groupOf[v.type] !== t) continue;
         setPose(arr, k * 16, v.x, v.y, v.z, v.yaw, v.pitch);
         const dx = v.x - camP.x, dz = v.z - camP.z;
-        ai[k * 4] = 0; ai[k * 4 + 1] = v.spin; ai[k * 4 + 2] = dx * dx + dz * dz > 120 * 120 ? 1 : 0; ai[k * 4 + 3] = 0;
+        ai[k * 4] = v.type; ai[k * 4 + 1] = v.spin; ai[k * 4 + 2] = dx * dx + dz * dz > 120 * 120 ? 1 : 0; ai[k * 4 + 3] = 0;
         ab[k * 3] = v.cr; ab[k * 3 + 1] = v.cg; ab[k * 3 + 2] = v.cb;
         aa[k * 3] = BUS_ACC[0]; aa[k * 3 + 1] = BUS_ACC[1]; aa[k * 3 + 2] = BUS_ACC[2];
         k++;
@@ -256,8 +265,13 @@ export function createTraffic(scene, features, hf, cfg, ctx = {}) {
     if (remain < 40) vt = Math.min(vt, Math.sqrt((junction ? 3.5 : 6) ** 2 + 2 * 2.5 * Math.max(0, remain - 4)));
     vt = Math.min(vt, curveLimit(e, v.dir, v.s, 45, v.v));
     // a cyclist closing from behind: don't dawdle (the rider has no avoidance, so slow cars would be ridden through)
+    v.closing = false; v.rAlong = 99;
     { const rdx = v.x - rider.x, rdz = v.z - rider.z, ra = rdx * fx0(v) + rdz * fz0(v);
-      if (ra > 0 && ra < 45 && Math.abs(rdx * fz0(v) - rdz * fx0(v)) < 3.2 && rider.v > v.v - 0.5) vt = Math.max(vt, Math.min(e.lim * 1.1, rider.v + 2.5)); }
+      if (ra > 0 && ra < 45 && Math.abs(rdx * fz0(v) - rdz * fx0(v)) < 3.2 && rider.v > v.v - 0.5) {
+        v.closing = true; v.rAlong = ra;
+        vt = Math.max(vt, Math.min(e.lim * 1.1, rider.v + 2.5));
+        if (v.stop > 0 && ra < 70) v.stop = 0;           // buses and cars cancel a stop in the rider's path
+      } }
     if (v.stop > 0) { vt = 0; v.stop -= dt; }
     else if (v.bus) {
       for (const st of stops) {
@@ -273,10 +287,13 @@ export function createTraffic(scene, features, hf, cfg, ctx = {}) {
     const fx = v.tx, fz = v.tz;
     const lookRange = 14 + v.v * 1.8;
     {
-      for (let n = -1; n < N; n++) {
+      for (let n = -2; n < N; n++) {
         let ox, oz, ov, ohw, olen, isRider = false;
         if (v.ghost > 0 && n >= 0) continue; // ghost mode (deadlock breaker) only ignores other vehicles, never the rider
-        if (n < 0) { ox = rider.x; oz = rider.z; ov = rider.v; ohw = rider.hw; olen = rider.len; isRider = true; }
+        if (n === -2) { // the chase camera sits behind the rider: same-direction traffic must not drive into it
+          if (v.tx * Math.sin(rider.yaw) + v.tz * Math.cos(rider.yaw) < 0.5) continue;
+          ox = camP.x; oz = camP.z; ov = rider.v; ohw = 1.0; olen = 1.5;
+        } else if (n === -1) { ox = rider.x; oz = rider.z; ov = rider.v; ohw = rider.hw; olen = rider.len; isRider = true; }
         else { const o = veh[n]; if (o === v || !o.on) continue; ox = o.x; oz = o.z; ov = o.v; ohw = o.hw; olen = o.len; }
         const dx = ox - v.x, dz = oz - v.z;
         const along = dx * fx + dz * fz;
@@ -311,7 +328,7 @@ export function createTraffic(scene, features, hf, cfg, ctx = {}) {
     if (v.overtaking) {
       const dx = rider.x - v.x, dz = rider.z - v.z, al = dx * fx + dz * fz;
       if (al < -12 || Math.hypot(dx, dz) > 60) { v.overtaking = false; v.offT = lane; }
-    } else v.offT = lane;
+    } else v.offT = v.closing ? Math.max(lane, Math.min(lane + 0.9, e.w * 0.5 - v.hw - 0.05)) : lane;   // hug the kerb for a closing cyclist
     const dOff = v.offT - v.off;
     v.off += Math.max(-1.1 * dt, Math.min(1.1 * dt, dOff));
     // --- car following
@@ -325,6 +342,8 @@ export function createTraffic(scene, features, hf, cfg, ctx = {}) {
     if (v.v < 0) v.v = 0;
     if (v.v < 0.25 && gap < 6 && v.stop <= 0) { v.stall += dt; if (v.stall > 30) { v.ghost = 2.5; v.stall = 0; } } else v.stall = Math.max(0, v.stall - dt * 2);
     if (v.ghost > 0) v.ghost -= dt;
+    // slower than the rider, still in its path and about to be ridden through: turn off (despawn)
+    if (v.closing && v.rAlong < 4 && v.v < rider.v - 1 && v.stop <= 0) { v.on = false; return; }
     const ds = v.v * dt;
     v.s += ds; v.spin += ds;
     if (v.s >= e.len) {

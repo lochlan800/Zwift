@@ -73,7 +73,7 @@ varying vec3 vMatCol; varying float vRough;
 vec3 pivotOf(int p) {
   if (p == 1) return vec3(0.085, 0.47, 0.24);  if (p == 2) return vec3(-0.085, 0.47, 0.24);
   if (p == 3) return vec3(0.085, 0.47, -0.24); if (p == 4) return vec3(-0.085, 0.47, -0.24);
-  if (p == 5) return vec3(0.0, 0.5, -0.38);
+  if (p == 5) return vec3(0.0, 0.6, -0.34);
   return vec3(0.0);
 }
 vec3 rotX(vec3 p, vec3 pv, float th) { float c = cos(th), s = sin(th); vec3 d = p - pv; return pv + vec3(d.x, d.y * c - d.z * s, d.y * s + d.z * c); }
@@ -82,7 +82,7 @@ void animate(int part, float a, float sw, inout vec3 p, inout vec3 n) {
   float th = 0.0;
   if (part == 1 || part == 4) th = s; else if (part == 2 || part == 3) th = -s;
   if (part >= 1 && part <= 4) { p = rotX(p, pivotOf(part), th); n = rotX(n, vec3(0.0), th); }
-  if (part == 5) { float w = sin(a * 1.7) * 0.35; vec3 d = p - pivotOf(5); float c = cos(w), sn = sin(w); p = pivotOf(5) + vec3(d.x * c + d.z * sn * 0.0, d.y, d.z); p.x += sin(a * 1.7) * 0.05 * (d.z < 0.0 ? 1.0 : 0.0) * 0.0; }
+  if (part == 5) { float w = sin(a * 2.3) * 0.5; vec3 d = p - pivotOf(5); float c = cos(w), sn = sin(w); p = pivotOf(5) + vec3(d.x * c + d.z * sn, d.y, -d.x * sn + d.z * c); }
 }
 `;
 const DOG_NORMAL = /* glsl */`
@@ -136,6 +136,11 @@ function personGeometry() {
   add(ell(0.078, 0.108, 0.093, 0, 1.675, 0.012, 12, 9), 0, 2);
   add(ell(0.082, 0.1, 0.1, 0, 1.69, -0.012, 12, 7), 0, 3);
   for (const s of [-1, 1]) add(ell(0.012, 0.028, 0.018, s * 0.078, 1.67, 0.005, 6, 5), 0, 2);
+  // face: dark eyes, brows, nose, mouth shadow (muted, tiny) so heads do not read as blank eggs
+  for (const s of [-1, 1]) { add(ell(0.0105, 0.0075, 0.007, s * 0.032, 1.69, 0.098, 6, 4), 0, 4); add(ell(0.02, 0.0045, 0.008, s * 0.033, 1.708, 0.097, 6, 4), 0, 3); }
+  add(ell(0.011, 0.02, 0.014, 0, 1.667, 0.104, 6, 5), 0, 2);
+  add(ell(0.026, 0.0045, 0.01, 0, 1.636, 0.094, 6, 4), 0, 4);
+  add(ell(0.07, 0.03, 0.09, 0, 1.585, 0.01, 8, 5), 0, 2);   // jaw/chin mass
   // legs (part 1/2 thigh, 3/4 shin+shoe), arms (5/6 upper, 7/8 fore+hand)
   for (const [s, pt, ps, pu, pf] of [[1, 1, 3, 5, 7], [-1, 2, 4, 6, 8]]) {
     add(limb(0.088, 0.06, 0.44, s * 0.09, 0.92, 0, 9), pt, 1);
@@ -164,18 +169,34 @@ function personGeometry() {
 function dogGeometry() {
   const A = [];
   const add = (geo, part, mat) => A.push({ geo, part, mat });
-  add(ell(0.13, 0.15, 0.3, 0, 0.55, -0.02, 10, 8), 0, 0);
-  add(ell(0.11, 0.12, 0.13, 0, 0.62, 0.3, 9, 7), 0, 0);
-  add(ell(0.065, 0.065, 0.12, 0, 0.58, 0.42, 8, 6), 0, 1);
-  add(ell(0.02, 0.02, 0.02, 0, 0.6, 0.53, 5, 4), 0, 2);
-  for (const s of [-1, 1]) add(ell(0.03, 0.07, 0.05, s * 0.085, 0.69, 0.27, 6, 5), 0, 1);
-  const tail = limb(0.018, 0.01, 0.3, 0, 0.52, -0.38, 5); tail.rotateX(0.0); add(tail, 5, 0);
-  for (const [s, z, pt] of [[1, 0.24, 1], [-1, 0.24, 2], [1, -0.24, 3], [-1, -0.24, 4]]) add(limb(0.04, 0.026, 0.47, s * 0.085, 0.47, z, 7), pt, 0);
+  const ellR = (rx, ry, rz, x, y, z, rzAng, rxAng = 0, ws = 9, hs = 7) => { const g = new THREE.SphereGeometry(1, ws, hs); g.scale(rx, ry, rz); g.rotateZ(rzAng); g.rotateX(rxAng); g.translate(x, y, z); return g; };
+  // body: deep chest, tucked waist, rounder hindquarters
+  add(ell(0.105, 0.125, 0.23, 0, 0.57, 0, 12, 9), 0, 0);
+  add(ell(0.112, 0.135, 0.13, 0, 0.56, 0.15, 12, 8), 0, 0);
+  add(ell(0.108, 0.125, 0.14, 0, 0.56, -0.15, 12, 8), 0, 0);
+  add(ell(0.062, 0.095, 0.1, 0, 0.65, 0.27, 9, 7), 0, 0);                      // neck
+  add(ell(0.072, 0.076, 0.098, 0, 0.715, 0.335, 10, 8), 0, 0);                  // skull
+  add(ell(0.04, 0.04, 0.092, 0, 0.693, 0.435, 8, 6), 0, 1);                     // muzzle
+  add(ell(0.0185, 0.015, 0.015, 0, 0.705, 0.522, 6, 5), 0, 2);                  // nose
+  for (const s of [-1, 1]) {
+    add(ell(0.0105, 0.0105, 0.008, s * 0.042, 0.74, 0.405, 6, 5), 0, 2);        // eyes
+    add(ellR(0.022, 0.058, 0.04, s * 0.068, 0.725, 0.325, s * 0.45, 0.25, 7, 6), 0, 0); // floppy ears
+  }
+  add(new THREE.TorusGeometry(0.056, 0.0085, 5, 12).rotateX(Math.PI / 2 - 0.55).translate(0, 0.645, 0.255), 0, 3); // collar
+  // legs: slim, tapered, with paws (parts 1..4 swing about the shoulder/hip pivots)
+  for (const [s, z, pt] of [[1, 0.24, 1], [-1, 0.24, 2], [1, -0.24, 3], [-1, -0.24, 4]]) {
+    add(limb(0.034, 0.019, 0.47, s * 0.082, 0.5, z, 7), pt, 0);
+    add(ell(0.03, 0.02, 0.046, s * 0.082, 0.018, z + 0.016, 7, 5), pt, 1);
+  }
+  // tail: tapered, carried up and back (part 5 wags in the shader)
+  const tail = new THREE.CylinderGeometry(0.008, 0.02, 0.3, 6, 1); tail.translate(0, 0.15, 0); tail.rotateX(-0.95); tail.translate(0, 0.6, -0.34);
+  add(tail, 5, 0);
   return mk(A);
 }
 
-const SHIRTS = ['#2b3442', '#3a3d40', '#6b6f73', '#4a5a3c', '#7a3a35', '#c7b9a0', '#4d6a8a', '#16181a', '#b8b8b0', '#5a4a3a', '#2f4f4a', '#8c6d4a'];
-const TROUS = ['#1d2a44', '#16181a', '#3c3f45', '#8a7a5c', '#26334f', '#4a4036', '#5b6068'];
+// clothing is never skin-toned: dark coats / navy / grey / green / burgundy, plus a few clean light tops (white, pale blue)
+const SHIRTS = ['#2b3442', '#3a3d40', '#6b6f73', '#3f5a3a', '#7a3a35', '#e6e6e2', '#4d6a8a', '#16181a', '#c9d1d8', '#5a2f2f', '#2f4f4a', '#243a5e', '#8a2f3a', '#d8d8d4', '#4a4f55'];
+const TROUS = ['#1d2a44', '#16181a', '#3c3f45', '#2b2f36', '#26334f', '#33302c', '#4b5058'];
 const HAIR = ['#14100d', '#2a1c12', '#4a3320', '#8a6a3a', '#a9a9a6', '#c8b58a', '#0a0a0a'];
 const DOGS = [['#7a5a35', '#e6dcc4'], ['#1a1a1a', '#6b6b6b'], ['#c9a46a', '#efe3c8'], ['#3b2a1f', '#8c6a45'], ['#e4ded2', '#bfb6a4']];
 const col3 = (h) => new THREE.Color(h);
@@ -189,12 +210,12 @@ export function createPeople(scene, graph, features, cfg, ctx = {}) {
   const N = nWalk + nCross;
   const rnd = mulberry32(777);
   const R_SPAWN = [50, 210], R_DESPAWN = 250;
-  const shadow = cfg.tier !== 'low';
+  const shadow = cfg.tier === 'high';  // perf: no shadow pass for pedestrians on medium/low
 
   // ---- paved edges grid
   const G = graph.G, grid = new Map(), gk = graph.gk;
   for (const e of graph.edges) {
-    if (!(e.road._pave > 0) || e.len < 8) continue;
+    if (!(e.road._pave > 0) || e.road._verge > 0 || e.len < 8) continue;   // paved footways only (no grass verges)
     const m = e.n >> 1, k = gk(Math.floor(e.x[m] / G), Math.floor(e.z[m] / G));
     let a = grid.get(k); if (!a) { a = []; grid.set(k, a); } a.push(e);
   }
@@ -319,7 +340,7 @@ export function createPeople(scene, graph, features, cfg, ctx = {}) {
     if (p.s >= p.e.len) {
       const e = p.e, node = graph.nodes[p.dir > 0 ? e.b : e.a];
       const opts = [];
-      for (const c of node.out) if (c.e !== e && c.e.road._pave > 0 && c.e.len >= 8) opts.push(c);
+      for (const c of node.out) if (c.e !== e && c.e.road._pave > 0 && !(c.e.road._verge > 0) && c.e.len >= 8) opts.push(c);
       if (!opts.length) { p.dir = -p.dir; p.s = 0; p.side = p.e.road._paveSide || p.side; /* turn round, stay on the same polyline side */ }
       else { const c = opts[(rnd() * opts.length) | 0]; const tl = p.side * p.dir; p.e = c.e; p.dir = c.dir; p.s = 0; p.off = offsetFor(c.e); p.side = c.e.road._paveSide || tl * c.dir; }
     }

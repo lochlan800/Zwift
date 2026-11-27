@@ -225,8 +225,8 @@ vec2 hbRingLayer(vec2 p, float cs, float seed) {
   vec2 off = (vec2(hbHash(id + cyc + 1.7), hbHash(id + cyc + 5.3)) - 0.5) * 0.3;
   vec2 d = (f - off) * cs; float r = length(d);
   float x = r - ph * cs * 0.34;
-  float amp = (1.0 - ph) * (1.0 - ph) * act;
-  float g = cos(x * 60.0) * exp(-x * x * 700.0) * amp * 0.5;
+  float amp = (1.0 - ph) * (1.0 - ph) * (1.0 - ph) * act;
+  float g = cos(x * 80.0) * exp(-x * x * 2600.0) * amp * 0.22;
   return d / max(r, 1e-3) * g;
 }
 float hbPuddle(vec3 w, float edge) {
@@ -251,7 +251,7 @@ void hbApplyWet(vec3 w, inout vec3 alb, inout float rough, inout float bump, flo
   bump *= 1.0 - 0.85 * hbPud;
   if (uRain > 0.01 && near > 0.0) {
     vec2 g = hbRingLayer(w.xz, 0.5, 1.0) + hbRingLayer(w.xz + 7.7, 0.85, 5.0);
-    hbRip = g * near * (hbPud + 0.25 * hbWetAmt);
+    hbRip = g * near * (hbPud + 0.03 * hbWetAmt);   // rings only in puddles; wet asphalt gets a barely-there normal shimmer
   }
 }
 vec3 hbWetNormal(vec3 Nw) { return normalize(Nw + vec3(hbRip.x, 0.0, hbRip.y) + vec3(0.0, 0.0, 0.0)); }

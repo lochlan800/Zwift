@@ -1017,11 +1017,20 @@ void buildingSurface(vec3 w, vec3 Nw) {
     bAlb = lin3(vec3(0.16, 0.15, 0.14)); bRough = 0.9; bAO = 0.6;
   } else {
     // flat roof: felt / gravel / metal
-    vec3 col = industrial ? lin3(vec3(0.46, 0.47, 0.47)) : lin3(vec3(0.20, 0.20, 0.21));
-    col *= 0.8 + 0.3 * n4.r;
-    if (industrial) { float rib = 0.5 + 0.5 * sin(w.x * 6.2831 / 0.3); col *= 0.92 + 0.08 * mix(rib, 0.5, clamp(fwidth(w.x / 0.3), 0.0, 1.0)); bMetal = 0.4; bRough = 0.45; }
-    col = mix(col, col * 0.6, smoothstep(0.55, 0.8, n3.r) * 0.6);
-    bAlb = col; bRough = industrial ? 0.45 : 0.9;
+    // bitumen felt / grey membrane / weathered profiled sheet, ponding stains, rooflight strips
+    float rt = hb(seed * 2.3);
+    vec3 col = industrial ? (rt < 0.5 ? lin3(vec3(0.30, 0.31, 0.31)) : lin3(vec3(0.24, 0.25, 0.25))) : (rt < 0.6 ? lin3(vec3(0.14, 0.14, 0.145)) : lin3(vec3(0.26, 0.26, 0.27)));
+    col *= 0.85 + 0.25 * n4.r;
+    vec4 rs = texture2D(uNoise, w.xz / 23.0);
+    col = mix(col, col * 0.55, smoothstep(0.55, 0.8, rs.r) * 0.6);                 // ponding / dirt
+    col = mix(col, col * vec3(0.8, 0.9, 0.75), smoothstep(0.65, 0.85, rs.g) * 0.4);   // algae
+    bRough = 0.85; bMetal = 0.0;
+    if (industrial) {
+      float rib = 0.5 + 0.5 * sin(w.x * 6.2831 / 0.3); col *= 0.94 + 0.06 * mix(rib, 0.5, clamp(fwidth(w.x / 0.3), 0.0, 1.0));
+      float rl = step(0.86, fract(w.z / 7.0)) * step(0.3, fract(w.x / 9.0));
+      col = mix(col, lin3(vec3(0.42, 0.44, 0.45)), rl * 0.8); bRough = mix(0.6, 0.3, rl);
+    }
+    bAlb = col;
   }
   hbSun = bakedSun(w);
 }

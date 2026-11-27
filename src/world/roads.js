@@ -308,10 +308,10 @@ void roadSurface(vec3 w) {
     float tu0 = cellU * 26.0 + fract(th * 3.3) * (26.0 - tl), tv0 = (fract(th * 5.9) - 0.5) * (2.0 * hw - tw - 0.4);
     vec2 tfw = vec2(fwidth(u), fwidth(v)) + 1e-4;
     float inT = smoothstep(tu0 - tfw.x, tu0 + tfw.x, u) * (1.0 - smoothstep(tu0 + tl - tfw.x, tu0 + tl + tfw.x, u))
-              * (1.0 - smoothstep(tw * 0.5 - tfw.y, tw * 0.5 + tfw.y, abs(v - tv0))) * step(0.45, th) * vMark;
+              * (1.0 - smoothstep(tw * 0.5 - tfw.y, tw * 0.5 + tfw.y, abs(v - tv0))) * step(0.72, th) * vMark;
     float edge = inT * (1.0 - smoothstep(0.0, 0.06 + tfw.y, tw * 0.5 - abs(v - tv0)));
-    asph = mix(asph, lin3(vec3(0.20, 0.20, 0.205)) * (0.92 + 0.1 * n5.a), inT);
-    asph *= 1.0 - 0.35 * edge;
+    asph = mix(asph, asph * (0.82 + 0.1 * n5.a), inT * (0.75 + 0.25 * n3.g));
+    asph *= 1.0 - 0.15 * edge;
   }
   // kerb-side grit, debris and leaf litter
   {

@@ -699,14 +699,15 @@ export function createTrees(features, hf, opts) {
     const mat = new THREE.MeshStandardMaterial({ map: leafTex, alphaTest: 0.42, side: THREE.DoubleSide, roughness: 1.0, metalness: 0, envMapIntensity: 0.5, color: 0xffffff, vertexColors: true });
     patchMaterial(mat, {
       key: 'treesL' + lod, uniforms: { uNear, uD0 },
-      vertexPars: `attribute vec2 aT; attribute vec3 aC; attribute vec4 aTint; varying vec2 vT; varying vec3 vTint; varying float vIDist; uniform float uTime; uniform float uNear; uniform vec2 uWind;`,
+      vertexPars: `attribute vec2 aT; attribute vec3 aC; attribute vec4 aTint; varying vec2 vT; varying vec3 vTint; varying vec3 vCW; varying float vIDist; uniform float uTime; uniform float uNear; uniform vec2 uWind;`,
       vertex: {
         begin_vertex: `$
           vT = aT; vTint = aTint.rgb;
           ${WIND_VERT}
+          vCW = (modelMatrix * instanceMatrix * vec4(aC.x, ym, aC.z, 1.0)).xyz;
           vIDist = distance(ip, cameraPosition);`,
       },
-      fragmentPars: `${GRID_GLSL} ${OCC_GLSL} varying vec2 vT; varying vec3 vTint; varying float vIDist; uniform float uNear; uniform float uD0; float hbSun;`,
+      fragmentPars: `${GRID_GLSL} ${OCC_GLSL} varying vec2 vT; varying vec3 vTint; varying vec3 vCW; varying float vIDist; uniform float uNear; uniform float uD0; float hbSun;`,
       fragment: {
         map_fragment: `$
           {
@@ -715,13 +716,23 @@ export function createTrees(features, hf, opts) {
             float dn = ign(gl_FragCoord.xy);
             ${lod === 0 ? 'if (dn < f0) discard;' : 'if (dn >= f0 || dn < fFar) discard;'}
             {
-              // wide screen-door fade for foliage close to the camera / between camera and rider
-              vec3 cv = vAerialWorld - cameraPosition;
-              float nf = smoothstep(3.5, 11.0, length(cv));
+              // near-camera / camera-to-rider clearing: whole leaf cards are hidden by a per-card hash
+              // (no screen-door veil); trunk and core pieces just get a hard cut-out
+              vec3 cv = vCW - cameraPosition;
+              float dc = length(cv);
+              float hh = fract(sin(dot(vCW, vec3(12.9898, 78.233, 37.719))) * 43758.5453);
               vec3 cr = uRiderPos + vec3(0.0, 1.0, 0.0) - cameraPosition;
-              float Lr = length(cr); vec3 dr = cr / max(Lr, 1e-3); float tr_ = dot(cv, dr);
-              if (tr_ > 0.0 && tr_ < Lr - 1.0) nf = min(nf, smoothstep(1.4, 3.4, length(cv - dr * tr_)));
-              if (dn > min(nf, occFade(vAerialWorld))) discard;
+              float Lr = length(cr); vec3 dr = cr / max(Lr, 1e-3);
+              if (vT.x > 0.9) {
+                float tr_ = dot(cv, dr);
+                if (dc < 3.0 + 3.5 * hh) discard;
+                if (tr_ > 0.0 && tr_ < Lr - 1.0 && length(cv - dr * tr_) < 2.0 + 1.6 * hh) discard;
+              } else {
+                vec3 fv = vAerialWorld - cameraPosition;
+                float tf = dot(fv, dr);
+                if (length(fv) < 2.0) discard;
+                if (tf > 0.0 && tf < Lr - 1.0 && length(fv - dr * tf) < 1.4) discard;
+              }
             }
           }
           diffuseColor.rgb *= mix(vec3(1.0), vTint, vT.x);

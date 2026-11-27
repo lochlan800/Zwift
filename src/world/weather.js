@@ -114,8 +114,8 @@ void main() {
 const SPLASH_VS = /* glsl */`
 attribute vec4 aS; attribute float aPart;
 uniform float uT; uniform float uR; uniform sampler2D uHeight;
-uniform vec2 uGridOrigin; uniform vec2 uGridSize; uniform float uGridRes; uniform sampler2D uRoad;
-varying vec2 vUv; varying float vPart; varying float vAge; varying float vA; varying float vHard;
+uniform vec2 uGridOrigin; uniform vec2 uGridSize; uniform float uGridRes; uniform sampler2D uRoad; uniform sampler2D uNoise; uniform float uWet;
+varying vec2 vUv; varying float vPart; varying float vAge; varying float vA; varying float vHard; varying float vPud;
 float h11(float p) { p = fract(p * 0.1031); p *= p + 33.33; p *= p + p; return fract(p); }
 void main() {
   float per = 0.55 + 0.5 * aS.w;
@@ -129,6 +129,10 @@ void main() {
   float fade = 1.0 - smoothstep(0.55, 1.0, dd);
   vec2 tg = clamp((wxz - uGridOrigin) / uGridRes, vec2(0.0), uGridSize - 1.0);
   float gh = texelFetch(uHeight, ivec2(tg + 0.5), 0).r + 0.25;
+  { float na = texture2D(uNoise, wxz / 37.0).r, nb = texture2D(uNoise, wxz / 11.0).g, nc = texture2D(uNoise, wxz / 3.3).b;
+    float n = na * 0.5 + nb * 0.38 + nc * 0.12;
+    float thr = mix(1.2, 0.585, smoothstep(0.25, 0.95, uWet));
+    vPud = smoothstep(thr, thr + 0.09, n); }
   vHard = texture2D(uRoad, ((wxz - uGridOrigin) / uGridRes + 0.5) / uGridSize).r;
   float sz = 0.9 + 0.8 * h11(aS.x * 7.0 + cyc);
   vec3 wp;
@@ -147,14 +151,14 @@ void main() {
 }`;
 const SPLASH_FS = /* glsl */`
 uniform vec3 uCol; uniform float uFlash;
-varying vec2 vUv; varying float vPart; varying float vAge; varying float vA; varying float vHard;
+varying vec2 vUv; varying float vPart; varying float vAge; varying float vA; varying float vHard; varying float vPud;
 void main() {
   float a = 0.0;
   if (vPart < 0.5) {
     float r = length(vUv);
     float R = mix(0.12, 0.95, sqrt(vAge));
-    float w = mix(0.10, 0.04, vAge);
-    a = smoothstep(w * 0.6, 0.0, abs(r - R)) * pow(1.0 - vAge, 2.2) * 0.38 * vHard;   // rings only on hard surfaces
+    float w = mix(0.06, 0.025, vAge);
+    a = smoothstep(w, 0.0, abs(r - R)) * pow(1.0 - vAge, 3.0) * 0.22 * vHard * (0.12 + 0.88 * vPud);   // thin, faint, quickly fading; mostly in puddles
   } else {
     // crown: a few droplets thrown up on parabolic arcs
     float y = vUv.y * 0.5 + 0.5;
@@ -372,7 +376,7 @@ export function createWeather(ctx) {
   const splashMat = new THREE.ShaderMaterial({
     vertexShader: SPLASH_VS, fragmentShader: SPLASH_FS, transparent: true, depthWrite: false, side: THREE.DoubleSide, toneMapped: false,
     polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3,
-    uniforms: { uT: U.uWxTime, uR: { value: tier === 'low' ? 9 : 12 }, uHeight: { value: heightTex }, uRoad: { value: roadMask }, uGridOrigin: U.uGridOrigin, uGridSize: U.uGridSize, uGridRes: U.uGridRes, uCol: { value: new THREE.Color(0.8, 0.85, 0.92) }, uFlash: U.uLightning },
+    uniforms: { uT: U.uWxTime, uR: { value: tier === 'low' ? 9 : 12 }, uHeight: { value: heightTex }, uRoad: { value: roadMask }, uNoise: U.uNoise, uWet: U.uWet, uGridOrigin: U.uGridOrigin, uGridSize: U.uGridSize, uGridRes: U.uGridRes, uCol: { value: new THREE.Color(0.8, 0.85, 0.92) }, uFlash: U.uLightning },
   });
   const splash = new THREE.Mesh(splashGeo, splashMat);
   splash.frustumCulled = false; splash.renderOrder = 1011; splash.visible = false; splash.name = 'wxSplash';

@@ -225,10 +225,10 @@ export function buildVehicles() {
         B.push(box(0.012, g.belt - sill - 0.22, 0.012, s * (x + 0.002), wMidY + 0.04, dz), ti, 2, -1, null, 1);
       }
       B.push(box(0.014, 0.07, L * (bus ? 0.78 : 0.6), s * (wAt(0) * 0.985 + 0.001), sill + 0.1, -L * 0.04), ti, 2, -1, null, 1);
-      // wing mirror: stalk + housing
-      const mx = wAt(g.mirrorZ) - 0.02;
-      B.push(box(0.1, 0.06, 0.05, s * (mx + 0.04), g.belt + 0.06, g.mirrorZ), ti, 2, -1, null, 1);
-      B.push(box(0.07, 0.11, 0.17, s * (mx + 0.12), g.belt + 0.1, g.mirrorZ - 0.03), ti, bus ? 2 : 0, -1, null, 1);
+      // wing mirror: thin arm buried in the A-pillar base + body-colour housing (hidden by the far LOD)
+      const mx = wAt(g.mirrorZ) - 0.075;
+      B.push(box(0.14, 0.022, 0.03, s * (mx + 0.05), g.belt + 0.035, g.mirrorZ), ti, 2, -1, null, 1);
+      B.push(box(0.06, 0.1, 0.16, s * (mx + 0.125), g.belt + 0.06, g.mirrorZ - 0.02), ti, 0, -1, null, 1);
       // wheel arches: dark discs just proud of the body side behind each wheel
     }
     const [wx, wzf, wzr, wr] = T.wheel;
