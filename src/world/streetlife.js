@@ -840,7 +840,7 @@ export function createStreetLife(features, hf, lc, roadIdx, bIdx, routeIdx, give
   const counts = { stoneWalls: stoneWalls.length / 10, pillars: pillars.length / 10, tallLamps: lampsTall.length / 10, poles: poles.length / 10, wires: wirePos.length / 6, dsigns: dsigns.length / 10, planters: planters.length / 10, baskets: baskets.length / 10, beacons: beacons.length / 10, awnings: awnings.length / 10, aboards: aboards.length / 10, shelter: !!shelter, clock: !!clock, walls: walls.length / 10, hedges: hedges.length / 10, lamps: lamps.length / 10, cars: cars.length / 10, signs: signs.length / 10 };
   let scale = 1;
   return {
-    group, counts,
+    group, counts, hedgePts: hedges, // hedgePts: stride-10 instance list (testing / debugging hook)
     setRadiusScale(k) { if (k !== scale) { for (const s of sets) s.radius = s.radius / scale * k; scale = k; for (const s of sets) s.last.set(1e9, 0, 0); } },
     update(cam) { for (const s of sets) s.update(cam); },
   };

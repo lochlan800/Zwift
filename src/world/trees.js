@@ -15,7 +15,7 @@ import { mulberry32, hash2 } from './heightfield.js';
 const SP_COUNT = 6;
 const ATLAS_W = 1024, ATLAS_H = 1152;     // leaf cells 2x2 of 512, bark strip underneath
 const CELL = 512, BARK_Y = 1024, BARK_H = 128;
-const TILE = 128, VIEWS = 8;               // impostor tile size / side views (+1 top)
+const TILE = 192, VIEWS = 8;               // impostor tile size / side views (+1 top)
 const BAKE_R0 = 0.38;                      // representative crown radius / height for baking
 const BAKE_ELEV = 12 * Math.PI / 180;
 
@@ -446,7 +446,7 @@ function bakeImpostors(model, atlasCv, tierName) {
   // pre-shaded, species-tinted copies of the leaf cells (4 shade levels)
   const LV = [0.5, 0.68, 0.84, 1.0];
   const variants = [];
-  const VS = 128;
+  const VS = 192;
   for (let sp = 0; sp < SP_COUNT; sp++) {
     const S = SPECIES[sp], arr = [];
     for (let l = 0; l < LV.length; l++) {
@@ -500,8 +500,8 @@ function bakeImpostors(model, atlasCv, tierName) {
       for (const it of items) {
         if (it.blob) {
           const b = it.blob, p = it.p;
-          const rxp = b.rx * BAKE_R0 * sx, ryp = b.ry * (top ? BAKE_R0 * sx : TILE / 1.05);
-          g.fillStyle = coreCol[sp]; g.beginPath(); g.ellipse(p[0], p[1], rxp, top ? b.rz * BAKE_R0 * sx : ryp, 0, 0, 6.3); g.fill();
+          const rxp = b.rx * 0.85 * BAKE_R0 * sx, ryp = b.ry * 0.85 * (top ? BAKE_R0 * sx : TILE / 1.05);
+          g.fillStyle = coreCol[sp]; g.beginPath(); g.ellipse(p[0], p[1], rxp, top ? b.rz * 0.85 * BAKE_R0 * sx : ryp, 0, 0, 6.3); g.fill();
         } else if (it.skirt) {
           const k = it.skirt;
           g.fillStyle = coreCol[sp]; g.beginPath();
@@ -846,15 +846,18 @@ export function createTrees(features, hf, opts) {
         vec4 t = texture2D(uImp, uv);
         if (t.a < 0.42) discard;
         vec3 alb = t.rgb * mix(vec3(1.0), vTint, step(0.0, vSp - 4.5) < 0.5 ? 1.0 : 0.0);
+        // darker underside / deep interior, soft sunlit top
+        alb *= mix(0.55, 1.08, smoothstep(0.12, 0.8, vUv.y));
         vec2 q = vec2(vUv.x * 2.0 - 1.0, (vUv.y - 0.5) * 2.0);
         float z = sqrt(max(0.0, 1.0 - dot(q, q) * 0.7));
         vec3 n = normalize(vRight * q.x * 0.9 + vUp * q.y * 0.7 + vFwd * z);
         n = normalize(n + vec3(0.0, 0.15, 0.0));
+        float edge = clamp(dot(q, q), 0.0, 1.0);
         float ndl = max(dot(n, uSunDir), 0.0);
         vec3 vd = normalize(vWorld - cameraPosition);
-        float back = pow(max(dot(vd, uSunDir), 0.0), 4.0) * 0.6;
+        float back = pow(max(dot(vd, uSunDir), 0.0), 4.0) * 0.3;
         float wrap = clamp(dot(n, uSunDir) * 0.5 + 0.5, 0.0, 1.0);
-        vec3 col = alb * (uSunColor * uSunI * (ndl * 0.8 + wrap * wrap * 0.2 + back) * vSun * 0.3183 * 0.68 + uSkyAmb * 0.42 * (0.4 + 0.6 * clamp(n.y * 0.5 + 0.5, 0.0, 1.0)));
+        vec3 col = alb * (uSunColor * uSunI * (ndl * 0.85 + wrap * wrap * 0.1 + back) * vSun * 0.3183 * 0.68 + uSkyAmb * 0.42 * (0.4 + 0.6 * clamp(n.y * 0.5 + 0.5, 0.0, 1.0)));
         col = applyAerial(col, vWorld);
         gl_FragColor = vec4(col, 1.0);
       }`,

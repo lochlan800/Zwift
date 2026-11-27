@@ -70,7 +70,7 @@ export function scrubGeometry() {
   const rnd = mulberry32(7771);
   const B = new Builder();
   const lumps = [[0, 0.42, 0, 0.48, 0.4], [0.46, 0.34, 0.2, 0.36, 0.3], [-0.4, 0.36, -0.22, 0.38, 0.34], [0.05, 0.3, -0.5, 0.3, 0.26], [-0.12, 0.28, 0.5, 0.32, 0.27], [0.2, 0.95, -0.1, 0.3, 0.32]];
-  for (const [x, y, z, r, ry] of lumps) icoCore(B, x, y, z, r * 0.6, ry * 0.6, r * 0.6, rnd, [0.06, 0.085, 0.035]);
+  for (const [x, y, z, r, ry] of lumps) icoCore(B, x, y, z, r * 0.42, ry * 0.42, r * 0.42, rnd, [0.045, 0.065, 0.028]);
   // thin stems (visible between the leaves)
   for (const [x, y, z] of [[0.2, 0.95, -0.1], [0.0, 0.5, 0.0]]) {
     const top = [x, y, z];
@@ -83,18 +83,19 @@ export function scrubGeometry() {
     }
   }
   // leaf cards on the surface of every lump: ragged silhouette
-  const nCards = 150;
+  const nCards = 190;
   for (let k = 0; k < nCards; k++) {
     const L = lumps[Math.floor(rnd() * lumps.length)];
     let d;
     do { d = [rnd() * 2 - 1, rnd() * 2 - 1, rnd() * 2 - 1]; } while (d[0] * d[0] + d[1] * d[1] + d[2] * d[2] > 1 || d[0] * d[0] + d[1] * d[1] + d[2] * d[2] < 0.05);
     d = norm(d);
-    const f = 0.75 + rnd() * 0.4;
+    const inner = k < 70;                       // interior leaves: fill the volume with dark foliage instead of a solid core
+    const f = inner ? 0.3 + rnd() * 0.45 : 0.78 + rnd() * 0.4;
     const c = [L[0] + d[0] * L[3] * f, Math.max(0.03, L[1] + (d[1] < 0 ? d[1] * 0.6 : d[1]) * L[4] * f), L[2] + d[2] * L[3] * f];
     const nrm = norm([d[0], d[1] + 0.25, d[2]]);
     const [ax, ay] = axes(rnd() < 0.8 ? nrm : norm([rnd() - 0.5, rnd() - 0.5, rnd() - 0.5]), rnd);
     const hs = 0.075 + rnd() * 0.06;
-    const lit = 0.55 + 0.45 * Math.min(1, Math.max(0, (c[1] + 0.1) / 1.0)) + (rnd() - 0.5) * 0.2;
+    const lit = (inner ? 0.28 + 0.2 * rnd() : 0.55 + 0.45 * Math.min(1, Math.max(0, (c[1] + 0.1) / 1.0)) + (rnd() - 0.5) * 0.2);
     const col = [0.5 * lit, 0.56 * lit, 0.36 * lit];
     B.card(c, ax, ay, [hs, hs, hs], rnd() < 0.55 ? 1 : 2, col, nrm);
   }

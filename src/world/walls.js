@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { patchMaterial, GRID_GLSL, OCC_GLSL } from './shared.js';
 import { splitByCell } from './heightfield.js';
 import { foliageTexture, FOLIAGE_GLSL } from './trees.js';
+import { leafMaterial } from './vegbush.js';
 
 // Hedges, dry-stone walls and fences as extruded profiles along polylines.
 const SPEC = { hedge: { w: 1.0, h: 1.45, t: 0 }, wall: { w: 0.5, h: 1.15, t: 1 }, fence: { w: 0.08, h: 1.1, t: 2 } };
@@ -29,6 +30,32 @@ export async function createWalls(features, slicer, castShadow = true, roadIdx =
   if (!list.length) return null;
   const pos = [], at = [], idx = [];
   let v = 0;
+  // leaf cards on hedge surfaces (medium/high): ragged leafy silhouette like the scrub
+  const cpos = [], cnor = [], cuv = [], ccol = [], cidx = [];
+  let cv = 0, ringN = 0;
+  const cardsPerRing = tier === 'low' ? 0 : tier === 'medium' ? 2 : 4;
+  const cardRnd = (() => { let a = 12345; return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; })();
+  const addCard = (cx, cy, cz, nx, ny, nz, tx, tz, hs, shade) => {
+    // card plane: spanned by the hedge direction and the (outward-ish) surface tangent, randomly rolled
+    const bx = ny * tz * 0 + (-nx * 0), by = 1, bz = 0; void bx; void by; void bz;
+    let ux = tx, uy = 0, uz = tz;                       // along the hedge
+    let vx = ny * uz - nz * uy, vy = nz * ux - nx * uz, vz = nx * uy - ny * ux; // normal x u
+    const l = Math.hypot(vx, vy, vz) || 1; vx /= l; vy /= l; vz /= l;
+    const r = cardRnd() * 6.283, c = Math.cos(r), sn = Math.sin(r);
+    const ax = ux * c + vx * sn, ay = uy * c + vy * sn, az = uz * c + vz * sn;
+    const bx2 = -ux * sn + vx * c, by2 = -uy * sn + vy * c, bz2 = -uz * sn + vz * c;
+    const cell = cardRnd() < 0.75 ? 2 : 1;
+    const u0 = (cell % 2) * 0.5 + 0.002, v1 = 1 - Math.floor(cell / 2) * 512 / 1152 - 0.002, v0 = v1 - 512 / 1152 + 0.004, u1 = u0 + 0.5 - 0.004;
+    const ci = [-1, 1, 1, -1], cj = [-1, -1, 1, 1];
+    for (let q = 0; q < 4; q++) {
+      const i = ci[q], j = cj[q];
+      cpos.push(cx + (ax * i + bx2 * j) * hs, cy + (ay * i + by2 * j) * hs, cz + (az * i + bz2 * j) * hs);
+      cnor.push(nx, ny, nz);
+      cuv.push(u0 + (i * 0.5 + 0.5) * (u1 - u0), v0 + (j * 0.5 + 0.5) * (v1 - v0));
+      ccol.push(0.5 * shade, 0.56 * shade, 0.36 * shade);
+    }
+    cidx.push(cv, cv + 1, cv + 2, cv, cv + 2, cv + 3); cv += 4;
+  };
   const tmp = { seg: null, d: 0, t: 0, y: 0 };
   const vert = (x, y, z, u, hh, t, run) => { pos.push(x, y, z); at.push(u, hh, t, run); return v++; };
   const hstep = tier === 'low' ? 1.6 : 1.1;
@@ -52,7 +79,7 @@ export async function createWalls(features, slicer, castShadow = true, roadIdx =
       if (blocked) { prev = null; continue; }
       const nx = dz, nz = -dx; // left
       const x = p[i][0], y = p[i][1], z = p[i][2];
-      let ids;
+      let ids, prof0 = null;
       if (isHedge) {
         const n1 = vn(L / 2.6, seed), n2 = vn(L / 0.8, seed + 1), n3 = vn(L / 6.0, seed + 2);
         let bump = Math.max(0, vn(L / 4.5, seed + 3) - 0.72) * 2.6; // hawthorn-like crowns
@@ -61,6 +88,7 @@ export async function createWalls(features, slicer, castShadow = true, roadIdx =
         const h = top - y;
         const prof = [[hw * 0.8, -0.35, 0], [hw + bl, h * 0.45, 0.45], [hw * 0.75 + bl * 0.5, h * 0.85, 0.85], [0.05 * (n2 - 0.5), h, 1],
           [-(hw * 0.75 + bl * 0.4), h * 0.86, 0.85], [-(hw + bl * 0.9), h * 0.42, 0.45], [-hw * 0.8, -0.35, 0]];
+        prof0 = prof;
         ids = prof.map(([o, yy, rel]) => vert(x + nx * o, y + yy, z + nz * o, L, rel, 0, run));
       } else {
         const hw = S.w / 2, y0 = y - 0.4, y1 = y + S.h;
@@ -68,6 +96,20 @@ export async function createWalls(features, slicer, castShadow = true, roadIdx =
           vert(x, y1 + 0.05, z, L, 1, S.t, run), vert(x - nx * hw, y1, z - nz * hw, L, 0.9, S.t, run), vert(x - nx * hw, y0, z - nz * hw, L, 0, S.t, run)];
       }
       if (prev && prev.length === ids.length) for (let k = 0; k + 1 < ids.length; k++) { const a0 = prev[k], a1 = prev[k + 1], b0 = ids[k], b1 = ids[k + 1]; idx.push(a0, a1, b0, b0, a1, b1); }
+      if (isHedge && cardsPerRing && (ringN++ % 3) === 0) {
+        const nOut = prof0.length;
+        for (let k = 0; k < cardsPerRing; k++) {
+          const f = cardRnd() * (nOut - 2) + 0.5, i0 = Math.min(nOut - 2, Math.floor(f)), t = f - i0;
+          const A = prof0[i0], Bp = prof0[i0 + 1];
+          const off = A[0] + (Bp[0] - A[0]) * t, yy = A[1] + (Bp[1] - A[1]) * t;
+          if (yy < 0.15) continue;
+          const side = off >= 0 ? 1 : -1, topness = Math.max(0, Math.min(1, (yy - 0.55 * (prof0[3][1])) / (0.45 * prof0[3][1] + 1e-3)));
+          const nrm = [nx * side * (1 - topness) * 0.9, 0.35 + 0.65 * topness, nz * side * (1 - topness) * 0.9];
+          const ln = Math.hypot(nrm[0], nrm[1], nrm[2]) || 1;
+          const ob = 0.04 + cardRnd() * 0.1;
+          addCard(x + nx * off + nrm[0] / ln * ob, y + yy + nrm[1] / ln * ob, z + nz * off + nrm[2] / ln * ob, nrm[0] / ln, nrm[1] / ln, nrm[2] / ln, dx, dz, 0.16 + cardRnd() * 0.1, 0.55 + 0.5 * cardRnd() * (0.5 + 0.5 * Math.min(1, yy / 1.2)));
+        }
+      }
       prev = ids;
     }
     await slicer.tick();
@@ -133,5 +175,29 @@ export async function createWalls(features, slicer, castShadow = true, roadIdx =
     mesh.add(m);
   }
   g.dispose();
-  return { mesh };
+  // leaf-card chunks (distance culled via update())
+  if (cv) {
+    const cg = new THREE.BufferGeometry();
+    cg.setAttribute('position', new THREE.Float32BufferAttribute(cpos, 3));
+    cg.setAttribute('normal', new THREE.Float32BufferAttribute(cnor, 3));
+    cg.setAttribute('uv', new THREE.Float32BufferAttribute(cuv, 2));
+    cg.setAttribute('color', new THREE.Float32BufferAttribute(ccol, 3));
+    cg.setIndex(cv > 65535 ? new THREE.Uint32BufferAttribute(cidx, 1) : new THREE.Uint16BufferAttribute(cidx, 1));
+    const lm = leafMaterial('wleaf');
+    for (const sg of splitByCell(cg, 200)) {
+      const m = new THREE.Mesh(sg, lm);
+      m.castShadow = false; m.receiveShadow = true; m.matrixAutoUpdate = false; m.userData.card = true;
+      mesh.add(m);
+    }
+    cg.dispose();
+    console.info('hedge leaf cards', cv / 4, 'rings', ringN);
+  }
+  const cardMax = tier === 'high' ? 160 : 110;
+  return { mesh, update(cam) {
+    for (const m of mesh.children) {
+      if (!m.userData.card) continue;
+      const sph = m.geometry.boundingSphere;
+      m.visible = Math.hypot(sph.center.x - cam.x, sph.center.z - cam.z) - sph.radius < cardMax;
+    }
+  } };
 }

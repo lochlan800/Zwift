@@ -396,6 +396,7 @@ function frame(now) {
     distanceCull(world.roads.mesh, camera.position, 2600 * cfg.lod * k);
     distanceCull(world.buildings.group, camera.position, (cfg.tier === 'low' ? 850 : cfg.tier === 'medium' ? 2000 : 3500) * (cfg.tier === 'low' ? Math.min(k, 1.15) : k));
     if (world.walls) distanceCull(world.walls.mesh, camera.position, (cfg.tier === 'low' ? 700 : cfg.tier === 'medium' ? 1100 : 1700) * k);
+    if (world.walls && world.walls.update) world.walls.update(camera.position); // veg: distance-cull hedge leaf cards
   }
   if (world.grass) world.grass.update(camera, rider.root.position);
   world.sky.update(U.uTime.value, camera.position);
