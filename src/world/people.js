@@ -38,7 +38,7 @@ export function createPeople(scene, graph, features, cfg, ctx = {}) {
     let a = grid.get(k); if (!a) { a = []; grid.set(k, a); } a.push(e);
   }
 
-  function makeMesh(geo, count, pars, nrm, beg, key) {
+  function makeMesh(geo, count, pars, nrm, beg, key, person = false) {
     const mesh = new THREE.InstancedMesh(geo, null, count);
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     const attrs = {
@@ -51,8 +51,9 @@ export function createPeople(scene, graph, features, cfg, ctx = {}) {
     const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8, metalness: 0, envMapIntensity: 0.9 });
     patchMaterial(mat, {
       key, vertexPars: pars, vertex: { beginnormal_vertex: nrm, begin_vertex: beg },
-      fragmentPars: 'varying vec3 vMatCol; varying float vRough;',
-      fragment: { color_fragment: 'diffuseColor.rgb *= vMatCol;', roughnessmap_fragment: 'float roughnessFactor = vRough;' },
+      fragmentPars: person ? 'flat varying vec3 vMatCol; flat varying float vRough; varying float vObjY; varying float vCloth; varying vec3 vShirt; varying vec3 vTrou; varying float vCoatF;' : 'flat varying vec3 vMatCol; flat varying float vRough;',
+      // clothing seams (top / coat hem / trousers) are resolved per pixel from the rest-pose height so edges stay crisp
+      fragment: { color_fragment: person ? 'vec3 mc = vMatCol; if (vCloth > 0.5) mc = (vObjY > 0.96 || (vCoatF > 0.5 && vObjY > 0.77)) ? vShirt : vTrou; diffuseColor.rgb *= mc;' : 'diffuseColor.rgb *= vMatCol;', roughnessmap_fragment: 'float roughnessFactor = vRough;' },
     });
     mesh.material = mat;
     mesh.customDepthMaterial = depthMaterialFor(pars, beg, nrm, {});
@@ -61,7 +62,7 @@ export function createPeople(scene, graph, features, cfg, ctx = {}) {
     scene.add(mesh);
     return { mesh, attrs };
   }
-  const pm = makeMesh(personGeometry(), N, PERSON_PARS, PERSON_NORMAL, PERSON_BEGIN, 'people');
+  const pm = makeMesh(personGeometry(), N, PERSON_PARS, PERSON_NORMAL, PERSON_BEGIN, 'people', true);
   const dm = makeMesh(dogGeometry(), nDog, DOG_PARS, DOG_NORMAL, DOG_BEGIN, 'dogs');
 
   const peds = [];

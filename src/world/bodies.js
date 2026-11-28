@@ -99,7 +99,7 @@ export function personGeometry() {
     [0.80, 0.135, 0.095], [0.86, 0.17, 0.108], [0.92, 0.178, 0.112], [1.02, 0.158, 0.1], [1.12, 0.165, 0.102], [1.24, 0.185, 0.108],
     [1.34, 0.2, 0.105], [1.41, 0.205, 0.095], [1.47, 0.135, 0.08], [1.51, 0.06, 0.058], [1.60, 0.048, 0.05],
   ].map(([t, rx, r2], i, a) => ({ t, rx, r2, c1: 0, c2: t > 1.2 ? -0.004 : 0, u: i / (a.length - 1) }));
-  B.loft('y', secs, { seg: 16, sk: torsoSk, mat: (u, th, p) => (p[1] > 1.5 ? 2 : p[1] > 0.96 ? 0 : p[1] > 0.84 ? 8 : 1) });
+  B.loft('y', secs, { seg: 16, sk: torsoSk, mat: (u, th, p) => (p[1] > 1.46 ? 2 : p[1] > 0.96 ? 0 : p[1] > 0.84 ? 8 : 1) });
   // ---- legs
   for (const [s, hip, shin] of [[1, 1, 3], [-1, 2, 4]]) {
     const x = s * 0.09;
@@ -158,7 +158,8 @@ export const PERSON_PARS = /* glsl */`
 attribute vec3 aSk; attribute float aMat;
 attribute vec4 aMisc;       // phase, walking(0/1), scale, flags: skin(0-3) + 4 sleeve + 8 umbrella + 16 dog + 32 long coat
 attribute vec3 aShirt; attribute vec3 aTrou; attribute vec3 aHair;
-varying vec3 vMatCol; varying float vRough;
+flat varying vec3 vMatCol; flat varying float vRough;
+varying float vObjY; varying float vCloth; varying vec3 vShirt; varying vec3 vTrou; varying float vCoatF;
 vec3 pv(int b) {
   if (b == 1) return vec3(0.09, 0.95, 0.0);  if (b == 2) return vec3(-0.09, 0.95, 0.0);
   if (b == 3) return vec3(0.09, 0.48, 0.0);  if (b == 4) return vec3(-0.09, 0.48, 0.0);
@@ -219,6 +220,7 @@ transformed.y += abs(sin(aMisc.x)) * 0.014 * aMisc.y;
   if (m > 11.5) col = aTrou * 0.55 + 0.02;
   // skin contrast with the face: lips/cheeks a touch warmer is skipped; keep palettes muted
   vMatCol = col;
+  vObjY = position.y; vCloth = ((m < 0.5) || (m > 0.5 && m < 1.5) || (m > 7.5 && m < 8.5)) ? 1.0 : 0.0; vShirt = aShirt; vTrou = aTrou; vCoatF = coat;
   vRough = (m < 0.5 || (m > 7.5 && m < 8.5)) ? 0.9 : m < 1.5 ? 0.85 : m < 2.5 ? 0.5 : m < 3.5 ? 0.75 : 0.55;
   transformed *= aMisc.z;
 }
@@ -272,7 +274,7 @@ export const DOG_PARS = /* glsl */`
 attribute vec3 aSk; attribute float aMat;
 attribute vec4 aMisc;       // phase, walking, scale, breed (0 lab-like floppy ears, 1 terrier prick ears, 2 spaniel)
 attribute vec3 aShirt; attribute vec3 aTrou; attribute vec3 aHair;
-varying vec3 vMatCol; varying float vRough;
+flat varying vec3 vMatCol; flat varying float vRough;
 vec3 pv(int b) {
   if (b == 1) return vec3(0.085, 0.42, 0.19);  if (b == 2) return vec3(-0.085, 0.42, 0.19);
   if (b == 3) return vec3(0.09, 0.42, -0.2);   if (b == 4) return vec3(-0.09, 0.42, -0.2);

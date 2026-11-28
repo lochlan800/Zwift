@@ -376,10 +376,7 @@ function buildBody() {
   skinGeo(E([0, 0.058, -0.02], [0.082, 0.04, 0.115], 14), H, { col: 'helmet' });
   skinGeo(E([0, 0.033, 0.098], [0.098, 0.022, 0.03], 12), H, { col: 'rimDark' });
   // flush vent slots on the shell (no protruding geometry)
-  for (const s of [-1, 1]) for (const z of [0.06, -0.01, -0.08]) skinGeo(E([s * 0.034, 0.1, z], [0.012, 0.004, 0.026], 8), H, { col: 'vent' });
-  for (const s of [-1, 1]) for (const z of [-0.04, 0, 0.04]) {
-    skinGeo(E([s * 0.04, 0.108, z], [0.011, 0.0045, 0.02], 8), H, { col: 'vent' });
-  }
+  for (const s of [-1, 1]) for (const z of [0.06, -0.01, -0.08]) skinGeo(E([s * 0.036, 0.094, z], [0.011, 0.005, 0.026], 8), H, { col: 'vent' });
   // sunglasses: wrap-around reflective shield with a dark frame rim, temple arms to the ears
   skinGeo(new THREE.SphereGeometry(1, 32, 8, Math.PI / 2 - 0.95, 1.9, 1.22, 0.44).scale(0.098, 0.098, 0.106).translate(0, -0.003, 0.004), H, { col: 'lens', mask: 2 });
   skinGeo(new THREE.SphereGeometry(1, 32, 3, Math.PI / 2 - 0.96, 1.92, 1.18, 0.05).scale(0.1, 0.1, 0.108).translate(0, -0.003, 0.004), H, { col: 'frameDark' });

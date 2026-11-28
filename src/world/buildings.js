@@ -515,7 +515,10 @@ vec3 photoLayer(sampler2D D, sampler2D N, sampler2D R, float mean, vec2 uv, floa
   float big = dot(texture2D(D, mat2(0.8, 0.6, -0.6, 0.8) * uv / (tile * 3.7) + 0.31).rgb, vec3(0.3, 0.59, 0.11)) / max(mean, 1e-3);
   nrm = texture2D(N, uv / tile).xyz * 2.0 - 1.0;
   rough = texture2D(R, uv / tile).g;
-  return d / max(mean, 1e-3) * mix(1.0, clamp(big, 0.6, 1.5), 0.35);
+  vec3 dn = d / max(mean, 1e-3);
+  float l = dot(dn, vec3(0.2126, 0.7152, 0.0722));
+  // mostly luminance detail; keep only a little of the photo's own hue so our calibrated palette rules
+  return mix(vec3(l), dn, 0.25) * mix(1.0, clamp(big, 0.6, 1.5), 0.35);
 }
 
 vec3 lin3(vec3 c) { return pow(c, vec3(2.2)); }
