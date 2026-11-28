@@ -23,13 +23,12 @@ const RANK = { primary: 5, secondary: 4, tertiary: 3, unclassified: 2, residenti
 
 // ---- photo-scanned asphalt (Poly Haven, CC0), inlined into the single-file build
 import asDiffUrl from '../textures/asphalt_07_diff_1k.jpg';
-import asNorUrl from '../textures/asphalt_07_nor_1k.jpg';
-import asRoughUrl from '../textures/asphalt_07_rough_1k.jpg';
-export const ASPHALT = { uAsD: { value: null }, uAsN: { value: null }, uAsR: { value: null }, uAsOn: { value: 0 }, uAsNormal: { value: 1 }, uAsMean: { value: 0.2 } };
+import asNRUrl from '../textures/asphalt_07_nrf_1k.webp';
+export const ASPHALT = { uAsD: { value: null }, uAsNR: { value: null }, uAsOn: { value: 0 }, uAsNormal: { value: 1 }, uAsMean: { value: 0.2 } };
 export function loadAsphalt(renderer, normals = true) {
   const loader = new THREE.TextureLoader();
   const aniso = renderer.capabilities.getMaxAnisotropy();
-  const setup = (t, srgb) => { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace; t.anisotropy = aniso; t.generateMipmaps = true; t.minFilter = THREE.LinearMipmapLinearFilter; t.needsUpdate = true; return t; };
+  const setup = (t, srgb) => { t.premultiplyAlpha = false; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace; t.anisotropy = aniso; t.generateMipmaps = true; t.minFilter = THREE.LinearMipmapLinearFilter; t.needsUpdate = true; return t; };
   ASPHALT.uAsNormal.value = normals ? 1 : 0;
   let n = 0;
   const done = () => { if (++n === 3) ASPHALT.uAsOn.value = 1; };
@@ -45,8 +44,8 @@ export function loadAsphalt(renderer, normals = true) {
     } catch (e) { /* keep default */ }
     done();
   });
-  ASPHALT.uAsN.value = normals ? loader.load(asNorUrl, (t) => { setup(t, false); done(); }) : (done(), new THREE.Texture());
-  ASPHALT.uAsR.value = loader.load(asRoughUrl, (t) => { setup(t, false); done(); });
+  ASPHALT.uAsNR.value = loader.load(asNRUrl, (t) => { setup(t, false); done(); });
+  done();
 }
 export function isDriveway(u, side, hw) {
   const x = Math.sin((Math.floor(u / 6) + side * 0.37 + hw * 1.7) * 12.9898) * 43758.5453;
@@ -237,7 +236,7 @@ const ROAD_FRAG = /* glsl */`
 varying vec4 vRoad; varying float vMark; varying vec3 vGw;
 uniform sampler2D uNoise;
 ${PHOTO_GLSL}
-uniform sampler2D uAsD; uniform sampler2D uAsN; uniform sampler2D uAsR;
+uniform sampler2D uAsD; uniform sampler2D uAsNR;
 uniform float uAsOn; uniform float uAsNormal; uniform float uAsMean;
 vec3 rNrm = vec3(0.0, 0.0, 1.0); float rPhotoF = 0.0; float rPaintAmt = 0.0;
 // two decorrelated planar samples of the photo-scanned asphalt (2.7 m and 7.3 m, rotated 37 deg)
@@ -246,8 +245,9 @@ void asphaltPhoto(vec2 xz, float scl, out vec3 d, out float rough, out vec3 nrm)
   vec2 u1 = xz / (2.7 * scl), u2 = (R * xz) / (7.3 * scl);
   vec3 d1 = texture2D(uAsD, u1).rgb, d2 = texture2D(uAsD, u2).rgb;
   d = mix(d1, d2, 0.4);
-  rough = mix(texture2D(uAsR, u1).g, texture2D(uAsR, u2).g, 0.4);
-  vec3 n1 = texture2D(uAsN, u1).xyz * 2.0 - 1.0, n2 = texture2D(uAsN, u2).xyz * 2.0 - 1.0;
+  vec4 q1 = texture2D(uAsNR, u1), q2 = texture2D(uAsNR, u2);
+  rough = mix(q1.b, q2.b, 0.4);
+  vec3 n1 = unpackN(q1.rg), n2 = unpackN(q2.rg);
   n2.xy = transpose(R) * n2.xy;
   nrm = normalize(vec3(n1.xy + n2.xy * 0.6, n1.z));
 }
@@ -430,11 +430,10 @@ void roadSurface(vec3 w) {
     if (uPhotoOn > 0.5) {
       float pf = 1.0 - smoothstep(30.0, 55.0, dist);
       vec2 puv = vec2(u, abs(v) - hw) / 2.4;
-      vec3 pd = texture2D(uPvD, puv).rgb / max(uPvMean, 1e-3);
-      float pr = texture2D(uPvR, puv).g;
+      float pd = pow(texture2D(uAsNR, puv).a, 2.2) / max(uDetMean.w, 1e-3);
+      float pr = clamp(0.95 - 0.3 * pd, 0.5, 1.0);
       rAlb = mix(rAlb, c * pd * (0.9 + 0.1 * jv), pf);
       rRough = mix(rRough, 0.75 + 0.25 * pr, pf);
-      if (uPhotoNrm > 0.5) { rNrm = texture2D(uPvN, puv).xyz * 2.0 - 1.0; rPhotoF = pf * 0.8; }
       rBump *= 1.0 - pf;
     }
     float edgeD = abs(v) - hw;

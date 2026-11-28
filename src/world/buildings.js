@@ -509,16 +509,18 @@ varying vec4 vW; flat varying vec4 vB; varying float vAO;
 uniform sampler2D uNoise;
 vec3 bAlb; float bRough; float bMetal; float bBump; float bAO; float hbSun; vec3 bEmis; uniform float uInterior;
 vec3 bPN = vec3(0.0, 0.0, 1.0); float bPF = 0.0; int bPK = 0;
-// photo layer: main sample + a large rotated luminance sample to break tiling
-vec3 photoLayer(sampler2D D, sampler2D N, sampler2D R, float mean, vec2 uv, float tile, out vec3 nrm, out float rough) {
-  vec3 d = texture2D(D, uv / tile).rgb;
-  float big = dot(texture2D(D, mat2(0.8, 0.6, -0.6, 0.8) * uv / (tile * 3.7) + 0.31).rgb, vec3(0.3, 0.59, 0.11)) / max(mean, 1e-3);
-  nrm = texture2D(N, uv / tile).xyz * 2.0 - 1.0;
-  rough = texture2D(R, uv / tile).g;
-  vec3 dn = d / max(mean, 1e-3);
-  float l = dot(dn, vec3(0.2126, 0.7152, 0.0722));
-  // mostly luminance detail; keep only a little of the photo's own hue so our calibrated palette rules
-  return mix(vec3(l), dn, 0.25) * mix(1.0, clamp(big, 0.6, 1.5), 0.35);
+// photo layer from the packed atlas: ch selects brick(0)/stone(1)/slate(2); luminance detail + packed normal
+float photoLayer(int ch, vec2 uv, float tile, out vec3 nrm, out float rough) {
+  vec4 a = texture2D(uDet, uv / tile), b = texture2D(uDet, mat2(0.8, 0.6, -0.6, 0.8) * uv / (tile * 3.7) + 0.31);
+  float d = ch == 0 ? a.r : ch == 1 ? a.g : a.b;
+  float db = ch == 0 ? b.r : ch == 1 ? b.g : b.b;
+  float m = ch == 0 ? uDetMean.x : ch == 1 ? uDetMean.y : uDetMean.z;
+  float l = pow(d, 2.2) / max(m, 1e-3), big = pow(db, 2.2) / max(m, 1e-3);
+  // slate has no normal sample (keeps the wall shader at <= 8 texture units)
+  vec4 nn = texture2D(uNrmA, uv / tile);
+  nrm = ch == 2 ? vec3(0.0, 0.0, 1.0) : unpackN(ch == 1 ? nn.ba : nn.rg);
+  rough = clamp(0.95 - 0.35 * l, 0.4, 1.0);
+  return l * mix(1.0, clamp(big, 0.6, 1.5), 0.35);
 }
 
 vec3 lin3(vec3 c) { return pow(c, vec3(2.2)); }
@@ -529,13 +531,13 @@ float boxAA(vec2 p, vec2 lo, vec2 hi, vec2 fw) {
   return a.x * a.y;
 }
 vec3 brickCol(int c) {
-  if (c == 0) return lin3(vec3(0.54, 0.29, 0.23));   // common red brick  ~#8a4a3a
-  if (c == 1) return lin3(vec3(0.50, 0.30, 0.24));
-  if (c == 2) return lin3(vec3(0.43, 0.23, 0.19));   // dark engineering-ish ~#6e3b30
-  if (c == 3) return lin3(vec3(0.58, 0.38, 0.28));   // buff-red
+  if (c == 0) return lin3(vec3(0.47, 0.28, 0.22));   // common Yorkshire brick ~#7a4535
+  if (c == 1) return lin3(vec3(0.45, 0.29, 0.23));
+  if (c == 2) return lin3(vec3(0.38, 0.23, 0.19));   // dark ~#613b30
+  if (c == 3) return lin3(vec3(0.52, 0.36, 0.28));   // buff-red
   if (c == 4) return lin3(vec3(0.55, 0.52, 0.46));   // weathered buff-grey gritstone
   if (c == 5) return lin3(vec3(0.44, 0.42, 0.38));   // sooty grey-brown gritstone
-  if (c == 8) return lin3(vec3(0.56, 0.28, 0.21));   // Victorian red brick
+  if (c == 8) return lin3(vec3(0.48, 0.27, 0.21));   // Victorian red brick
   if (c == 9) return lin3(vec3(0.60, 0.56, 0.48));   // weathered buff sandstone
   if (c == 10) return lin3(vec3(0.76, 0.74, 0.68));  // limewash / render
   if (c == 11) return lin3(vec3(0.52, 0.54, 0.55));  // painted grey render
@@ -586,7 +588,7 @@ void buildingSurface(vec3 w, vec3 Nw) {
       mortar = max(mortar, 1.0 - smoothstep(0.0, 0.14 + fw.y, min(f.y, 1.0 - f.y)));
       float aa = smoothstep(0.3, 0.9, max(fw.x, fw.y));
       float bh = hb(floor(bp.x) + row * 31.7 + seed);
-      vec3 bc = base * (0.84 + 0.24 * bh) * mix(vec3(1.0), vec3(0.92, 0.96, 1.02), step(0.86, bh)) * (0.92 + 0.14 * n4.r);
+      vec3 bc = base * (0.8 + 0.28 * bh) * mix(vec3(1.0), vec3(0.72, 0.72, 0.82), step(0.84, bh)) * mix(1.0, 0.68, step(0.93, hb(bh * 7.7))) * (0.9 + 0.16 * n4.r);
       vec3 mc = lin3(vec3(0.62, 0.58, 0.52));
       // keep a faint coursing even when individual bricks are sub-pixel
       float course = 0.5 + 0.5 * sin(hgt / 0.075 * 6.2831);
@@ -596,7 +598,7 @@ void buildingSurface(vec3 w, vec3 Nw) {
         float pf = 1.0 - smoothstep(30.0, 55.0, dist);
         if (pf > 0.0) {
           vec3 pn; float pr;
-          vec3 pd = photoLayer(uBrD, uBrN, uBrR, uBrMean, vec2(u + seed * 0.37, hgt), 1.5, pn, pr);
+          float pd = photoLayer(0, vec2(u + seed * 0.37, hgt), 1.5, pn, pr);
           col = mix(col, base * pd * 0.95, pf);
           bRough = mix(bRough, 0.6 + 0.4 * pr, pf);
           bBump *= 1.0 - pf; bPN = pn; bPF = pf; bPK = 1;
@@ -634,7 +636,7 @@ void buildingSurface(vec3 w, vec3 Nw) {
         float pf = 1.0 - smoothstep(30.0, 55.0, dist);
         if (pf > 0.0) {
           vec3 pn; float pr;
-          vec3 pd = photoLayer(uStD, uStN, uStR, uStMean, vec2(u + seed * 0.53, hgt), 1.2, pn, pr);
+          float pd = photoLayer(1, vec2(u + seed * 0.53, hgt), 1.2, pn, pr);
           col = mix(col, base * pd * mix(1.0, 0.7, soot * 0.45), pf);
           bRough = mix(bRough, 0.7 + 0.3 * pr, pf);
           bBump *= 1.0 - pf; bPN = pn; bPF = pf; bPK = 1;
@@ -977,7 +979,7 @@ void buildingSurface(vec3 w, vec3 Nw) {
       float pf = 1.0 - smoothstep(35.0, 60.0, dist);
       if (pf > 0.0) {
         vec3 pn; float pr;
-        vec3 pd = photoLayer(uSlD, uSlN, uSlR, uSlMean, vec2(ac, -down), 4.5, pn, pr);
+        float pd = photoLayer(2, vec2(ac, -down), 4.5, pn, pr);
         bAlb = mix(bAlb, rc * pd * mix(0.72, 1.0, smoothstep(0.0, 1.2, w.y - vW.w + 0.5)), pf);
         bPN = pn; bPF = pf; bPK = 2;
       }
