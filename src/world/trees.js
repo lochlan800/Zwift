@@ -769,11 +769,23 @@ export function createTrees(features, hf, opts) {
   // shadow caster: same card isotropy / sway as the visible material
   const depthMat = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map: leafTex, alphaTest: 0.42, side: THREE.DoubleSide });
   depthMat.customProgramCacheKey = () => 'hb-treesDepth';
+  const uMainCam = { value: new THREE.Vector3(1e9, 0, 0) };
   depthMat.onBeforeCompile = (shader) => {
-    Object.assign(shader.uniforms, { uTime: U.uTime, uWind: U.uWind });
+    Object.assign(shader.uniforms, { uTime: U.uTime, uWind: U.uWind, uMainCam, uRiderPos: U.uRiderPos });
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nattribute vec2 aT; attribute vec3 aC; attribute vec4 aTint; uniform float uTime; uniform vec2 uWind;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\n' + WIND_VERT);
+      .replace('#include <common>', '#include <common>\nattribute vec2 aT; attribute vec3 aC; attribute vec4 aTint; uniform float uTime; uniform vec2 uWind; varying vec3 vCW; varying float vCR;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\n' + WIND_VERT + '\n vCW = (modelMatrix * instanceMatrix * vec4(aC.x, ym, aC.z, 1.0)).xyz; vCR = sx;');
+    // no shadows from foliage right next to the camera or on the camera-to-rider line (they would speckle the rider / road)
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vCW; varying float vCR; uniform vec3 uMainCam; uniform vec3 uRiderPos;')
+      .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>
+        {
+          vec3 cv = vCW - uMainCam; float dc = length(cv);
+          vec3 cr = uRiderPos + vec3(0.0, 1.0, 0.0) - uMainCam; float Lr = length(cr); vec3 dr = cr / max(Lr, 1e-3);
+          float tq = dot(cv, dr);
+          if (dc < 9.0 + 0.3 * vCR) discard;
+          if (tq > 0.0 && tq < Lr - 1.0 && length(cv - dr * tq) < 2.6 + 0.45 * vCR) discard;
+        }`);
   };
 
   const MAXN = opts.maxNear;
@@ -963,6 +975,7 @@ export function createTrees(features, hf, opts) {
     group, count: N, farMaterial: farMat,
     setNearRadius(r) { uNear.value = r; uD0.value = Math.max(40, r * 0.5); last.set(1e9, 0, 0); },
     update(cam) {
+      uMainCam.value.copy(cam);
       const dx = cam.x - last.x, dz = cam.z - last.z;
       if (dx * dx + dz * dz > 36) { rebuild(cam); last.copy(cam); }
     },

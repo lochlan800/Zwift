@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { patchMaterial } from '../world/shared.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { tubeGeo, revolve } from './bodykit.js';   // shared helpers (also used by pedestrians)
 
 // Procedural road bike and rider (original design). Local frame: +z forward, +y up, +x = rider's left.
 // Draw calls for the rider: bike (1), wheels (2), body (1). The body is one linear-blend-skinned mesh
@@ -53,35 +54,6 @@ const xf = (g, p = [0, 0, 0], q = IDQ, s = ONE) => g.applyMatrix4(new THREE.Matr
 
 function ell(c, r, col, paint, seg = 14) {
   return finish(xf(new THREE.SphereGeometry(1, seg, seg >> 1), c, IDQ, r), col, paint);
-}
-
-// cylinder from a to b with radii r0 (at a) and r1 (at b)
-function tubeGeo(a, b, r0, r1 = r0, seg = 8) {
-  a = V(a); b = V(b);
-  const len = a.distanceTo(b);
-  const g = new THREE.CylinderGeometry(r1, r0, len, seg, 1, false).translate(0, len / 2, 0);
-  const q = new THREE.Quaternion().setFromUnitVectors(UP, new THREE.Vector3().subVectors(b, a).normalize());
-  return g.applyMatrix4(new THREE.Matrix4().compose(a, q, ONE));
-}
-
-// Body of revolution along +y from 0..len. rOf(u) gives the radius at u in [0,1]. Ends can be
-// rounded caps (capStart / capEnd) or left open where the limb joins its neighbour.
-function revolve(len, rOf, seg = 16, capStart = true, capEnd = true) {
-  const r0 = rOf(0), r1 = rOf(1), N = 5, M = 16, pts = [];
-  const yS = capStart ? r0 : 0, yE = capEnd ? len - r1 : len;
-  if (capStart) for (let k = 0; k <= N; k++) {
-    const t = -Math.PI / 2 + (k / N) * (Math.PI / 2);
-    pts.push(new THREE.Vector2(r0 * Math.cos(t), r0 + r0 * Math.sin(t)));
-  }
-  for (let k = 0; k <= M; k++) {
-    const y = yS + (k / M) * (yE - yS);
-    pts.push(new THREE.Vector2(rOf(Math.min(1, Math.max(0, y / len))), y));
-  }
-  if (capEnd) for (let k = 0; k <= N; k++) {
-    const t = (k / N) * (Math.PI / 2);
-    pts.push(new THREE.Vector2(r1 * Math.cos(t), len - r1 + r1 * Math.sin(t)));
-  }
-  return new THREE.LatheGeometry(pts, seg);
 }
 
 // toothed ring (chainring / cassette sprocket) in the plane normal to x, centred at (ax..ax+depth, cy, cz)
